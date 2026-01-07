@@ -1,0 +1,38 @@
+import {
+  BadgeCheck,
+  Building2,
+  ClipboardList,
+  Cog,
+  Folder,
+  LayoutDashboard,
+  LineChart,
+  ListChecks,
+  Package,
+  Settings,
+  Shield,
+  Store,
+  ToggleLeft,
+  UserCheck,
+  Users,
+  Workflow,
+} from "lucide-react";
+import type { IconName } from "@/lib/nav/nav";
+
+export const NAV_ICONS: Record<IconName, React.ComponentType<{ className?: string }>> = {
+  badgeCheck: BadgeCheck,
+  building2: Building2,
+  clipboardList: ClipboardList,
+  cog: Cog,
+  folder: Folder,
+  layoutDashboard: LayoutDashboard,
+  lineChart: LineChart,
+  listChecks: ListChecks,
+  package: Package,
+  settings: Settings,
+  shield: Shield,
+  store: Store,
+  toggleLeft: ToggleLeft,
+  userCheck: UserCheck,
+  users: Users,
+  workflow: Workflow,
+};

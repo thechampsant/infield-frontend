@@ -1,8 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Clean light theme inspired by the reference design */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --orca-surface: #ffffff;
+  --orca-surface-2: #f1f5f9;
+  --orca-surface-3: #e2e8f0;
+  --orca-border: #e2e8f0;
+  --orca-border-light: #f1f5f9;
+
+  --orca-brand: #3b82f6; /* Blue */
+  --orca-brand-light: #dbeafe;
+  --orca-brand-2: #22c55e; /* Green */
+  --orca-brand-2-light: #dcfce7;
+  --orca-brand-3: #f59e0b; /* Amber */
+  --orca-brand-3-light: #fef3c7;
+  --orca-brand-4: #ef4444; /* Red */
+  --orca-brand-4-light: #fee2e2;
+
+  --orca-text: #0f172a;
+  --orca-text-2: #475569;
+  --orca-text-3: #94a3b8;
 }
 
 @theme inline {
@@ -12,15 +32,39 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root.dark {
+  /* Dark theme */
+  --background: #0a0f1c;
+  --foreground: #f1f5f9;
+
+  --orca-surface: #111827;
+  --orca-surface-2: #1e293b;
+  --orca-surface-3: #334155;
+  --orca-border: #334155;
+  --orca-border-light: #1e293b;
+
+  --orca-brand: #60a5fa;
+  --orca-brand-light: rgba(59, 130, 246, 0.15);
+  --orca-brand-2: #4ade80;
+  --orca-brand-2-light: rgba(34, 197, 94, 0.15);
+  --orca-brand-3: #fbbf24;
+  --orca-brand-3-light: rgba(245, 158, 11, 0.15);
+  --orca-brand-4: #f87171;
+  --orca-brand-4-light: rgba(239, 68, 68, 0.15);
+
+  --orca-text: #f1f5f9;
+  --orca-text-2: #94a3b8;
+  --orca-text-3: #64748b;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  transition: background 200ms ease, color 200ms ease;
+}
+
+/* Smooth transitions for theme switch */
+*, *::before, *::after {
+  transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
 }

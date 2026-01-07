@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/SuperAdmin.jpeg
+/ProjectAdmin.jpeg
+/AccountAdmin.jpeg
+/prd.pdf
