@@ -5,10 +5,10 @@ import {
   Building2,
   Download,
   Eye,
-  Folder,
   Pencil,
   Plus,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,23 +16,26 @@ import { StatusPill } from "@/components/ui/pill";
 import { Badge } from "@/components/ui/pill";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ProjectFormModal } from "@/components/projects/project-form-modal";
-import { ProjectDetailsModal } from "@/components/projects/project-details-modal";
+import { AccountFormModal } from "@/components/accounts/account-form-modal";
+import { AccountDetailsModal } from "@/components/accounts/account-details-modal";
 import { getAdminApi } from "@/lib/api";
 import { exportToCsv } from "@/lib/utils/export-csv";
 import type {
   Account,
-  Project,
-  CreateProjectDto,
-  UpdateProjectDto,
+  CreateAccountDto,
+  Paginated,
+  UpdateAccountDto,
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 
-export default function ProjectsPage() {
+export default function AccountsPage() {
   // State
-  const [projects, setProjects] = useState<Project[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccountCode, setSelectedAccountCode] = useState<string>("");
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,87 +45,67 @@ export default function ProjectsPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch accounts first
-  const fetchAccounts = useCallback(async () => {
-    try {
-      const api = getAdminApi();
-      const response = await api.listAccounts({ pageSize: 100 });
-      setAccounts(response.items);
-      if (response.items.length > 0 && !selectedAccountCode) {
-        setSelectedAccountCode(response.items[0].code);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch accounts");
-    }
-  }, [selectedAccountCode]);
-
-  // Fetch projects for selected account
-  const fetchProjects = useCallback(async (accountCode: string) => {
-    if (!accountCode) return;
+  // Fetch accounts
+  const fetchAccounts = useCallback(async (page: number, pageSize: number) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const api = getAdminApi();
-      const response = await api.listProjects(accountCode, { pageSize: 100 });
-      setProjects(response.items);
+      const response: Paginated<Account> = await api.listAccounts({
+        page,
+        pageSize,
+      });
+
+      setAccounts(response.items);
+      setPagination({
+        page: response.page,
+        pageSize: response.pageSize,
+        total: response.total,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch projects");
-      setProjects([]);
+      setError(err instanceof Error ? err.message : "Failed to fetch accounts");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchAccounts();
+    fetchAccounts(1, 10);
   }, [fetchAccounts]);
 
-  useEffect(() => {
-    if (selectedAccountCode) {
-      fetchProjects(selectedAccountCode);
-    }
-  }, [selectedAccountCode, fetchProjects]);
-
-  // Get selected account object
-  const selectedAccount = accounts.find((a) => a.code === selectedAccountCode);
-
   // CRUD handlers
-  async function handleCreateOrUpdate(data: CreateProjectDto | UpdateProjectDto) {
+  async function handleCreateOrUpdate(data: CreateAccountDto | UpdateAccountDto) {
     setIsSubmitting(true);
     try {
       const api = getAdminApi();
-      if (selectedProject) {
-        await api.updateProject(selectedProject.id, data as UpdateProjectDto);
+      if (selectedAccount) {
+        await api.updateAccount(selectedAccount.id, data as UpdateAccountDto);
       } else {
-        await api.createProject(data as CreateProjectDto);
+        await api.createAccount(data as CreateAccountDto);
       }
       setIsFormModalOpen(false);
-      setSelectedProject(null);
-      if (selectedAccountCode) {
-        fetchProjects(selectedAccountCode);
-      }
+      setSelectedAccount(null);
+      fetchAccounts(pagination.page, pagination.pageSize);
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function handleDelete() {
-    if (!selectedProject) return;
+    if (!selectedAccount) return;
     setIsSubmitting(true);
     try {
       const api = getAdminApi();
-      await api.deleteProject(selectedProject.id);
+      await api.deleteAccount(selectedAccount.id);
       setIsDeleteDialogOpen(false);
-      setSelectedProject(null);
-      if (selectedAccountCode) {
-        fetchProjects(selectedAccountCode);
-      }
+      setSelectedAccount(null);
+      fetchAccounts(pagination.page, pagination.pageSize);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete project");
+      setError(err instanceof Error ? err.message : "Failed to delete account");
     } finally {
       setIsSubmitting(false);
     }
@@ -130,49 +113,59 @@ export default function ProjectsPage() {
 
   function handleExport() {
     exportToCsv({
-      data: filteredProjects,
+      data: filteredAccounts,
       columns: [
-        { key: "name", header: "Project Name" },
-        { key: "code", header: "Project Code" },
-        { key: "accountCode", header: "Account Code" },
-        { key: "projectAdminEmail", header: "Admin Email" },
+        { key: "name", header: "Account Name" },
+        { key: "code", header: "Account Code" },
+        { key: "primaryAdminEmail", header: "Admin Email" },
+        { key: "projectsActiveCount", header: "Active Projects" },
         { key: "status", header: "Status" },
+        { key: "createdAtIso", header: "Created Date" },
       ],
-      filename: "projects_export",
+      filename: "accounts_export",
     });
   }
 
-  // Filter projects
-  const filteredProjects = projects.filter((p) => {
+  // Filter accounts
+  const filteredAccounts = accounts.filter((a) => {
     const matchesSearch =
       !searchQuery ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "All" || p.status === statusFilter;
+      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.primaryAdminEmail.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "All" || a.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination
+  const startItem = (pagination.page - 1) * pagination.pageSize + 1;
+  const endItem = Math.min(pagination.page * pagination.pageSize, pagination.total);
+  const totalPages = Math.ceil(pagination.total / pagination.pageSize);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Projects"
-        description="Manage all projects across accounts"
+        title="Accounts"
+        description="Manage all organizational accounts"
         actions={
           <>
-            <Button variant="secondary" onClick={handleExport} disabled={projects.length === 0}>
+            <Button variant="secondary" onClick={handleExport}>
               <Download className="h-4 w-4" />
               Export
+            </Button>
+            <Button variant="secondary" disabled>
+              <Upload className="h-4 w-4" />
+              Bulk Upload
             </Button>
             <Button
               variant="primary"
               onClick={() => {
-                setSelectedProject(null);
+                setSelectedAccount(null);
                 setIsFormModalOpen(true);
               }}
-              disabled={accounts.length === 0}
             >
               <Plus className="h-4 w-4" />
-              Create Project
+              Create Account
             </Button>
           </>
         }
@@ -182,7 +175,7 @@ export default function ProjectsPage() {
         <div className="rounded-lg border border-[var(--orca-brand-4)]/30 bg-[var(--orca-brand-4-light)] px-4 py-3 text-sm text-[var(--orca-brand-4)]">
           {error}
           <button
-            onClick={() => selectedAccountCode && fetchProjects(selectedAccountCode)}
+            onClick={() => fetchAccounts(pagination.page, pagination.pageSize)}
             className="ml-2 underline hover:no-underline"
           >
             Retry
@@ -190,48 +183,13 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Account Selector */}
-      <div className="flex items-center gap-4 rounded-lg border border-[var(--orca-border)] bg-[var(--orca-surface)] p-4">
-        <Building2 className="h-5 w-5 text-[var(--orca-text-3)]" />
-        <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-[var(--orca-text-3)]">
-            Select Account
-          </label>
-          <select
-            value={selectedAccountCode}
-            onChange={(e) => setSelectedAccountCode(e.target.value)}
-            className="h-9 w-full max-w-xs rounded-lg border border-[var(--orca-border)] bg-[var(--orca-surface)] px-3 text-sm text-[var(--orca-text)]"
-          >
-            {accounts.length === 0 ? (
-              <option value="">No accounts available</option>
-            ) : (
-              accounts.map((account) => (
-                <option key={account.id || account.code} value={account.code}>
-                  {account.name} ({account.code})
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-        {selectedAccount && (
-          <div className="text-right">
-            <div className="text-sm font-medium text-[var(--orca-text)]">
-              {projects.length} Projects
-            </div>
-            <div className="text-xs text-[var(--orca-text-3)]">
-              in {selectedAccount.name}
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Table */}
       <div className="rounded-xl border border-[var(--orca-border)] bg-[var(--orca-surface)]">
         <div className="flex flex-col gap-4 border-b border-[var(--orca-border)] p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
               <Input
-                placeholder="Search projects..."
+                placeholder="Search accounts..."
                 className="w-[240px] pl-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -260,6 +218,9 @@ export default function ProjectsPage() {
               <option value="Inactive">Inactive</option>
             </select>
           </div>
+          <div className="text-sm text-[var(--orca-text-3)]">
+            {filteredAccounts.length} accounts
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -267,19 +228,19 @@ export default function ProjectsPage() {
             <thead>
               <tr className="border-b border-[var(--orca-border)]">
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
-                  Project Name
+                  Account Name
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
-                  Project Code
+                  Account Code
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
-                  Admin Email
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
-                  Modules
+                  Projects
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
                   Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
+                  Created
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
                   Actions
@@ -292,63 +253,48 @@ export default function ProjectsPage() {
                   <td colSpan={6} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--orca-surface-3)] border-t-[var(--orca-brand)]" />
-                      <span className="text-sm text-[var(--orca-text-3)]">Loading projects...</span>
+                      <span className="text-sm text-[var(--orca-text-3)]">Loading...</span>
                     </div>
                   </td>
                 </tr>
-              ) : !selectedAccountCode ? (
-                <tr key="no-account">
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-[var(--orca-text-3)]">
-                    Please select an account to view projects
-                  </td>
-                </tr>
-              ) : filteredProjects.length === 0 ? (
+              ) : filteredAccounts.length === 0 ? (
                 <tr key="empty">
                   <td colSpan={6} className="px-4 py-12 text-center text-sm text-[var(--orca-text-3)]">
-                    No projects found
+                    No accounts found
                   </td>
                 </tr>
               ) : (
-                filteredProjects.map((project, index) => (
+                filteredAccounts.map((account, index) => (
                   <tr
-                    key={project.id || `project-${index}`}
+                    key={account.id || `account-${index}`}
                     className="border-b border-[var(--orca-border-light)] last:border-b-0 hover:bg-[var(--orca-surface-2)] transition-colors"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--orca-brand-light)] text-[var(--orca-brand)]">
-                          <Folder className="h-4 w-4" />
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--orca-brand-4-light)] text-[var(--orca-brand-4)]">
+                          <Building2 className="h-4 w-4" />
                         </div>
                         <div>
-                          <div className="font-medium text-[var(--orca-text)]">{project.name}</div>
-                          {project.regionLabel && (
-                            <div className="text-xs text-[var(--orca-text-3)]">{project.regionLabel}</div>
-                          )}
+                          <div className="font-medium text-[var(--orca-text)]">{account.name}</div>
+                          <div className="text-xs text-[var(--orca-text-3)]">{account.primaryAdminEmail}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-mono text-sm text-[var(--orca-text-2)]">{project.code}</span>
+                      <span className="font-mono text-sm text-[var(--orca-text-2)]">{account.code}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="blue">{account.projectsActiveCount} Projects</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill status={account.status === "Active" ? "active" : "inactive"} />
                     </td>
                     <td className="px-4 py-3 text-[var(--orca-text-2)]">
-                      {project.projectAdminEmail || "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {project.modulesActive.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {project.modulesActive.slice(0, 2).map((mod) => (
-                            <Badge key={mod} variant="gray">{mod}</Badge>
-                          ))}
-                          {project.modulesActive.length > 2 && (
-                            <Badge variant="gray">+{project.modulesActive.length - 2}</Badge>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-[var(--orca-text-3)]">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill status={project.status === "Active" ? "active" : "inactive"} />
+                      {new Date(account.createdAtIso).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -356,7 +302,7 @@ export default function ProjectsPage() {
                           icon={Eye}
                           label="View"
                           onClick={() => {
-                            setSelectedProject(project);
+                            setSelectedAccount(account);
                             setIsDetailsModalOpen(true);
                           }}
                         />
@@ -364,7 +310,7 @@ export default function ProjectsPage() {
                           icon={Pencil}
                           label="Edit"
                           onClick={() => {
-                            setSelectedProject(project);
+                            setSelectedAccount(account);
                             setIsFormModalOpen(true);
                           }}
                         />
@@ -373,7 +319,7 @@ export default function ProjectsPage() {
                           label="Delete"
                           variant="danger"
                           onClick={() => {
-                            setSelectedProject(project);
+                            setSelectedAccount(account);
                             setIsDeleteDialogOpen(true);
                           }}
                         />
@@ -385,30 +331,61 @@ export default function ProjectsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        <div className="flex flex-col items-center justify-between gap-4 border-t border-[var(--orca-border)] px-5 py-4 sm:flex-row">
+          <div className="flex items-center gap-2 text-sm text-[var(--orca-text-3)]">
+            <span>Show</span>
+            <select
+              value={pagination.pageSize}
+              onChange={(e) => fetchAccounts(1, Number(e.target.value))}
+              className="h-8 rounded-lg border border-[var(--orca-border)] bg-[var(--orca-surface)] px-2 text-sm text-[var(--orca-text)]"
+            >
+              {[10, 25, 50].map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            <span>entries</span>
+          </div>
+          <div className="text-sm text-[var(--orca-text-3)]">
+            Showing {pagination.total > 0 ? startItem : 0} to {endItem} of {pagination.total}
+          </div>
+          <div className="flex items-center gap-1">
+            <PaginationBtn disabled={pagination.page <= 1} onClick={() => fetchAccounts(pagination.page - 1, pagination.pageSize)}>
+              Previous
+            </PaginationBtn>
+            {Array.from({ length: Math.min(3, totalPages) }, (_, i) => i + 1).map((num) => (
+              <PaginationBtn key={num} active={pagination.page === num} onClick={() => fetchAccounts(num, pagination.pageSize)}>
+                {num}
+              </PaginationBtn>
+            ))}
+            <PaginationBtn disabled={pagination.page >= totalPages} onClick={() => fetchAccounts(pagination.page + 1, pagination.pageSize)}>
+              Next
+            </PaginationBtn>
+          </div>
+        </div>
       </div>
 
       {/* Modals */}
-      <ProjectFormModal
+      <AccountFormModal
         isOpen={isFormModalOpen}
-        onClose={() => { setIsFormModalOpen(false); setSelectedProject(null); }}
+        onClose={() => { setIsFormModalOpen(false); setSelectedAccount(null); }}
         onSubmit={handleCreateOrUpdate}
-        project={selectedProject}
-        accounts={accounts}
-        selectedAccountId={selectedAccount?.id}
+        account={selectedAccount}
         isLoading={isSubmitting}
       />
-      <ProjectDetailsModal
+      <AccountDetailsModal
         isOpen={isDetailsModalOpen}
-        onClose={() => { setIsDetailsModalOpen(false); setSelectedProject(null); }}
-        project={selectedProject}
+        onClose={() => { setIsDetailsModalOpen(false); setSelectedAccount(null); }}
+        account={selectedAccount}
         onEdit={() => { setIsDetailsModalOpen(false); setIsFormModalOpen(true); }}
       />
       <ConfirmDialog
         isOpen={isDeleteDialogOpen}
-        onClose={() => { setIsDeleteDialogOpen(false); setSelectedProject(null); }}
+        onClose={() => { setIsDeleteDialogOpen(false); setSelectedAccount(null); }}
         onConfirm={handleDelete}
-        title="Delete Project"
-        message={`Are you sure you want to delete "${selectedProject?.name}"? This action cannot be undone.`}
+        title="Delete Account"
+        message={`Are you sure you want to delete "${selectedAccount?.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
         variant="danger"
         isLoading={isSubmitting}
@@ -438,3 +415,26 @@ function ActionButton({ icon: Icon, label, variant = "default", onClick }: {
     </button>
   );
 }
+
+function PaginationBtn({ children, active, disabled, onClick }: {
+  children: React.ReactNode;
+  active?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-3 text-sm font-medium transition-colors",
+        active ? "bg-[var(--orca-brand)] text-white" : "text-[var(--orca-text-2)] hover:bg-[var(--orca-surface-2)]",
+        disabled && "pointer-events-none opacity-50"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
