@@ -18,8 +18,10 @@ export type DataTableProps<T> = {
     onPageChange?: (page: number) => void;
     onPageSizeChange?: (size: number) => void;
   };
+  isLoading?: boolean;
   onSearch?: (query: string) => void;
   onFilter?: () => void;
+  onPageChange?: (page: number) => void;
   className?: string;
 };
 
@@ -38,10 +40,14 @@ export function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   pagination,
+  isLoading,
   onSearch,
   onFilter,
+  onPageChange,
   className,
 }: DataTableProps<T>) {
+  // Use onPageChange prop if provided, otherwise use pagination.onPageChange
+  const handlePageChange = onPageChange ?? pagination?.onPageChange;
   const startItem = pagination ? (pagination.page - 1) * pagination.pageSize + 1 : 1;
   const endItem = pagination
     ? Math.min(pagination.page * pagination.pageSize, pagination.total)
@@ -119,34 +125,59 @@ export function DataTable<T extends Record<string, unknown>>({
             </tr>
           </thead>
           <tbody>
-            {data.map((row, rowIdx) => (
-              <tr
-                key={rowIdx}
-                className="border-b border-[var(--orca-border-light)] last:border-b-0 hover:bg-[var(--orca-surface-2)] transition-colors"
-              >
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-[var(--orca-border)] text-[var(--orca-brand)]"
-                  />
-                </td>
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
-                    className={cn("px-4 py-3 text-[var(--orca-text)]", col.className)}
-                  >
-                    {col.render ? col.render(row) : String(row[col.key] ?? "")}
-                  </td>
-                ))}
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <ActionButton icon={Eye} label="View" />
-                    <ActionButton icon={Pencil} label="Edit" />
-                    <ActionButton icon={Trash2} label="Delete" variant="danger" />
+            {isLoading ? (
+              <tr>
+                <td
+                  colSpan={columns.length + 2}
+                  className="px-4 py-12 text-center"
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--orca-surface-3)] border-t-[var(--orca-brand)]" />
+                    <span className="text-sm text-[var(--orca-text-3)]">
+                      Loading...
+                    </span>
                   </div>
                 </td>
               </tr>
-            ))}
+            ) : data.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length + 2}
+                  className="px-4 py-12 text-center text-sm text-[var(--orca-text-3)]"
+                >
+                  No data found
+                </td>
+              </tr>
+            ) : (
+              data.map((row, rowIdx) => (
+                <tr
+                  key={rowIdx}
+                  className="border-b border-[var(--orca-border-light)] last:border-b-0 hover:bg-[var(--orca-surface-2)] transition-colors"
+                >
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-[var(--orca-border)] text-[var(--orca-brand)]"
+                    />
+                  </td>
+                  {columns.map((col) => (
+                    <td
+                      key={col.key}
+                      className={cn("px-4 py-3 text-[var(--orca-text)]", col.className)}
+                    >
+                      {col.render ? col.render(row) : String(row[col.key] ?? "")}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <ActionButton icon={Eye} label="View" />
+                      <ActionButton icon={Pencil} label="Edit" />
+                      <ActionButton icon={Trash2} label="Delete" variant="danger" />
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -177,7 +208,7 @@ export function DataTable<T extends Record<string, unknown>>({
           <div className="flex items-center gap-1">
             <PaginationBtn
               disabled={pagination.page <= 1}
-              onClick={() => pagination.onPageChange?.(pagination.page - 1)}
+              onClick={() => handlePageChange?.(pagination.page - 1)}
             >
               Previous
             </PaginationBtn>
@@ -187,7 +218,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <PaginationBtn
                   key={pageNum}
                   active={pagination.page === pageNum}
-                  onClick={() => pagination.onPageChange?.(pageNum)}
+                  onClick={() => handlePageChange?.(pageNum)}
                 >
                   {pageNum}
                 </PaginationBtn>
@@ -195,7 +226,7 @@ export function DataTable<T extends Record<string, unknown>>({
             })}
             <PaginationBtn
               disabled={pagination.page >= totalPages}
-              onClick={() => pagination.onPageChange?.(pagination.page + 1)}
+              onClick={() => handlePageChange?.(pagination.page + 1)}
             >
               Next
             </PaginationBtn>

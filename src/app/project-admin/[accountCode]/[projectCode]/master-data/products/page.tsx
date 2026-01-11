@@ -1,14 +1,12 @@
-import { Card, CardContent } from "@/components/ui/card";
+"use client";
 
-export default function ProductsPage() {
+import { ComingSoon } from "@/components/ui/coming-soon";
+
+export default function ProductsMasterPage() {
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="text-lg font-semibold text-slate-900">Products</div>
-        <div className="mt-1 text-sm text-slate-500">Stub page.</div>
-      </CardContent>
-    </Card>
+    <ComingSoon
+      title="Products Master"
+      description="Manage product catalog, SKUs, and categories. Products API is under development."
+    />
   );
 }
-
-

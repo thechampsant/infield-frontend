@@ -1,0 +1,710 @@
+{
+    "openapi": "3.0.0",
+    "paths": {
+        "/api/v1": {
+            "get": {
+                "operationId": "HealthController_health",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                },
+                "tags": [
+                    "Health"
+                ]
+            }
+        },
+        "/api/v1/auth/login": {
+            "post": {
+                "description": "Authenticate with email and password. Returns JWT token for API access.",
+                "operationId": "AuthController_login",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LoginResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials"
+                    }
+                },
+                "summary": "Login to get access token",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "operationId": "AuthController_logout",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Logged out successfully"
+                    }
+                },
+                "summary": "Logout and clear cookie",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/api/v1/accounts": {
+            "post": {
+                "operationId": "AccountController_create",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateAccountDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Account created successfully"
+                    },
+                    "409": {
+                        "description": "Account with email already exists"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Create a new account",
+                "tags": [
+                    "Accounts"
+                ]
+            },
+            "get": {
+                "operationId": "AccountController_findAll",
+                "parameters": [
+                    {
+                        "name": "pageSize",
+                        "required": false,
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "required": false,
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of accounts"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get all accounts with pagination",
+                "tags": [
+                    "Accounts"
+                ]
+            }
+        },
+        "/api/v1/accounts/{id}": {
+            "get": {
+                "operationId": "AccountController_findById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Account ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Account details"
+                    },
+                    "404": {
+                        "description": "Account not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get account by ID",
+                "tags": [
+                    "Accounts"
+                ]
+            },
+            "put": {
+                "operationId": "AccountController_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Account ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateAccountDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Account updated successfully"
+                    },
+                    "404": {
+                        "description": "Account not found"
+                    },
+                    "409": {
+                        "description": "Email conflict"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Update an account",
+                "tags": [
+                    "Accounts"
+                ]
+            },
+            "delete": {
+                "operationId": "AccountController_delete",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Account ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Account deleted successfully"
+                    },
+                    "404": {
+                        "description": "Account not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Soft delete an account",
+                "tags": [
+                    "Accounts"
+                ]
+            }
+        },
+        "/api/v1/accounts/code/{accountCode}": {
+            "get": {
+                "operationId": "AccountController_findByAccountCode",
+                "parameters": [
+                    {
+                        "name": "accountCode",
+                        "required": true,
+                        "in": "path",
+                        "description": "Account code (e.g., ACC-000001)",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Account details"
+                    },
+                    "404": {
+                        "description": "Account not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get account by account code",
+                "tags": [
+                    "Accounts"
+                ]
+            }
+        },
+        "/api/v1/accounts/export/all": {
+            "get": {
+                "operationId": "AccountController_exportAll",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "All accounts for export"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Export all accounts (includes inactive)",
+                "tags": [
+                    "Accounts"
+                ]
+            }
+        },
+        "/api/v1/projects": {
+            "post": {
+                "operationId": "ProjectController_create",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateProjectDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Project created successfully"
+                    },
+                    "404": {
+                        "description": "Account not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Create a new project",
+                "tags": [
+                    "Projects"
+                ]
+            },
+            "get": {
+                "operationId": "ProjectController_findAll",
+                "parameters": [
+                    {
+                        "name": "accountId",
+                        "required": false,
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "required": false,
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "required": false,
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of projects"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get all projects with pagination",
+                "tags": [
+                    "Projects"
+                ]
+            }
+        },
+        "/api/v1/projects/{id}": {
+            "get": {
+                "operationId": "ProjectController_findById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Project ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Project details"
+                    },
+                    "404": {
+                        "description": "Project not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get project by ID",
+                "tags": [
+                    "Projects"
+                ]
+            },
+            "put": {
+                "operationId": "ProjectController_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Project ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Project updated successfully"
+                    },
+                    "404": {
+                        "description": "Project not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Update a project",
+                "tags": [
+                    "Projects"
+                ]
+            },
+            "delete": {
+                "operationId": "ProjectController_delete",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Project ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Project deleted successfully"
+                    },
+                    "404": {
+                        "description": "Project not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Soft delete a project",
+                "tags": [
+                    "Projects"
+                ]
+            }
+        },
+        "/api/v1/projects/code/{projectCode}": {
+            "get": {
+                "operationId": "ProjectController_findByProjectCode",
+                "parameters": [
+                    {
+                        "name": "projectCode",
+                        "required": true,
+                        "in": "path",
+                        "description": "Project code (e.g., PRJ-000001)",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Project details"
+                    },
+                    "404": {
+                        "description": "Project not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get project by project code",
+                "tags": [
+                    "Projects"
+                ]
+            }
+        },
+        "/api/v1/projects/export/all": {
+            "get": {
+                "operationId": "ProjectController_exportAll",
+                "parameters": [
+                    {
+                        "name": "accountId",
+                        "required": false,
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "All projects for export"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Export all projects (includes inactive)",
+                "tags": [
+                    "Projects"
+                ]
+            }
+        }
+    },
+    "info": {
+        "title": "Infield Core API",
+        "description": "Admin, Account & Project Configuration Platform",
+        "version": "1.0",
+        "contact": {}
+    },
+    "tags": [],
+    "servers": [],
+    "components": {
+        "securitySchemes": {
+            "bearer": {
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "type": "http"
+            },
+            "cookie": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "Authentication"
+            }
+        },
+        "schemas": {
+            "LoginDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "superadmin@whynest.com",
+                        "description": "User email"
+                    },
+                    "password": {
+                        "type": "string",
+                        "example": "SuperAdmin@123",
+                        "description": "User password"
+                    }
+                },
+                "required": [
+                    "email",
+                    "password"
+                ]
+            },
+            "LoginResponseDto": {
+                "type": "object",
+                "properties": {
+                    "accessToken": {
+                        "type": "string",
+                        "description": "JWT access token"
+                    },
+                    "user": {
+                        "type": "object",
+                        "description": "User information"
+                    }
+                },
+                "required": [
+                    "accessToken",
+                    "user"
+                ]
+            },
+            "CreateAccountDto": {
+                "type": "object",
+                "properties": {
+                    "accountName": {
+                        "type": "string",
+                        "description": "Display name of the account",
+                        "example": "Acme Corporation"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Primary contact email for the account",
+                        "example": "admin@acme.com"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Account status",
+                        "enum": [
+                            "ACTIVE",
+                            "INACTIVE"
+                        ],
+                        "default": "ACTIVE"
+                    }
+                },
+                "required": [
+                    "accountName",
+                    "email"
+                ]
+            },
+            "UpdateAccountDto": {
+                "type": "object",
+                "properties": {
+                    "accountName": {
+                        "type": "string",
+                        "description": "Display name of the account",
+                        "example": "Acme Corporation Updated"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Primary contact email for the account",
+                        "example": "newadmin@acme.com"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Account status",
+                        "enum": [
+                            "ACTIVE",
+                            "INACTIVE"
+                        ]
+                    }
+                }
+            },
+            "CreateProjectDto": {
+                "type": "object",
+                "properties": {
+                    "accountId": {
+                        "type": "string",
+                        "description": "ID of the parent account",
+                        "example": "507f1f77bcf86cd799439011"
+                    },
+                    "projectName": {
+                        "type": "string",
+                        "description": "Display name of the project",
+                        "example": "Mumbai Operations"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Primary contact email for the project",
+                        "example": "mumbai@acme.com"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Project status",
+                        "enum": [
+                            "ACTIVE",
+                            "INACTIVE"
+                        ],
+                        "default": "ACTIVE"
+                    }
+                },
+                "required": [
+                    "accountId",
+                    "projectName",
+                    "email"
+                ]
+            },
+            "UpdateProjectDto": {
+                "type": "object",
+                "properties": {
+                    "projectName": {
+                        "type": "string",
+                        "description": "Display name of the project",
+                        "example": "Mumbai Operations Updated"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Primary contact email for the project",
+                        "example": "newmumbai@acme.com"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Project status",
+                        "enum": [
+                            "ACTIVE",
+                            "INACTIVE"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}

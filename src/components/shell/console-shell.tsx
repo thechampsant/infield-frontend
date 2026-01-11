@@ -1,9 +1,15 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Sidebar, type UserInfo } from "@/components/shell/sidebar";
+import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar, type BreadcrumbItem } from "@/components/shell/topbar";
 import type { NavSection } from "@/lib/nav/nav";
+
+interface UserProps {
+  name: string;
+  role: string;
+  avatar?: string;
+}
 
 export function ConsoleShell({
   brandTitle,
@@ -13,6 +19,7 @@ export function ConsoleShell({
   breadcrumbs,
   projectSelector,
   user,
+  onLogout,
   children,
   topbarRightSlot,
 }: {
@@ -26,7 +33,8 @@ export function ConsoleShell({
     options?: { label: string; value: string }[];
     onChange?: (value: string) => void;
   };
-  user?: UserInfo;
+  user?: UserProps;
+  onLogout?: () => void;
   topbarRightSlot?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -40,7 +48,7 @@ export function ConsoleShell({
         brandIcon={brandIcon}
         sections={sections}
         activePath={pathname}
-        user={user}
+        user={user ? { ...user, onLogout } : undefined}
       />
       <div className="min-w-0 flex-1 flex flex-col">
         <Topbar

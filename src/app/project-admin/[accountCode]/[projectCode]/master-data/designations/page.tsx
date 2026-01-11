@@ -1,14 +1,12 @@
-import { Card, CardContent } from "@/components/ui/card";
+"use client";
 
-export default function DesignationsPage() {
+import { ComingSoon } from "@/components/ui/coming-soon";
+
+export default function DesignationsMasterPage() {
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="text-lg font-semibold text-slate-900">Designations</div>
-        <div className="mt-1 text-sm text-slate-500">Stub page.</div>
-      </CardContent>
-    </Card>
+    <ComingSoon
+      title="Designations Master"
+      description="Define job titles, roles, and hierarchy levels. Designations API is under development."
+    />
   );
 }
-
-

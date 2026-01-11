@@ -1,14 +1,12 @@
-import { Card, CardContent } from "@/components/ui/card";
+"use client";
+
+import { ComingSoon } from "@/components/ui/coming-soon";
 
 export default function SuperAdminGlobalSettingsPage() {
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="text-lg font-semibold text-slate-900">Global Settings</div>
-        <div className="mt-1 text-sm text-slate-500">Stub page.</div>
-      </CardContent>
-    </Card>
+    <ComingSoon
+      title="Global Settings"
+      description="Configure platform-wide settings, default configurations, and system preferences. This feature is under development."
+    />
   );
 }
-
-
