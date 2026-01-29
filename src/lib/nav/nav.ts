@@ -40,9 +40,9 @@ export const superAdminNav: NavSection[] = [
   {
     title: "Configuration",
     items: [
-      { label: "Users Master", href: "/super-admin/users-master", icon: "users" },
       { label: "Roles", href: "/super-admin/roles", icon: "shield" },
       { label: "Designations", href: "/super-admin/designations", icon: "badgeCheck" },
+      { label: "Users Master", href: "/super-admin/users-master", icon: "users" },
       { label: "Stores", href: "/super-admin/stores", icon: "store" },
       { label: "Products", href: "/super-admin/products", icon: "package" },
     ],
