@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback, use } from "react";
 import {
-  BadgeCheck,
   Download,
   Eye,
   Pencil,
   Plus,
+  Shield,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,13 @@ import { StatusPill } from "@/components/ui/pill";
 import { Badge } from "@/components/ui/pill";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { DesignationFormModal, DesignationDetailsModal } from "@/components/designations";
+import { RoleFormModal, RoleDetailsModal } from "@/components/roles";
 import { getRoleDesignationApi, getAdminApi } from "@/lib/api";
 import { exportToCsv } from "@/lib/utils/export-csv";
-import type {
-  Designation,
-  Role,
-  CreateDesignationDto,
-  UpdateDesignationDto,
-} from "@/lib/api/types";
+import type { Role, CreateRoleDto, UpdateRoleDto } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 
-export default function DesignationsPage({
+export default function RolesPage({
   params,
 }: {
   params: Promise<{ accountCode: string; projectCode: string }>;
@@ -34,19 +29,17 @@ export default function DesignationsPage({
   const { accountCode, projectCode } = use(params);
 
   // State
-  const [designations, setDesignations] = useState<Designation[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [accessFilter, setAccessFilter] = useState<"All" | "WEB" | "MOBILE" | "BOTH">("All");
 
   // Modal states
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedDesignation, setSelectedDesignation] = useState<Designation | null>(null);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get project ID from project code
@@ -62,8 +55,8 @@ export default function DesignationsPage({
     }
   }, [projectCode]);
 
-  // Fetch designations and roles
-  const fetchData = useCallback(async () => {
+  // Fetch roles
+  const fetchRoles = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -75,69 +68,52 @@ export default function DesignationsPage({
       }
 
       const api = getRoleDesignationApi();
-      
-      // Fetch both roles and designations in parallel
-      const [rolesResponse, designationsResponse] = await Promise.all([
-        api.getRolesByProject(id),
-        api.getDesignationsByProject(id),
-      ]);
-
-      setRoles(rolesResponse);
-      
-      // Enrich designations with role names
-      const enrichedDesignations = designationsResponse.map((des) => {
-        const role = rolesResponse.find((r) => r.id === des.roleId);
-        return {
-          ...des,
-          roleName: role?.roleName || des.roleName || "Unknown",
-        };
-      });
-      
-      setDesignations(enrichedDesignations);
+      const response = await api.getRolesByProject(id);
+      setRoles(response);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
+      setError(err instanceof Error ? err.message : "Failed to fetch roles");
     } finally {
       setIsLoading(false);
     }
   }, [projectId, getProjectId]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchRoles();
+  }, [fetchRoles]);
 
   // CRUD handlers
-  async function handleCreateOrUpdate(data: CreateDesignationDto | UpdateDesignationDto) {
+  async function handleCreateOrUpdate(data: CreateRoleDto | UpdateRoleDto) {
     setIsSubmitting(true);
     try {
       const api = getRoleDesignationApi();
-      if (selectedDesignation) {
-        // Update existing designation
-        await api.updateDesignations([data as UpdateDesignationDto]);
+      if (selectedRole) {
+        // Update existing role
+        await api.updateRoles([data as UpdateRoleDto]);
       } else {
-        // Create new designation
-        await api.createDesignations([data as CreateDesignationDto]);
+        // Create new role
+        await api.createRoles([data as CreateRoleDto]);
       }
       setIsFormModalOpen(false);
-      setSelectedDesignation(null);
-      fetchData();
+      setSelectedRole(null);
+      fetchRoles();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save designation");
+      setError(err instanceof Error ? err.message : "Failed to save role");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function handleDelete() {
-    if (!selectedDesignation) return;
+    if (!selectedRole) return;
     setIsSubmitting(true);
     try {
       const api = getRoleDesignationApi();
-      await api.deleteDesignations([selectedDesignation.id]);
+      await api.deleteRoles([selectedRole.id]);
       setIsDeleteDialogOpen(false);
-      setSelectedDesignation(null);
-      fetchData();
+      setSelectedRole(null);
+      fetchRoles();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete designation");
+      setError(err instanceof Error ? err.message : "Failed to delete role");
     } finally {
       setIsSubmitting(false);
     }
@@ -145,43 +121,30 @@ export default function DesignationsPage({
 
   function handleExport() {
     exportToCsv({
-      data: filteredDesignations.map((d) => ({
-        ...d,
-        roleName: roles.find((r) => r.id === d.roleId)?.roleName || d.roleName || "Unknown",
-      })),
+      data: filteredRoles,
       columns: [
-        { key: "name", header: "Designation Name" },
-        { key: "roleName", header: "Role" },
-        { key: "access", header: "Access Level" },
+        { key: "roleName", header: "Role Name" },
+        { key: "level", header: "Level" },
         { key: "isActive", header: "Status" },
         { key: "createdAt", header: "Created Date" },
       ],
-      filename: `designations_${projectCode}_export`,
+      filename: `roles_${projectCode}_export`,
     });
   }
 
-  // Filter designations
-  const filteredDesignations = designations.filter((d) => {
+  // Filter roles
+  const filteredRoles = roles.filter((r) => {
     const matchesSearch =
       !searchQuery ||
-      d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (d.roleName && d.roleName.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesAccess = accessFilter === "All" || d.access === accessFilter;
-    return matchesSearch && matchesAccess;
+      r.roleName.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
   });
-
-  // Access level display mapping
-  const accessLabels: Record<string, { label: string; variant: "blue" | "green" | "amber" }> = {
-    WEB: { label: "Web", variant: "blue" },
-    MOBILE: { label: "Mobile", variant: "amber" },
-    BOTH: { label: "Both", variant: "green" },
-  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Designations"
-        description="Define job titles, roles mapping, and access levels"
+        title="Roles"
+        description="Define roles and authority levels for this project"
         actions={
           <>
             <Button variant="secondary" onClick={handleExport}>
@@ -191,13 +154,13 @@ export default function DesignationsPage({
             <Button
               variant="primary"
               onClick={() => {
-                setSelectedDesignation(null);
+                setSelectedRole(null);
                 setIsFormModalOpen(true);
               }}
-              disabled={!projectId || roles.length === 0}
+              disabled={!projectId}
             >
               <Plus className="h-4 w-4" />
-              Create Designation
+              Create Role
             </Button>
           </>
         }
@@ -207,17 +170,11 @@ export default function DesignationsPage({
         <div className="rounded-lg border border-[var(--orca-brand-4)]/30 bg-[var(--orca-brand-4-light)] px-4 py-3 text-sm text-[var(--orca-brand-4)]">
           {error}
           <button
-            onClick={fetchData}
+            onClick={fetchRoles}
             className="ml-2 underline hover:no-underline"
           >
             Retry
           </button>
-        </div>
-      )}
-
-      {roles.length === 0 && !isLoading && (
-        <div className="rounded-lg border border-[var(--orca-brand)]/30 bg-[var(--orca-brand-light)] px-4 py-3 text-sm text-[var(--orca-brand)]">
-          No roles found. Please create roles first before adding designations.
         </div>
       )}
 
@@ -227,7 +184,7 @@ export default function DesignationsPage({
           <div className="flex items-center gap-3">
             <div className="relative">
               <Input
-                placeholder="Search designations..."
+                placeholder="Search roles..."
                 className="w-[240px] pl-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -246,19 +203,9 @@ export default function DesignationsPage({
                 />
               </svg>
             </div>
-            <select
-              value={accessFilter}
-              onChange={(e) => setAccessFilter(e.target.value as "All" | "WEB" | "MOBILE" | "BOTH")}
-              className="h-9 rounded-lg border border-[var(--orca-border)] bg-[var(--orca-surface)] px-3 text-sm text-[var(--orca-text)]"
-            >
-              <option value="All">All Access</option>
-              <option value="WEB">Web Only</option>
-              <option value="MOBILE">Mobile Only</option>
-              <option value="BOTH">Both</option>
-            </select>
           </div>
           <div className="text-sm text-[var(--orca-text-3)]">
-            {filteredDesignations.length} designations
+            {filteredRoles.length} roles
           </div>
         </div>
 
@@ -267,13 +214,10 @@ export default function DesignationsPage({
             <thead>
               <tr className="border-b border-[var(--orca-border)]">
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
-                  Designation
+                  Role Name
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
-                  Role
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
-                  Access
+                  Level
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--orca-text-3)]">
                   Status
@@ -286,49 +230,40 @@ export default function DesignationsPage({
             <tbody>
               {isLoading ? (
                 <tr key="loading">
-                  <td colSpan={5} className="px-4 py-12 text-center">
+                  <td colSpan={4} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--orca-surface-3)] border-t-[var(--orca-brand)]" />
                       <span className="text-sm text-[var(--orca-text-3)]">Loading...</span>
                     </div>
                   </td>
                 </tr>
-              ) : filteredDesignations.length === 0 ? (
+              ) : filteredRoles.length === 0 ? (
                 <tr key="empty">
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-[var(--orca-text-3)]">
-                    {searchQuery || accessFilter !== "All"
-                      ? "No designations found matching your filters"
-                      : "No designations created yet"}
+                  <td colSpan={4} className="px-4 py-12 text-center text-sm text-[var(--orca-text-3)]">
+                    {searchQuery ? "No roles found matching your search" : "No roles created yet"}
                   </td>
                 </tr>
               ) : (
-                filteredDesignations.map((designation, index) => (
+                filteredRoles.map((role, index) => (
                   <tr
-                    key={designation.id || `designation-${index}`}
+                    key={role.id || `role-${index}`}
                     className="border-b border-[var(--orca-border-light)] last:border-b-0 hover:bg-[var(--orca-surface-2)] transition-colors"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--orca-brand-2-light)] text-[var(--orca-brand-2)]">
-                          <BadgeCheck className="h-4 w-4" />
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--orca-brand-light)] text-[var(--orca-brand)]">
+                          <Shield className="h-4 w-4" />
                         </div>
                         <div>
-                          <div className="font-medium text-[var(--orca-text)]">{designation.name}</div>
+                          <div className="font-medium text-[var(--orca-text)]">{role.roleName}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-[var(--orca-text-2)]">
-                        {designation.roleName || "Unknown"}
-                      </span>
+                      <Badge variant="blue">Level {role.level}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={accessLabels[designation.access]?.variant || "blue"}>
-                        {accessLabels[designation.access]?.label || designation.access}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill status={designation.isActive ? "active" : "inactive"} />
+                      <StatusPill status={role.isActive ? "active" : "inactive"} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -336,7 +271,7 @@ export default function DesignationsPage({
                           icon={Eye}
                           label="View"
                           onClick={() => {
-                            setSelectedDesignation(designation);
+                            setSelectedRole(role);
                             setIsDetailsModalOpen(true);
                           }}
                         />
@@ -344,7 +279,7 @@ export default function DesignationsPage({
                           icon={Pencil}
                           label="Edit"
                           onClick={() => {
-                            setSelectedDesignation(designation);
+                            setSelectedRole(role);
                             setIsFormModalOpen(true);
                           }}
                         />
@@ -353,7 +288,7 @@ export default function DesignationsPage({
                           label="Delete"
                           variant="danger"
                           onClick={() => {
-                            setSelectedDesignation(designation);
+                            setSelectedRole(role);
                             setIsDeleteDialogOpen(true);
                           }}
                         />
@@ -369,29 +304,27 @@ export default function DesignationsPage({
 
       {/* Modals */}
       {projectId && (
-        <DesignationFormModal
+        <RoleFormModal
           isOpen={isFormModalOpen}
-          onClose={() => { setIsFormModalOpen(false); setSelectedDesignation(null); }}
+          onClose={() => { setIsFormModalOpen(false); setSelectedRole(null); }}
           onSubmit={handleCreateOrUpdate}
-          designation={selectedDesignation}
+          role={selectedRole}
           projectId={projectId}
-          roles={roles}
           isLoading={isSubmitting}
         />
       )}
-      <DesignationDetailsModal
+      <RoleDetailsModal
         isOpen={isDetailsModalOpen}
-        onClose={() => { setIsDetailsModalOpen(false); setSelectedDesignation(null); }}
-        designation={selectedDesignation}
-        roles={roles}
+        onClose={() => { setIsDetailsModalOpen(false); setSelectedRole(null); }}
+        role={selectedRole}
         onEdit={() => { setIsDetailsModalOpen(false); setIsFormModalOpen(true); }}
       />
       <ConfirmDialog
         isOpen={isDeleteDialogOpen}
-        onClose={() => { setIsDeleteDialogOpen(false); setSelectedDesignation(null); }}
+        onClose={() => { setIsDeleteDialogOpen(false); setSelectedRole(null); }}
         onConfirm={handleDelete}
-        title="Delete Designation"
-        message={`Are you sure you want to delete "${selectedDesignation?.name}"? This action cannot be undone and may affect users with this designation.`}
+        title="Delete Role"
+        message={`Are you sure you want to delete "${selectedRole?.roleName}"? This action cannot be undone and may affect designations using this role.`}
         confirmLabel="Delete"
         variant="danger"
         isLoading={isSubmitting}

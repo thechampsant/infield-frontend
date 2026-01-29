@@ -143,3 +143,128 @@ export interface UpdateProjectDto {
   email?: string;
   status?: BackendStatus;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Role Types
+// ─────────────────────────────────────────────────────────────
+
+/** Frontend Role entity */
+export type Role = {
+  id: string;
+  projectId: string;
+  roleName: string;
+  level: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** Backend Role entity */
+export interface BackendRole {
+  _id?: string;
+  id?: string;
+  projectId: string;
+  roleName: string;
+  level: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Create role DTO (for single role in bulk request) */
+export interface CreateRoleDto {
+  projectId: string;
+  roleName: string;
+  level: number;
+}
+
+/** Bulk create roles request DTO */
+export interface CreateBulkRolesDto {
+  roles: CreateRoleDto[];
+}
+
+/** Update role DTO (for single role in bulk request) */
+export interface UpdateRoleDto {
+  id: string;
+  roleName?: string;
+  level?: number;
+}
+
+/** Bulk update roles request DTO */
+export interface UpdateBulkRolesDto {
+  roles: UpdateRoleDto[];
+}
+
+/** Bulk delete roles request DTO */
+export interface DeleteBulkRolesDto {
+  ids: string[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Designation Types
+// ─────────────────────────────────────────────────────────────
+
+/** Access level for designations */
+export type AccessLevel = "WEB" | "MOBILE" | "BOTH";
+
+/** Frontend Designation entity */
+export type Designation = {
+  id: string;
+  projectId: string;
+  name: string;
+  roleId: string;
+  roleName?: string;
+  permissions: string[];
+  access: AccessLevel;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** Backend Designation entity */
+export interface BackendDesignation {
+  _id?: string;
+  id?: string;
+  projectId: string;
+  name: string;
+  roleId: string;
+  roleName?: string;
+  permissions?: string[];
+  access?: AccessLevel;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Create designation DTO (for single designation in bulk request) */
+export interface CreateDesignationDto {
+  projectId: string;
+  name: string;
+  roleId: string;
+  permissions?: string[];
+  access?: AccessLevel;
+}
+
+/** Bulk create designations request DTO */
+export interface CreateBulkDesignationsDto {
+  designations: CreateDesignationDto[];
+}
+
+/** Update designation DTO (for single designation in bulk request) */
+export interface UpdateDesignationDto {
+  id: string;
+  name?: string;
+  roleId?: string;
+  permissions?: string[];
+  access?: AccessLevel;
+}
+
+/** Bulk update designations request DTO */
+export interface UpdateBulkDesignationsDto {
+  designations: UpdateDesignationDto[];
+}
+
+/** Bulk delete designations request DTO */
+export interface DeleteBulkDesignationsDto {
+  ids: string[];
+}

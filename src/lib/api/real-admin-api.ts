@@ -50,16 +50,20 @@ function mapAccount(acc: BackendAccount): Account {
 
 /** Map BackendProject to frontend Project */
 function mapProject(prj: BackendProject, accountCode: string): Project {
+  // Handle both 'id' and '_id' (MongoDB) field names
+  const prjAny = prj as unknown as Record<string, unknown>;
+  const id = prj.id || (prjAny._id as string) || prj.projectCode;
+
   return {
-    id: prj.id,
+    id,
     accountCode,
-    name: prj.projectName,
-    code: prj.projectCode,
+    name: prj.projectName || (prjAny.name as string) || "",
+    code: prj.projectCode || (prjAny.code as string) || "",
     regionLabel: undefined,
     projectAdminName: "", // Backend doesn't provide this yet
-    projectAdminEmail: prj.email,
+    projectAdminEmail: prj.email || "",
     modulesActive: [],
-    status: mapStatus(prj.status),
+    status: mapStatus(prj.status || "ACTIVE"),
   };
 }
 
