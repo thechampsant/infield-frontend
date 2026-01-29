@@ -41,6 +41,7 @@ export const superAdminNav: NavSection[] = [
     title: "Configuration",
     items: [
       { label: "Users Master", href: "/super-admin/users-master", icon: "users" },
+      { label: "Roles", href: "/super-admin/roles", icon: "shield" },
       { label: "Designations", href: "/super-admin/designations", icon: "badgeCheck" },
       { label: "Stores", href: "/super-admin/stores", icon: "store" },
       { label: "Products", href: "/super-admin/products", icon: "package" },
@@ -96,6 +97,7 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
       title: "Master Data",
       items: [
         { label: "Users", href: `${base}/master-data/users`, icon: "users" },
+        { label: "Roles", href: `${base}/master-data/roles`, icon: "shield" },
         { label: "Designations", href: `${base}/master-data/designations`, icon: "badgeCheck" },
         { label: "Stores", href: `${base}/master-data/stores`, icon: "store" },
         { label: "Products", href: `${base}/master-data/products`, icon: "package" },

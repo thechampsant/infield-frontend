@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar, type BreadcrumbItem } from "@/components/shell/topbar";
+import { AiChatButton } from "@/components/ai-chat";
 import type { NavSection } from "@/lib/nav/nav";
 
 interface UserProps {
@@ -58,6 +59,8 @@ export function ConsoleShell({
         />
         <main className="flex-1 px-6 py-6">{children}</main>
       </div>
+      {/* AI Chat Button - floating action button */}
+      <AiChatButton />
     </div>
   );
 }

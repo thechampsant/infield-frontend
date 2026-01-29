@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   BadgeCheck,
+  Building2,
   Download,
   Eye,
+  Folder,
   Pencil,
   Plus,
   Trash2,
@@ -16,28 +18,27 @@ import { Badge } from "@/components/ui/pill";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DesignationFormModal, DesignationDetailsModal } from "@/components/designations";
-import { getRoleDesignationApi, getAdminApi } from "@/lib/api";
+import { getAdminApi, getRoleDesignationApi } from "@/lib/api";
 import { exportToCsv } from "@/lib/utils/export-csv";
 import type {
-  Designation,
+  Account,
+  Project,
   Role,
+  Designation,
   CreateDesignationDto,
   UpdateDesignationDto,
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 
-export default function DesignationsPage({
-  params,
-}: {
-  params: Promise<{ accountCode: string; projectCode: string }>;
-}) {
-  const { accountCode, projectCode } = use(params);
-
+export default function SuperAdminDesignationsPage() {
   // State
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedAccountCode, setSelectedAccountCode] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [accessFilter, setAccessFilter] = useState<"All" | "WEB" | "MOBILE" | "BOTH">("All");
@@ -49,39 +50,56 @@ export default function DesignationsPage({
   const [selectedDesignation, setSelectedDesignation] = useState<Designation | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get project ID from project code
-  const getProjectId = useCallback(async () => {
+  // Fetch accounts
+  const fetchAccounts = useCallback(async () => {
     try {
       const api = getAdminApi();
-      const project = await api.getProjectByCode(projectCode);
-      setProjectId(project.id);
-      return project.id;
+      const response = await api.listAccounts({ pageSize: 100 });
+      setAccounts(response.items);
+      if (response.items.length > 0 && !selectedAccountCode) {
+        setSelectedAccountCode(response.items[0].code);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to get project");
-      return null;
+      setError(err instanceof Error ? err.message : "Failed to fetch accounts");
     }
-  }, [projectCode]);
+  }, [selectedAccountCode]);
 
-  // Fetch designations and roles
-  const fetchData = useCallback(async () => {
+  // Fetch projects for selected account
+  const fetchProjects = useCallback(async (accountCode: string) => {
+    if (!accountCode) return;
+    try {
+      const api = getAdminApi();
+      const response = await api.listProjects(accountCode, { pageSize: 100 });
+      setProjects(response.items);
+      if (response.items.length > 0) {
+        setSelectedProjectId(response.items[0].id);
+      } else {
+        setSelectedProjectId("");
+        setDesignations([]);
+        setRoles([]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch projects");
+      setProjects([]);
+      setSelectedProjectId("");
+    }
+  }, []);
+
+  // Fetch designations and roles for selected project
+  const fetchData = useCallback(async (projectId: string) => {
+    if (!projectId) {
+      setDesignations([]);
+      setRoles([]);
+      return;
+    }
     setIsLoading(true);
     setError(null);
-
     try {
-      let id = projectId;
-      if (!id) {
-        id = await getProjectId();
-        if (!id) return;
-      }
-
       const api = getRoleDesignationApi();
-      
-      // Fetch both roles and designations in parallel
       const [rolesResponse, designationsResponse] = await Promise.all([
-        api.getRolesByProject(id),
-        api.getDesignationsByProject(id),
+        api.getRolesByProject(projectId),
+        api.getDesignationsByProject(projectId),
       ]);
-
       setRoles(rolesResponse);
       
       // Enrich designations with role names
@@ -92,18 +110,35 @@ export default function DesignationsPage({
           roleName: role?.roleName || des.roleName || "Unknown",
         };
       });
-      
       setDesignations(enrichedDesignations);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
+      setDesignations([]);
+      setRoles([]);
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, getProjectId]);
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchAccounts();
+  }, [fetchAccounts]);
+
+  useEffect(() => {
+    if (selectedAccountCode) {
+      fetchProjects(selectedAccountCode);
+    }
+  }, [selectedAccountCode, fetchProjects]);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchData(selectedProjectId);
+    }
+  }, [selectedProjectId, fetchData]);
+
+  // Get selected objects
+  const selectedAccount = accounts.find((a) => a.code === selectedAccountCode);
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
 
   // CRUD handlers
   async function handleCreateOrUpdate(data: CreateDesignationDto | UpdateDesignationDto) {
@@ -111,15 +146,15 @@ export default function DesignationsPage({
     try {
       const api = getRoleDesignationApi();
       if (selectedDesignation) {
-        // Update existing designation
         await api.updateDesignations([data as UpdateDesignationDto]);
       } else {
-        // Create new designation
         await api.createDesignations([data as CreateDesignationDto]);
       }
       setIsFormModalOpen(false);
       setSelectedDesignation(null);
-      fetchData();
+      if (selectedProjectId) {
+        fetchData(selectedProjectId);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save designation");
     } finally {
@@ -135,7 +170,9 @@ export default function DesignationsPage({
       await api.deleteDesignations([selectedDesignation.id]);
       setIsDeleteDialogOpen(false);
       setSelectedDesignation(null);
-      fetchData();
+      if (selectedProjectId) {
+        fetchData(selectedProjectId);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete designation");
     } finally {
@@ -156,7 +193,7 @@ export default function DesignationsPage({
         { key: "isActive", header: "Status" },
         { key: "createdAt", header: "Created Date" },
       ],
-      filename: `designations_${projectCode}_export`,
+      filename: `designations_${selectedProject?.code || "export"}`,
     });
   }
 
@@ -181,10 +218,10 @@ export default function DesignationsPage({
     <div className="space-y-6">
       <PageHeader
         title="Designations"
-        description="Define job titles, roles mapping, and access levels"
+        description="Manage designations across all projects"
         actions={
           <>
-            <Button variant="secondary" onClick={handleExport}>
+            <Button variant="secondary" onClick={handleExport} disabled={designations.length === 0}>
               <Download className="h-4 w-4" />
               Export
             </Button>
@@ -194,7 +231,7 @@ export default function DesignationsPage({
                 setSelectedDesignation(null);
                 setIsFormModalOpen(true);
               }}
-              disabled={!projectId || roles.length === 0}
+              disabled={!selectedProjectId || roles.length === 0}
             >
               <Plus className="h-4 w-4" />
               Create Designation
@@ -207,7 +244,7 @@ export default function DesignationsPage({
         <div className="rounded-lg border border-[var(--orca-brand-4)]/30 bg-[var(--orca-brand-4-light)] px-4 py-3 text-sm text-[var(--orca-brand-4)]">
           {error}
           <button
-            onClick={fetchData}
+            onClick={() => selectedProjectId && fetchData(selectedProjectId)}
             className="ml-2 underline hover:no-underline"
           >
             Retry
@@ -215,11 +252,74 @@ export default function DesignationsPage({
         </div>
       )}
 
-      {roles.length === 0 && !isLoading && (
+      {roles.length === 0 && selectedProjectId && !isLoading && (
         <div className="rounded-lg border border-[var(--orca-brand)]/30 bg-[var(--orca-brand-light)] px-4 py-3 text-sm text-[var(--orca-brand)]">
-          No roles found. Please create roles first before adding designations.
+          No roles found for this project. Please create roles first before adding designations.
         </div>
       )}
+
+      {/* Account & Project Selector */}
+      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-[var(--orca-border)] bg-[var(--orca-surface)] p-4">
+        <div className="flex items-center gap-3">
+          <Building2 className="h-5 w-5 text-[var(--orca-text-3)]" />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--orca-text-3)]">
+              Account
+            </label>
+            <select
+              value={selectedAccountCode}
+              onChange={(e) => setSelectedAccountCode(e.target.value)}
+              className="h-9 w-48 rounded-lg border border-[var(--orca-border)] bg-[var(--orca-surface)] px-3 text-sm text-[var(--orca-text)]"
+            >
+              {accounts.length === 0 ? (
+                <option value="">No accounts</option>
+              ) : (
+                accounts.map((account) => (
+                  <option key={account.id || account.code} value={account.code}>
+                    {account.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Folder className="h-5 w-5 text-[var(--orca-text-3)]" />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--orca-text-3)]">
+              Project
+            </label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              disabled={projects.length === 0}
+              className="h-9 w-48 rounded-lg border border-[var(--orca-border)] bg-[var(--orca-surface)] px-3 text-sm text-[var(--orca-text)] disabled:opacity-50"
+            >
+              {projects.length === 0 ? (
+                <option value="">No projects</option>
+              ) : (
+                projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        </div>
+
+        {selectedProject && (
+          <div className="ml-auto text-right">
+            <div className="text-sm font-medium text-[var(--orca-text)]">
+              {designations.length} Designations
+            </div>
+            <div className="text-xs text-[var(--orca-text-3)]">
+              in {selectedProject.name}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Table */}
       <div className="rounded-xl border border-[var(--orca-border)] bg-[var(--orca-surface)]">
@@ -293,6 +393,12 @@ export default function DesignationsPage({
                     </div>
                   </td>
                 </tr>
+              ) : !selectedProjectId ? (
+                <tr key="no-project">
+                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-[var(--orca-text-3)]">
+                    Please select an account and project to view designations
+                  </td>
+                </tr>
               ) : filteredDesignations.length === 0 ? (
                 <tr key="empty">
                   <td colSpan={5} className="px-4 py-12 text-center text-sm text-[var(--orca-text-3)]">
@@ -312,9 +418,7 @@ export default function DesignationsPage({
                         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--orca-brand-2-light)] text-[var(--orca-brand-2)]">
                           <BadgeCheck className="h-4 w-4" />
                         </div>
-                        <div>
-                          <div className="font-medium text-[var(--orca-text)]">{designation.name}</div>
-                        </div>
+                        <div className="font-medium text-[var(--orca-text)]">{designation.name}</div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -368,13 +472,13 @@ export default function DesignationsPage({
       </div>
 
       {/* Modals */}
-      {projectId && (
+      {selectedProjectId && (
         <DesignationFormModal
           isOpen={isFormModalOpen}
           onClose={() => { setIsFormModalOpen(false); setSelectedDesignation(null); }}
           onSubmit={handleCreateOrUpdate}
           designation={selectedDesignation}
-          projectId={projectId}
+          projectId={selectedProjectId}
           roles={roles}
           isLoading={isSubmitting}
         />
@@ -391,7 +495,7 @@ export default function DesignationsPage({
         onClose={() => { setIsDeleteDialogOpen(false); setSelectedDesignation(null); }}
         onConfirm={handleDelete}
         title="Delete Designation"
-        message={`Are you sure you want to delete "${selectedDesignation?.name}"? This action cannot be undone and may affect users with this designation.`}
+        message={`Are you sure you want to delete "${selectedDesignation?.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
         variant="danger"
         isLoading={isSubmitting}
