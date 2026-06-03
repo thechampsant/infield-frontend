@@ -3,8 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   attendanceFormSchemaService,
+  featureConfigService,
+  featureWizardService,
   formatApiError,
+  getWizardFlow,
+  isWizardFlowComplete,
   type AttendanceFormType,
+  type FeatureConfigDto,
+  type FeatureWizardDocument,
   type UdfSchemaField,
 } from "@/lib/api";
 import {
@@ -39,6 +45,8 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [activating, setActivating] = useState(false);
+  const [featureConfig, setFeatureConfig] = useState<FeatureConfigDto | null>(null);
+  const [featureWizard, setFeatureWizard] = useState<FeatureWizardDocument | null>(null);
 
   const [schemas, setSchemas] = useState<Record<AttendanceFormType, UdfSchemaField[]>>({
     "check-in": [],
@@ -56,15 +64,20 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [doc, checkInSchema, checkOutSchema] = await Promise.all([
+      const [doc, checkInSchema, checkOutSchema, nextFeatureConfig, nextFeatureWizard] =
+        await Promise.all([
         attendanceConfigService.get(projectId),
         attendanceFormSchemaService.get(projectId, "check-in"),
         attendanceFormSchemaService.get(projectId, "check-out"),
+        featureConfigService.getRawByProject(projectId),
+        featureWizardService.getByProject(projectId),
       ]);
       const next = docToForm(doc);
       setForm(next);
       setSaved(next);
       setExists(Boolean(doc));
+      setFeatureConfig(nextFeatureConfig);
+      setFeatureWizard(nextFeatureWizard);
       setSchemas({
         "check-in": checkInSchema?.fields ?? [],
         "check-out": checkOutSchema?.fields ?? [],
@@ -103,7 +116,15 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
   const checkOutRequired = form?.checkOutEnabled ?? true;
   const checkOutComplete = !checkOutRequired || savedSchemas["check-out"].length > 0;
   const formsComplete = checkInComplete && checkOutComplete;
-  const reviewReady = configComplete && formsComplete;
+  const onboardingComplete = isWizardFlowComplete(featureWizard, "onboarding");
+  const attendanceFlow = getWizardFlow(featureWizard, "attendance");
+  const storeFlowComplete = isWizardFlowComplete(featureWizard, "store");
+  const attendanceWizardComplete = isWizardFlowComplete(featureWizard, "attendance");
+  const attendanceModuleActive = Boolean(
+    featureConfig?.modules.find((module) => module.key === "attendance")?.isActive,
+  );
+  const reviewReady =
+    configComplete && formsComplete && onboardingComplete && attendanceWizardComplete;
 
   const stepItems: Array<{ id: StepId; title: string; complete: boolean; available: boolean }> = [
     {
@@ -160,6 +181,12 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
         setExists(true);
       }
       setSaved(form);
+      const [nextFeatureWizard, nextFeatureConfig] = await Promise.all([
+        featureWizardService.getByProject(projectId),
+        featureConfigService.getRawByProject(projectId),
+      ]);
+      setFeatureWizard(nextFeatureWizard);
+      setFeatureConfig(nextFeatureConfig);
       setToast({ message: "Attendance configuration saved", type: "success" });
       return true;
     } catch (err) {
@@ -200,6 +227,12 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
         fields,
       });
       setSavedSchemas((prev) => ({ ...prev, [formType]: fields }));
+      const [nextFeatureWizard, nextFeatureConfig] = await Promise.all([
+        featureWizardService.getByProject(projectId),
+        featureConfigService.getRawByProject(projectId),
+      ]);
+      setFeatureWizard(nextFeatureWizard);
+      setFeatureConfig(nextFeatureConfig);
       setToast({
         message: `${labelForFormType(formType)} form schema saved`,
         type: "success",
@@ -217,7 +250,12 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
   async function handleActivate() {
     if (!reviewReady) {
       setToast({
-        message: "Complete configuration and both attendance forms before activating.",
+        message: activationBlockReason({
+          onboardingComplete,
+          attendanceWizardComplete,
+          storeFlowComplete,
+          geoFencingEnabled: Boolean(form?.types.some((type) => type.geoFenced)),
+        }),
         type: "error",
       });
       return;
@@ -226,6 +264,12 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
     setActivating(true);
     try {
       await attendanceConfigService.activate(projectId);
+      const [nextFeatureWizard, nextFeatureConfig] = await Promise.all([
+        featureWizardService.getByProject(projectId),
+        featureConfigService.getRawByProject(projectId),
+      ]);
+      setFeatureWizard(nextFeatureWizard);
+      setFeatureConfig(nextFeatureConfig);
       setToast({ message: "Attendance module activated successfully", type: "success" });
     } catch (err) {
       setToast({
@@ -413,6 +457,11 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
                     `${form.types.length} attendance types configured`,
                     remarksRequired ? "Remarks enabled" : "Remarks disabled",
                     photoFieldRequired ? "Photo-backed types present" : "Photo optional",
+                    form.types.some((type) => type.geoFenced)
+                      ? storeFlowComplete
+                        ? "Store flow complete for geo-fencing"
+                        : "Store flow incomplete for geo-fencing"
+                      : "Geo-fencing not enabled",
                   ]}
                 />
                 <ReviewCard
@@ -454,18 +503,50 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
                 attendance form schemas are saved successfully.
               </div>
 
+              <div className="att-review__wizardGrid">
+                <WizardFlowCard
+                  title="Onboarding Flow"
+                  flow={getWizardFlow(featureWizard, "onboarding")}
+                />
+                <WizardFlowCard
+                  title="Attendance Flow"
+                  flow={attendanceFlow}
+                />
+                <WizardFlowCard
+                  title="Store Flow"
+                  flow={getWizardFlow(featureWizard, "store")}
+                />
+              </div>
+
+              <div className="att-review__callout">
+                {attendanceModuleActive
+                  ? "Attendance is already active for this project."
+                  : activationBlockReason({
+                      onboardingComplete,
+                      attendanceWizardComplete,
+                      storeFlowComplete,
+                      geoFencingEnabled: Boolean(form.types.some((type) => type.geoFenced)),
+                    })}
+              </div>
+
               <div className="att-setup-panel__footer">
                 <div className="att-setup-panel__footerCopy">
-                  {reviewReady
-                    ? "Everything is in place. You can activate attendance now."
-                    : "Finish the previous steps before activating the attendance module."}
+                  {attendanceModuleActive
+                    ? "Attendance is already active. You can still review the wizard state above."
+                    : reviewReady
+                      ? "Everything is in place. You can activate attendance now."
+                      : "Finish the required wizard steps before activating the attendance module."}
                 </div>
                 <button
                   className="btn btn-primary"
                   onClick={() => void handleActivate()}
-                  disabled={!reviewReady || activating}
+                  disabled={!reviewReady || activating || attendanceModuleActive}
                 >
-                  {activating ? "Activating…" : "Activate Attendance Module"}
+                  {attendanceModuleActive
+                    ? "Attendance Already Active"
+                    : activating
+                      ? "Activating…"
+                      : "Activate Attendance Module"}
                 </button>
               </div>
             </div>
@@ -475,6 +556,29 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </>
   );
+}
+
+function activationBlockReason({
+  onboardingComplete,
+  attendanceWizardComplete,
+  storeFlowComplete,
+  geoFencingEnabled,
+}: {
+  onboardingComplete: boolean;
+  attendanceWizardComplete: boolean;
+  storeFlowComplete: boolean;
+  geoFencingEnabled: boolean;
+}): string {
+  if (!onboardingComplete) {
+    return "Complete onboarding setup before activating attendance.";
+  }
+  if (geoFencingEnabled && !storeFlowComplete) {
+    return "Complete the store flow before activating geo-fenced attendance.";
+  }
+  if (!attendanceWizardComplete) {
+    return "Complete the attendance wizard steps before activating the module.";
+  }
+  return "Everything is in place. You can activate attendance now.";
 }
 
 function labelForFormType(formType: AttendanceFormType): string {
@@ -628,4 +732,68 @@ function ReviewCard({
       </ul>
     </div>
   );
+}
+
+function WizardFlowCard({
+  title,
+  flow,
+}: {
+  title: string;
+  flow: FeatureWizardDocument["flows"][number] | null;
+}) {
+  const steps = flow?.steps ?? [];
+  const completed = steps.filter((step) => step.status === "COMPLETED").length;
+  const total = steps.length;
+
+  return (
+    <div className="att-review__flowCard">
+      <div className="att-review__flowHead">
+        <strong>{title}</strong>
+        <span>
+          {completed}/{total || 0} complete
+        </span>
+      </div>
+      <div className="att-review__flowSteps">
+        {steps.length === 0 ? (
+          <div className="att-review__flowStep pending">No flow data available</div>
+        ) : (
+          steps.map((step, index) => {
+            const previousDone = steps
+              .slice(0, index)
+              .every((item) => item.status === "COMPLETED");
+            const className =
+              step.status === "COMPLETED"
+                ? "completed"
+                : previousDone
+                  ? "active"
+                  : "blocked";
+            return (
+              <div key={step.key} className={`att-review__flowStep ${className}`}>
+                <span className="att-review__flowDot">
+                  {step.status === "COMPLETED" ? "✓" : index + 1}
+                </span>
+                <div>
+                  <strong>{humanizeStepKey(step.key)}</strong>
+                  <p>
+                    {step.status === "COMPLETED"
+                      ? "Completed"
+                      : previousDone
+                        ? "Current step"
+                        : "Waiting for previous step"}
+                  </p>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function humanizeStepKey(key: string): string {
+  return key
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

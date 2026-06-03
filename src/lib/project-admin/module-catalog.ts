@@ -35,6 +35,7 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     accent: "teal",
     defaultEnabled: true,
     comingSoon: false,
+    configPath: "modules/claims",
   },
   {
     id: "visits",

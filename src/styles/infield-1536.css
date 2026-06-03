@@ -1190,12 +1190,97 @@
   font-size: 12px;
   line-height: 1.6;
 }
+.att-config-page .att-review__wizardGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.att-config-page .att-review__flowCard {
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  padding: 18px;
+}
+.att-config-page .att-review__flowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.att-config-page .att-review__flowHead strong {
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+.att-config-page .att-review__flowHead span {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.att-config-page .att-review__flowSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.att-config-page .att-review__flowStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+.att-config-page .att-review__flowStep strong {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+.att-config-page .att-review__flowStep p {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.att-config-page .att-review__flowStep.completed {
+  border-color: rgba(0, 168, 122, 0.35);
+  background: #f7fffc;
+}
+.att-config-page .att-review__flowStep.active {
+  border-color: rgba(30, 95, 168, 0.22);
+  background: #f0f6ff;
+}
+.att-config-page .att-review__flowStep.blocked {
+  opacity: 0.72;
+}
+.att-config-page .att-review__flowStep.pending {
+  justify-content: center;
+}
+.att-config-page .att-review__flowDot {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 800;
+}
+.att-config-page .att-review__flowStep.completed .att-review__flowDot {
+  background: #e6f8f3;
+  color: #007a59;
+}
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
 @media (max-width: 920px) {
   .att-config-page .att-setup-stepper,
-  .att-config-page .att-review__grid {
+  .att-config-page .att-review__grid,
+  .att-config-page .att-review__wizardGrid {
     grid-template-columns: 1fr;
   }
   .att-config-page .att-form-builder__layout {

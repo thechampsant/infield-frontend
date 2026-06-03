@@ -56,6 +56,36 @@ export type {
   AttendanceFormType,
   SaveAttendanceFormSchemaInput,
 } from "./attendance-form-schema-service";
+export { claimsConfigService } from "./claims-config-service";
+export type {
+  ClaimApprovalLevel,
+  ClaimApprovalMode,
+  ClaimApprovalWorkflow,
+  ClaimCapType,
+  ClaimConditionalCap,
+  ClaimConditionalCapCondition,
+  ClaimSchemaDocument,
+  ClaimTypeDefinition,
+  ClaimsBackdateConfig,
+  ClaimsConfigDocument,
+  ClaimsTemplateDocument,
+  SaveClaimSchemaInput,
+  SaveClaimTypeInput,
+  SaveClaimsConfigInput,
+} from "./claims-config-service";
+export {
+  featureWizardService,
+  getWizardFlow,
+  isWizardFlowComplete,
+} from "./feature-wizard-service";
+export type {
+  FeatureWizardDocument,
+  FeatureWizardFlow,
+  FeatureWizardStep,
+  FeatureWizardStepStatus,
+} from "./feature-wizard-service";
+export { featureConfigService } from "./feature-config-service";
+export type { FeatureConfigDto, FeatureModuleStatus, ProjectModuleState } from "./feature-config-service";
 
 // Re-export types
 export type { AdminApi } from "./admin";
