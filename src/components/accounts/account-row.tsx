@@ -6,6 +6,7 @@ import { ProjectSubPanel } from "./project-sub-panel";
 
 export function AccountRow({
   account,
+  projectCount,
   isOpen,
   onToggle,
   onOpenDetail,
@@ -16,6 +17,7 @@ export function AccountRow({
   onGoToProject,
 }: {
   account: Account;
+  projectCount?: number;
   isOpen: boolean;
   onToggle: () => void;
   onOpenDetail: () => void;
@@ -26,8 +28,12 @@ export function AccountRow({
   onGoToProject: (project: Project) => void;
 }) {
   const active = account.status === "Active";
-  const projectCount =
-    projects.length > 0 ? projects.length : account.projectsActiveCount;
+  const resolvedProjectCount =
+    typeof projectCount === "number"
+      ? projectCount
+      : projects.length > 0
+        ? projects.length
+        : account.projectsActiveCount;
 
   return (
     <div className={`acct-row ${isOpen ? "open" : ""}`}>
@@ -69,7 +75,7 @@ export function AccountRow({
           </span>
         </div>
 
-        <div className="acct-projects-num">{projectCount}</div>
+        <div className="acct-projects-num">{resolvedProjectCount}</div>
 
         <div className="acct-action-cell">
           <button

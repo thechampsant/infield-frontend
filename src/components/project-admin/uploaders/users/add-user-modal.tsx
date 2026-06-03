@@ -75,7 +75,7 @@ export function AddUserModal({
     if (!form.email) errs.push("email");
     if (!form.designation) errs.push("designation");
     udfFields.forEach((f) => {
-      if (f.mandatory && !udfValues[f.name]) errs.push(`udf_${f.id}`);
+      if (f.mandatory && !udfValues[f.fieldKey]) errs.push(`udf_${f.id}`);
     });
     if (errs.length) {
       setErrors(errs);
@@ -228,6 +228,7 @@ export function AddUserModal({
             values={udfValues}
             onChange={setUdfValues}
             errors={errors}
+            projectId={projectId}
             prefix="udf_"
           />
         </>

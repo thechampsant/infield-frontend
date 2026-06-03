@@ -11,14 +11,14 @@ import type { BackendUser } from "@/lib/api/types";
 export function landingRouteForRole(role?: string): string {
   const normalized = (role ?? "").toLowerCase().replace(/[\s_-]+/g, "");
 
-  if (normalized.includes("superadmin")) return "/super-admin";
+  if (normalized.includes("superadmin")) return "/super-admin/accounts";
   if (normalized.includes("clientadmin") || normalized.includes("accountadmin"))
-    return "/account-admin";
-  if (normalized.includes("projectadmin")) return "/super-admin";
+    return "/account-admin/projects";
+  if (normalized.includes("projectadmin")) return "/super-admin/accounts";
   if (normalized.includes("manager")) return "/workspace";
 
   // Unknown role: default to super-admin console.
-  return "/super-admin";
+  return "/super-admin/accounts";
 }
 
 export function landingRouteForUser(user?: BackendUser | null): string {

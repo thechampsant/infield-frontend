@@ -33,6 +33,7 @@ export interface AttendanceTypeDto {
   isPhotoRequired: boolean;
   isCustom: boolean;
   colour?: string;
+  color?: string;
 }
 
 export interface GeoFencingConfigDto {
@@ -150,7 +151,9 @@ export interface ApprovalLevelForm {
 export interface AttendanceConfigForm {
   isModuleEnabled: boolean;
 
+  checkInEnabled: boolean;
   checkInLabel: string;
+  checkOutEnabled: boolean;
   checkOutLabel: string;
   showDateField: boolean;
 
@@ -199,6 +202,13 @@ export interface AttendanceConfigForm {
 
 const DEFAULT_TYPE_COLOUR = "#3377ff";
 
+function normalizeTypeColour(value: string | undefined): string {
+  const raw = String(value ?? "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw;
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw}`;
+  return DEFAULT_TYPE_COLOUR;
+}
+
 /** Seven default attendance types per AC4. */
 export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
   { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR },
@@ -213,7 +223,9 @@ export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
 export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   isModuleEnabled: false,
 
+  checkInEnabled: true,
   checkInLabel: "",
+  checkOutEnabled: true,
   checkOutLabel: "",
   showDateField: false,
 
@@ -279,14 +291,16 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
           geoTagged: Boolean(t.isGeoTagged),
           geoFenced: Boolean(t.isGeoFenced),
           photoRequired: Boolean(t.isPhotoRequired),
-          colour: t.colour || DEFAULT_TYPE_COLOUR,
+          colour: normalizeTypeColour(t.colour ?? t.color),
         }))
       : DEFAULT_ATTENDANCE_TYPES.map((t) => ({ ...t }));
 
   return {
     isModuleEnabled: Boolean(doc.isModuleEnabled),
 
+    checkInEnabled: doc.checkInLabel?.isEnabled ?? true,
     checkInLabel: doc.checkInLabel?.label ?? "",
+    checkOutEnabled: doc.checkOutLabel?.isEnabled ?? true,
     checkOutLabel: doc.checkOutLabel?.label ?? "",
     showDateField: Boolean(doc.showDateField),
 
@@ -351,8 +365,11 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
 
   return {
     isModuleEnabled: form.isModuleEnabled,
-    checkInLabel: label(form.checkInLabel, "Check-In"),
-    checkOutLabel: label(form.checkOutLabel, "Check-Out"),
+    checkInLabel: { ...label(form.checkInLabel, "Check-In"), isEnabled: form.checkInEnabled },
+    checkOutLabel: {
+      ...label(form.checkOutLabel, "Check-Out"),
+      isEnabled: form.checkOutEnabled,
+    },
     showDateField: form.showDateField,
     attendanceTypes: form.types.map((t) => ({
       name: t.name,
@@ -361,7 +378,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       isGeoFenced: t.geoFenced,
       isPhotoRequired: t.photoRequired,
       isCustom: t.isCustom,
-      colour: t.colour || DEFAULT_TYPE_COLOUR,
+      colour: normalizeTypeColour(t.colour),
     })),
     geoFencing: { isEnabled: anyGeoFenced, radius: form.geoFenceRadius },
     photoCapture: { direction: form.photoDirection, source: form.photoSource },

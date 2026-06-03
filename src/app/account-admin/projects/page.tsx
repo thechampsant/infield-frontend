@@ -52,8 +52,8 @@ export default function AccountAdminProjectsPage() {
       }
 
       const res = accountId
-        ? await api.listProjectsByAccountId(accountId, code, { pageSize: 200 })
-        : await api.listProjects(code, { pageSize: 200 });
+        ? await api.listProjectsByAccountId(accountId, code, { pageSize: 50 })
+        : await api.listProjects(code, { pageSize: 50 });
 
       // When listing by code, accountId is resolved internally; capture code
       // for navigation either way.

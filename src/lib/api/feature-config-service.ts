@@ -15,6 +15,9 @@ const BASE = "/api/v1/feature-config";
 export interface FeatureModuleStatus {
   key: string;
   isActive: boolean;
+  activatedAt?: string;
+  updatedAt?: string;
+  moduleIconUrl?: string;
 }
 
 export interface FeatureConfigDto {
@@ -52,27 +55,32 @@ function mergeCatalogWithConfig(config: FeatureConfigDto): ProjectModuleState[] 
 }
 
 export const featureConfigService = {
-  async getByProject(projectId: string): Promise<ProjectModuleState[]> {
+  async getRawByProject(projectId: string): Promise<FeatureConfigDto> {
     if (!projectId) {
-      return mergeCatalogWithConfig(buildDefaultConfig(""));
+      return buildDefaultConfig("");
     }
 
     if (USE_MOCK_API) {
-      return mergeCatalogWithConfig(buildDefaultConfig(projectId));
+      return buildDefaultConfig(projectId);
     }
 
     try {
       const raw = await apiClient.get<unknown>(`${BASE}/${projectId}`);
       const data = unwrapApiData(raw) as FeatureConfigDto;
-      return mergeCatalogWithConfig({
+      return {
         projectId: data.projectId ?? projectId,
         modules: Array.isArray(data.modules) ? data.modules : [],
-      });
+      };
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        return mergeCatalogWithConfig(buildDefaultConfig(projectId));
+        return buildDefaultConfig(projectId);
       }
       throw err;
     }
+  },
+
+  async getByProject(projectId: string): Promise<ProjectModuleState[]> {
+    const config = await this.getRawByProject(projectId);
+    return mergeCatalogWithConfig(config);
   },
 };

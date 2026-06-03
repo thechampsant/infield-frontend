@@ -37,8 +37,15 @@ export const DEFAULT_HIERARCHY_ROLE_DEFINITIONS: ReadonlyArray<HierarchyRoleShap
 /** INF2-1535 AC3: Employee (L1) and Manager 1–10 (L2–L11) only. */
 export function isHierarchyRole(role: HierarchyRoleShape): boolean {
   const kind = classifyRole(role.roleName);
-  if (kind !== "employee" && kind !== "manager") return false;
-  return role.level >= 1 && role.level <= 11;
+  if (kind === "employee" || kind === "manager") {
+    return role.level >= 1 && role.level <= 11;
+  }
+
+  // Some backends return project-specific role labels ("ISP", "TL", "Client",
+  // etc.) while still encoding the reporting hierarchy in numeric levels.
+  // Treat non-admin roles within the supported hierarchy range as valid
+  // designation-mapping roles so the UI can work with that naming model.
+  return kind !== "admin" && role.level >= 1 && role.level <= 11;
 }
 
 export function filterHierarchyRoles<T extends HierarchyRoleShape>(roles: T[]): T[] {
@@ -54,6 +61,15 @@ export function classifyRole(roleName: string): RoleKind {
   const n = normalizeRoleName(roleName);
   if (n.includes("employee")) return "employee";
   if (n.startsWith("manager")) return "manager";
+  if (
+    n === "isp" ||
+    n === "tl" ||
+    n.includes("teamlead") ||
+    n.includes("teamleader") ||
+    n.includes("client")
+  ) {
+    return "manager";
+  }
   if (n.includes("admin")) return "admin";
   return "other";
 }

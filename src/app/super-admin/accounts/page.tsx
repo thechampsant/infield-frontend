@@ -36,6 +36,9 @@ export default function AccountsPage() {
   const [projectsByAccount, setProjectsByAccount] = useState<
     Record<string, ProjectState>
   >({});
+  const [projectCountsByAccount, setProjectCountsByAccount] = useState<
+    Record<string, number>
+  >({});
 
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [addProjectFor, setAddProjectFor] = useState<Account | null>(null);
@@ -59,6 +62,40 @@ export default function AccountsPage() {
   useEffect(() => {
     fetchAccounts();
   }, [fetchAccounts]);
+
+  useEffect(() => {
+    if (accounts.length === 0) {
+      setProjectCountsByAccount({});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadProjectCounts() {
+      const api = getAdminApi();
+      const counts = await Promise.all(
+        accounts.map(async (account) => {
+          try {
+            const res = await api.listProjects(account.code, {
+              page: 1,
+              pageSize: 100,
+            });
+            return [account.id, res.items.length] as const;
+          } catch {
+            return [account.id, account.projectsActiveCount] as const;
+          }
+        }),
+      );
+
+      if (cancelled) return;
+      setProjectCountsByAccount(Object.fromEntries(counts));
+    }
+
+    void loadProjectCounts();
+    return () => {
+      cancelled = true;
+    };
+  }, [accounts]);
 
   const loadProjects = useCallback(async (account: Account) => {
     setProjectsByAccount((prev) => ({
@@ -273,6 +310,7 @@ export default function AccountsPage() {
               <AccountRow
                 key={account.id || account.code}
                 account={account}
+                projectCount={projectCountsByAccount[account.id]}
                 isOpen={expandedId === account.id}
                 onToggle={() => toggleRow(account)}
                 onOpenDetail={() =>
