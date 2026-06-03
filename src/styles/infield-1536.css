@@ -1,0 +1,726 @@
+/* ============================================================
+   InField 2.0 - Attendance Configuration (INF2-1536)
+   Ported from designs/1536/att-config-css.css.
+   All rules are scoped under .att-config-page so they do not
+   leak into the rest of the application. Design `--color-*`
+   tokens are mapped to the global `--if2-*` system tokens.
+   ============================================================ */
+
+.att-config-page {
+  --color-surface: var(--if2-surface);
+  --color-surface-2: var(--if2-surface2);
+  --color-border: var(--if2-border);
+  --color-border-hover: var(--if2-border2);
+  --color-border-strong: var(--if2-border2);
+  --color-border-dashed: var(--if2-border2);
+
+  --color-primary: var(--if2-blue);
+  --color-primary-hover: var(--if2-blue-mid);
+  --color-primary-light: var(--if2-blue-light);
+  --color-primary-pale: var(--if2-blue-pale);
+  --color-primary-alpha: rgba(30, 95, 168, 0.15);
+
+  --color-text-primary: var(--if2-text);
+  --color-text-secondary: var(--if2-text-mid);
+  --color-text-muted: var(--if2-text-muted);
+
+  --color-success: var(--if2-teal);
+  --color-danger: var(--if2-red);
+  --color-danger-pale: var(--if2-red-light);
+  --color-danger-light: var(--if2-red-mid);
+  --color-danger-pale-hover: var(--if2-red-mid);
+  --color-warning: var(--if2-amber);
+
+  --color-info: var(--if2-blue);
+  --color-info-pale: var(--if2-blue-pale);
+  --color-info-light: var(--if2-blue-light);
+
+  --color-purple: #7c3aed;
+  --color-purple-pale: #f3effd;
+  --color-purple-light: #ddd0fb;
+
+  --color-icon-bg: var(--if2-blue-pale);
+
+  font-family: var(--font-sora), "Sora", system-ui, -apple-system, sans-serif;
+  color: var(--color-text-primary);
+}
+
+.att-config-page *,
+.att-config-page *::before,
+.att-config-page *::after {
+  box-sizing: border-box;
+}
+
+.att-config-page button {
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.att-config-page input,
+.att-config-page select {
+  font-family: inherit;
+}
+
+/* ── Page header ──────────────────────────────────────────────────────────── */
+
+.att-config-page .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.att-config-page .page-eyebrow {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 4px;
+}
+.att-config-page .page-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+.att-config-page .page-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+  max-width: 640px;
+}
+
+/* ── Module enable banner ─────────────────────────────────────────────────── */
+
+.att-config-page .module-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 12px;
+  background: var(--color-primary-pale);
+}
+
+/* ── Accordion sections ───────────────────────────────────────────────────── */
+
+.att-config-page .config-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.att-config-page .config-section:hover {
+  box-shadow: 0 4px 20px rgba(30, 95, 168, 0.1);
+}
+.att-config-page .config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+.att-config-page .config-head:hover {
+  background: var(--color-surface-2);
+}
+.att-config-page .config-head-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.att-config-page .config-head-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--color-icon-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.att-config-page .config-head-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.att-config-page .config-head-desc {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+.att-config-page .config-chevron {
+  font-size: 18px;
+  color: var(--color-text-muted);
+  transition: transform 0.25s;
+  line-height: 1;
+}
+.att-config-page .config-section.open .config-chevron {
+  transform: rotate(90deg);
+}
+.att-config-page .config-body {
+  border-top: 1px solid var(--color-border);
+}
+.att-config-page .section-inner {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Form primitives ──────────────────────────────────────────────────────── */
+
+.att-config-page .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.att-config-page .form-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.3px;
+}
+.att-config-page .form-label .req {
+  color: var(--color-danger);
+}
+.att-config-page .form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  min-height: 40px;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.att-config-page .form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-alpha);
+}
+.att-config-page .form-input-narrow {
+  max-width: 160px;
+}
+.att-config-page .form-input-inline {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.att-config-page .form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.att-config-page .form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.att-config-page .mt-8 {
+  margin-top: 8px;
+}
+
+.att-config-page .field-error {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-danger);
+  margin: -8px 0 0;
+}
+
+/* ── Setting row ──────────────────────────────────────────────────────────── */
+
+.att-config-page .setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  transition: all 0.15s;
+}
+.att-config-page .setting-row:hover {
+  border-color: var(--color-border-hover);
+  background: var(--color-primary-pale);
+}
+.att-config-page .setting-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.att-config-page .setting-hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin: 1px 0 0;
+}
+
+/* ── Toggle ───────────────────────────────────────────────────────────────── */
+
+.att-config-page .toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  display: inline-block;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.att-config-page .toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.att-config-page .toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--color-border-strong);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+.att-config-page .toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s;
+}
+.att-config-page .toggle input:checked ~ .toggle-track {
+  background: var(--color-success);
+}
+.att-config-page .toggle input:checked ~ .toggle-thumb {
+  transform: translateX(20px);
+}
+
+/* ── Radio pills ──────────────────────────────────────────────────────────── */
+
+.att-config-page .radio-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.att-config-page .radio-pill {
+  display: flex;
+  align-items: center;
+  padding: 7px 16px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--color-surface);
+  min-height: 34px;
+}
+.att-config-page .radio-pill input {
+  display: none;
+}
+.att-config-page .radio-pill:hover {
+  border-color: var(--color-primary-light);
+  background: var(--color-primary-pale);
+}
+.att-config-page .radio-pill.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+}
+
+/* ── Working hours rows ───────────────────────────────────────────────────── */
+
+.att-config-page .wh-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.att-config-page .wh-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  flex: 1;
+}
+.att-config-page .wh-input {
+  width: 72px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  background: var(--color-surface-2);
+  font-family: inherit;
+  min-height: 32px;
+}
+.att-config-page .wh-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+.att-config-page .wh-unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* ── Attendance type table ────────────────────────────────────────────────── */
+
+.att-config-page .att-type-table-wrap {
+  overflow-x: auto;
+}
+.att-config-page .att-type-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.att-config-page .att-type-table th {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 10px 14px;
+  text-align: center;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+}
+.att-config-page .att-type-table th:first-child {
+  text-align: left;
+}
+.att-config-page .att-type-table td {
+  padding: 10px 14px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+.att-config-page .att-type-table td:first-child {
+  text-align: left;
+}
+.att-config-page .att-type-table tr:last-child td {
+  border-bottom: none;
+}
+.att-config-page .att-type-table tr:hover td {
+  background: var(--color-primary-pale);
+}
+.att-config-page .type-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+.att-config-page .type-badge {
+  display: inline-flex;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+.att-config-page .type-badge.default {
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary-light);
+}
+.att-config-page .type-badge.custom {
+  background: var(--color-purple-pale);
+  color: var(--color-purple);
+  border: 1px solid var(--color-purple-light);
+}
+
+/* ── Approval flow ────────────────────────────────────────────────────────── */
+
+.att-config-page .approval-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  transition: border-color 0.15s;
+}
+.att-config-page .approval-step:hover {
+  border-color: var(--color-border-hover);
+}
+.att-config-page .approval-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.att-config-page .approval-info {
+  flex: 1;
+}
+
+/* ── Misc ─────────────────────────────────────────────────────────────────── */
+
+.att-config-page .section-divider {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
+}
+.att-config-page .info-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--color-info-pale);
+  border: 1px solid var(--color-info-light);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--color-info);
+  font-weight: 500;
+}
+.att-config-page .flat-mode-note {
+  padding: 10px 14px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.att-config-page .config-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* ── Save bar ─────────────────────────────────────────────────────────────── */
+
+.att-config-page .save-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 -4px 20px rgba(30, 95, 168, 0.07);
+  z-index: 10;
+}
+.att-config-page .save-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.att-config-page .save-bar-actions {
+  display: flex;
+  gap: 8px;
+}
+.att-config-page .unsaved-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  animation: att-pulse-dot 1.5s infinite;
+}
+@keyframes att-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+
+.att-config-page .modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(8, 15, 24, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 60px;
+}
+.att-config-page .modal-card {
+  width: 480px;
+  max-width: 92vw;
+  background: var(--color-surface);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(12, 25, 41, 0.3);
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+.att-config-page .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--color-border);
+}
+.att-config-page .modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.att-config-page .modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.att-config-page .modal-close:hover {
+  background: var(--color-surface-2);
+}
+.att-config-page .modal-body {
+  padding: 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+.att-config-page .modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 14px 22px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+.att-config-page .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  min-height: 38px;
+  white-space: nowrap;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.att-config-page .btn-sm {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 11px;
+}
+.att-config-page .btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.att-config-page .btn-primary:hover {
+  background: var(--color-primary-hover);
+}
+.att-config-page .btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.att-config-page .btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+.att-config-page .btn-secondary:hover {
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+  border-color: var(--color-primary-light);
+}
+.att-config-page .btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.att-config-page .btn-danger-ghost {
+  background: var(--color-danger-pale);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-light);
+}
+.att-config-page .btn-danger-ghost:hover {
+  background: var(--color-danger-pale-hover);
+}
+
+/* ── Skeletons ────────────────────────────────────────────────────────────── */
+
+.att-config-page .edit-skeleton {
+  display: flex;
+  flex-direction: column;
+}
+.att-config-page .skeleton-section {
+  height: 62px;
+  border-radius: 12px;
+  background: var(--color-surface-2);
+  margin-bottom: 12px;
+  animation: att-shimmer 1.4s infinite;
+}
+.att-config-page .skeleton-section:nth-child(2) { animation-delay: 0.15s; }
+.att-config-page .skeleton-section:nth-child(3) { animation-delay: 0.3s; }
+.att-config-page .skeleton-section:nth-child(4) { animation-delay: 0.45s; }
+@keyframes att-shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .att-config-page .form-row-2,
+  .att-config-page .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+  .att-config-page .save-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .att-config-page .save-bar-actions {
+    justify-content: flex-end;
+  }
+}

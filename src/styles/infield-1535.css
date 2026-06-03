@@ -1,0 +1,147 @@
+/* ============================================================
+   InField 2.0 - Designations Master (INF2-1535)
+   Designation <-> backend role mapping screen, rendered inside the
+   Project Admin shell. Reuses the global IF2 component classes from
+   infield-1529.css (.btn, .data-table-wrap, .modal-*, .form-*) and
+   adds only the table grid + role/access chips, scoped under
+   .designations-page so they do not leak elsewhere.
+   ============================================================ */
+
+.designations-page {
+  font-family: var(--font-sora), "Sora", system-ui, -apple-system, sans-serif;
+  color: var(--if2-text);
+}
+
+.designations-page .pg-sub {
+  font-size: 12px;
+  color: var(--if2-text-muted);
+  margin-top: var(--if2-sp-4);
+  max-width: 640px;
+  line-height: 1.6;
+}
+
+/* ── Table grid ───────────────────────────────────────────────────────────── */
+
+.designations-page .desig-col-head,
+.designations-page .desig-row {
+  display: grid;
+  grid-template-columns: 1fr 220px 140px 160px;
+  align-items: center;
+  gap: var(--if2-sp-12);
+  padding: var(--if2-sp-12) var(--if2-sp-20);
+}
+
+.designations-page .desig-col-head {
+  background: var(--if2-surface2);
+  border-bottom: 1px solid var(--if2-border);
+}
+.designations-page .desig-col-head span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--if2-text-muted);
+}
+
+.designations-page .desig-row {
+  border-bottom: 1px solid var(--if2-border);
+  transition: background 0.12s;
+  min-height: 60px;
+}
+.designations-page .desig-row:last-child {
+  border-bottom: none;
+}
+.designations-page .desig-row:hover {
+  background: var(--if2-blue-pale);
+}
+
+.designations-page .desig-name-cell {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--if2-navy);
+}
+
+/* ── Role + access chips ──────────────────────────────────────────────────── */
+
+.designations-page .desig-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--if2-sp-8);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--if2-text-mid);
+  background: var(--if2-surface2);
+  border: 1px solid var(--if2-border);
+  padding: var(--if2-sp-4) var(--if2-sp-12);
+  border-radius: var(--if2-r-pill);
+}
+.designations-page .desig-role-level {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--if2-blue);
+  background: var(--if2-blue-light);
+  padding: 1px 6px;
+  border-radius: var(--if2-r-pill);
+}
+.designations-page .desig-role-missing {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--if2-red);
+}
+
+.designations-page .desig-access-chip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--if2-text-mid);
+}
+
+.designations-page .desig-action-cell {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--if2-sp-8);
+}
+
+/* ── Bulk upload summary + delete confirm ─────────────────────────────────── */
+
+.designations-page .desig-bulk-summary {
+  margin-top: var(--if2-sp-16);
+}
+.designations-page .desig-bulk-summary .if2-banner {
+  margin-bottom: var(--if2-sp-8);
+}
+.designations-page .desig-bulk-summary .if2-banner.error {
+  align-items: flex-start;
+}
+.desig-error-list {
+  margin: 0;
+  padding-left: var(--if2-sp-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--if2-sp-4);
+}
+.desig-confirm-text {
+  font-size: 13px;
+  color: var(--if2-text-mid);
+  line-height: 1.6;
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .designations-page .desig-col-head,
+  .designations-page .desig-row {
+    grid-template-columns: 1fr 160px 100px 140px;
+    gap: var(--if2-sp-8);
+  }
+}
+@media (max-width: 640px) {
+  .designations-page .desig-col-head,
+  .designations-page .desig-row {
+    grid-template-columns: 1fr 120px 130px;
+  }
+  .designations-page .desig-col-head > :nth-child(3),
+  .designations-page .desig-row > :nth-child(3) {
+    display: none;
+  }
+}

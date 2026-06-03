@@ -1,0 +1,310 @@
+/* ============================================================
+   InField 2.0 - Master Layout & Navigation (INF2-1948)
+   Layers on top of infield-1529.css. All rules are scoped under
+   .if2-app (except the full-screen signed-out overlay) so they do
+   not leak into the rest of the application.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   DRAWER FOOTER - sign-out button (1948 treatment)
+   ------------------------------------------------------------ */
+.if2-app .signout-btn {
+  justify-content: center;
+  background: var(--if2-red-light);
+  border: 1px solid var(--if2-red-mid);
+  border-radius: var(--if2-r-lg);
+  transition: background .2s, border-color .2s, box-shadow .2s, transform .1s;
+}
+.if2-app .signout-btn:hover {
+  background: #ffe0de;
+  border-color: var(--if2-red);
+  box-shadow: 0 4px 16px rgba(232, 56, 45, .12);
+}
+.if2-app .signout-btn:focus-visible { outline: 2px solid var(--if2-red); outline-offset: 2px; }
+
+/* ------------------------------------------------------------
+   DRAWER HEAD - hamburger animation
+   ------------------------------------------------------------ */
+.if2-app .ham-toggle {
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+  transition: background .2s, border-color .2s, transform .1s;
+}
+.if2-app .ham-toggle:hover {
+  background: rgba(255, 255, 255, .18);
+  border-color: rgba(255, 255, 255, .25);
+}
+.if2-app .ham-toggle:active { transform: scale(.94); }
+.if2-app .ham-toggle:focus-visible { outline: 2px solid var(--if2-teal); outline-offset: 2px; }
+
+.if2-app .ham-bars span {
+  transition: width .25s cubic-bezier(.4, 0, .2, 1);
+}
+.if2-app .app:not(.collapsed) .ham-bars span:nth-child(1) { width: 70%; }
+.if2-app .app:not(.collapsed) .ham-bars span:nth-child(3) { width: 50%; }
+.if2-app .app.collapsed .ham-bars span { width: 100%; }
+
+.if2-app .ham-label {
+  white-space: nowrap;
+  transition: opacity .18s ease .08s;
+}
+
+/* ------------------------------------------------------------
+   NAV BADGE (e.g. Inbox pending count)
+   ------------------------------------------------------------ */
+.if2-app .nav-item { white-space: nowrap; }
+.if2-app .nav-text { flex: 1; }
+.if2-app .nav-badge {
+  background: var(--if2-red);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px var(--if2-sp-8);
+  border-radius: var(--if2-r-pill);
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.4;
+  box-shadow: 0 2px 6px rgba(232, 56, 45, .25);
+  flex-shrink: 0;
+}
+.if2-app .app.collapsed .nav-badge { display: none; }
+
+/* ------------------------------------------------------------
+   TOPBAR - brand link reset
+   ------------------------------------------------------------ */
+.if2-app .tb-brand {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.if2-app .tb-brand:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; border-radius: var(--if2-r-md); }
+
+/* ------------------------------------------------------------
+   TOPBAR - client logo / white-label badge
+   ------------------------------------------------------------ */
+.if2-app .client-brand {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--if2-sp-12);
+  background: var(--if2-surface2);
+  border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-md);
+  cursor: default;
+  transition: border-color .15s;
+  flex-shrink: 0;
+}
+.if2-app .client-brand:hover { border-color: var(--if2-border2); }
+.if2-app .client-brand img { height: 20px; width: auto; display: block; }
+
+/* ------------------------------------------------------------
+   TOPBAR - icon button + notification dot
+   ------------------------------------------------------------ */
+.if2-app .tb-icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--if2-r-md);
+  background: var(--if2-surface2);
+  border: 1px solid var(--if2-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.if2-app .tb-icon-btn:hover { background: var(--if2-blue-pale); border-color: var(--if2-blue-light); }
+.if2-app .tb-icon-btn.active-nav { background: var(--if2-blue-pale); border-color: var(--if2-blue); }
+.if2-app .tb-icon-btn:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+.if2-app .tb-icon-btn svg { width: 16px; height: 16px; stroke: var(--if2-text-mid); stroke-width: 2; }
+.if2-app .tb-icon-btn.active-nav svg { stroke: var(--if2-blue); }
+
+.if2-app .tb-icon-btn .dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--if2-red);
+  border: 2px solid var(--if2-surface);
+  display: none;
+}
+.if2-app .tb-icon-btn .dot.visible { display: block; }
+
+/* ------------------------------------------------------------
+   TOPBAR - name card hover / active
+   ------------------------------------------------------------ */
+.if2-app .name-card {
+  border: 1px solid var(--if2-border);
+  background: var(--if2-surface2);
+  border-radius: var(--if2-r-pill);
+  padding: var(--if2-sp-4) var(--if2-sp-12) var(--if2-sp-4) var(--if2-sp-4);
+  cursor: pointer;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+}
+.if2-app a.name-card:hover { border-color: var(--if2-blue); background: var(--if2-blue-pale); box-shadow: var(--if2-shadow-sm); }
+.if2-app .name-card.active-nav { border-color: var(--if2-blue); background: var(--if2-blue-pale); }
+.if2-app .name-card:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+.if2-app .nc-avatar { border-radius: 50%; }
+
+/* ------------------------------------------------------------
+   SIGN-OUT CONFIRMATION MODAL
+   ------------------------------------------------------------ */
+.if2-app .so-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(8, 15, 24, .55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--if2-sp-24);
+  animation: so-overlay-in .2s ease;
+  font-family: var(--font-sora), "Sora", system-ui, sans-serif;
+}
+@keyframes so-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+
+.if2-app .so-modal-card {
+  width: 420px;
+  max-width: 92vw;
+  background: var(--if2-surface);
+  border-radius: var(--if2-r-3xl);
+  box-shadow: 0 24px 64px rgba(12, 25, 41, .35);
+  padding: var(--if2-sp-32) var(--if2-sp-32) var(--if2-sp-24);
+  text-align: center;
+  animation: so-card-in .28s cubic-bezier(.4, 0, .2, 1);
+}
+@keyframes so-card-in {
+  from { opacity: 0; transform: scale(.92) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.if2-app .so-modal-icon-row { display: flex; justify-content: center; margin-bottom: var(--if2-sp-20); }
+.if2-app .so-modal-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--if2-red-light);
+  border: 1px solid var(--if2-red-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.if2-app .so-modal-icon-circle svg { width: 26px; height: 26px; stroke: var(--if2-red); stroke-width: 2; }
+
+.if2-app .so-modal-title { font-size: 18px; font-weight: 800; color: var(--if2-navy); margin-bottom: var(--if2-sp-8); }
+.if2-app .so-modal-desc { font-size: 12px; line-height: 1.6; color: var(--if2-text-mid); margin-bottom: var(--if2-sp-24); }
+
+.if2-app .so-modal-actions { display: flex; gap: var(--if2-sp-12); }
+.if2-app .so-btn {
+  flex: 1;
+  padding: var(--if2-sp-12) var(--if2-sp-16);
+  border-radius: var(--if2-r-lg);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, box-shadow .15s, transform .1s;
+}
+.if2-app .so-btn:active { transform: scale(.99); }
+.if2-app .so-btn-cancel { background: var(--if2-surface2); border: 1px solid var(--if2-border); color: var(--if2-text-mid); }
+.if2-app .so-btn-cancel:hover { background: var(--if2-blue-pale); border-color: var(--if2-border2); }
+.if2-app .so-btn-logout { background: var(--if2-red); border: 1px solid var(--if2-red); color: #fff; box-shadow: 0 4px 16px rgba(232, 56, 45, .25); }
+.if2-app .so-btn-logout:hover { background: #d22e24; }
+.if2-app .so-btn:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+
+/* ------------------------------------------------------------
+   SIGNED-OUT FULL-SCREEN OVERLAY
+   ------------------------------------------------------------ */
+.if2-app .logged-out-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--if2-sp-16);
+  background: linear-gradient(135deg, var(--if2-navy) 0%, #162d4a 60%, #1a3356 100%);
+  color: #fff;
+  text-align: center;
+  animation: lo-screen-in .35s ease;
+  font-family: var(--font-sora), "Sora", system-ui, sans-serif;
+}
+@keyframes lo-screen-in { from { opacity: 0; } to { opacity: 1; } }
+
+.if2-app .lo-check-circle {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: rgba(0, 168, 122, .15);
+  border: 2px solid var(--if2-teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lo-check-pop .4s cubic-bezier(.34, 1.56, .64, 1) .1s both;
+}
+@keyframes lo-check-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.if2-app .lo-check-circle svg { width: 38px; height: 38px; stroke: var(--if2-teal); stroke-width: 3; }
+
+.if2-app .lo-title { font-size: 24px; font-weight: 800; letter-spacing: -.3px; }
+.if2-app .lo-sub { font-size: 13px; color: rgba(255, 255, 255, .65); }
+
+/* ------------------------------------------------------------
+   COMING SOON PANEL (development placeholder)
+   ------------------------------------------------------------ */
+.if2-app .coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 60vh;
+  padding: var(--if2-sp-48) var(--if2-sp-24);
+  animation: cs-fade-slide .28s ease;
+}
+@keyframes cs-fade-slide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.if2-app .cs-illus {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--if2-r-3xl);
+  background: linear-gradient(135deg, var(--if2-blue-pale), #e3eefb);
+  border: 1px solid var(--if2-blue-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--if2-sp-24);
+}
+.if2-app .cs-illus svg { width: 44px; height: 44px; stroke: var(--if2-blue); stroke-width: 1.6; }
+
+.if2-app .cs-tag {
+  display: inline-block;
+  padding: var(--if2-sp-4) var(--if2-sp-12);
+  background: var(--if2-amber-light);
+  color: #92660a;
+  border: 1px solid rgba(245, 158, 11, .3);
+  border-radius: var(--if2-r-pill);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: var(--if2-sp-16);
+}
+.if2-app .cs-title { font-size: 24px; font-weight: 800; color: var(--if2-navy); letter-spacing: -.4px; margin-bottom: var(--if2-sp-12); }
+.if2-app .cs-title span { color: var(--if2-blue); }
+.if2-app .cs-desc { font-size: 13px; line-height: 1.7; color: var(--if2-text-mid); max-width: 460px; }
+
+/* ------------------------------------------------------------
+   RESPONSIVE
+   ------------------------------------------------------------ */
+@media (max-width: 900px) {
+  .if2-app .tb-brand-text { display: none; }
+}
+@media (max-width: 640px) {
+  .if2-app .nc-text { display: none; }
+  .if2-app .name-card { padding: var(--if2-sp-4); border-radius: 50%; }
+}

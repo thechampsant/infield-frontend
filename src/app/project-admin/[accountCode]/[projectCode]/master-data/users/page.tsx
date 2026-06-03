@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-
-export default function UsersMasterPage() {
-  return (
-    <ComingSoon
-      title="User Master"
-      description="Manage user accounts, roles, and permissions for this project. Users API is under development."
-    />
-  );
+export default async function RedirectMasterDataUsers({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = await params;
+  redirect(`/project-admin/${accountCode}/${projectCode}/uploaders/users`);
 }

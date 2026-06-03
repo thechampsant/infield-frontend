@@ -151,6 +151,25 @@ export const mockAdminApi: AdminApi = {
     return paginate(filtered, page, pageSize);
   },
 
+  async listProjectsByAccountId(accountId, accountCode, query) {
+    const { q, status, page, pageSize } = normalizeQuery(query);
+
+    const account = accountsStore.find((a) => a.id === accountId);
+    const code = accountCode || account?.code || "";
+
+    const filtered = projectsStore
+      .filter((p) => p.accountCode === code)
+      .filter((p) => (status === "All" ? true : p.status === status))
+      .filter((p) =>
+        matchesText(
+          `${p.name} ${p.code} ${p.projectAdminName} ${p.projectAdminEmail}`,
+          q,
+        ),
+      );
+
+    return paginate(filtered, page, pageSize);
+  },
+
   async getProject(projectId) {
     const project = projectsStore.find((p) => p.id === projectId);
     if (!project) {
@@ -207,6 +226,45 @@ export const mockAdminApi: AdminApi = {
       throw new Error(`Project not found: ${projectId}`);
     }
     projectsStore.splice(index, 1);
+  },
+
+  async exportAccountsWithProjects() {
+    const rows: {
+      accountName: string;
+      accountCode: string;
+      accountStatus: string;
+      projectName: string;
+      projectCode: string;
+      projectStatus: string;
+    }[] = [];
+
+    for (const acc of accountsStore) {
+      const accountProjects = projectsStore.filter(
+        (p) => p.accountCode === acc.code,
+      );
+      if (accountProjects.length === 0) {
+        rows.push({
+          accountName: acc.name,
+          accountCode: acc.code,
+          accountStatus: acc.status,
+          projectName: "",
+          projectCode: "",
+          projectStatus: "",
+        });
+        continue;
+      }
+      for (const prj of accountProjects) {
+        rows.push({
+          accountName: acc.name,
+          accountCode: acc.code,
+          accountStatus: acc.status,
+          projectName: prj.name,
+          projectCode: prj.code,
+          projectStatus: prj.status,
+        });
+      }
+    }
+    return rows;
   },
 
   // ─────────────────────────────────────────────────────────────

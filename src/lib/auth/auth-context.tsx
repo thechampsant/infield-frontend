@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { authService } from "@/lib/api";
+import { apiClient } from "@/lib/api/api-client";
 import type { BackendUser, LoginDto } from "@/lib/api/types";
 
 // ─────────────────────────────────────────────────────────────
@@ -24,6 +25,8 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (credentials: LoginDto) => Promise<void>;
+  /** Establish a session from a token+user obtained via OTP/passkey flows. */
+  establishSession: (accessToken: string, user: BackendUser) => void;
   logout: () => Promise<void>;
 }
 
@@ -101,6 +104,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const establishSession = useCallback(
+    (accessToken: string, user: BackendUser) => {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEY_TOKEN, accessToken);
+      apiClient.setAccessToken(accessToken);
+      setState({ user, isAuthenticated: true, isLoading: false });
+    },
+    [],
+  );
+
   const logout = useCallback(async () => {
     try {
       await authService.logout();
@@ -123,9 +136,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     () => ({
       ...state,
       login,
+      establishSession,
       logout,
     }),
-    [state, login, logout],
+    [state, login, establishSession, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

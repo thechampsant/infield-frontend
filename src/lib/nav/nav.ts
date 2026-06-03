@@ -1,9 +1,11 @@
 export type IconName =
   | "badgeCheck"
+  | "bell"
   | "building2"
   | "clipboardList"
   | "cog"
   | "folder"
+  | "inbox"
   | "layoutDashboard"
   | "lineChart"
   | "listChecks"
@@ -12,6 +14,7 @@ export type IconName =
   | "shield"
   | "store"
   | "toggleLeft"
+  | "user"
   | "userCheck"
   | "users"
   | "workflow";
@@ -30,61 +33,47 @@ export type NavSection = {
 
 export const superAdminNav: NavSection[] = [
   {
-    title: "Main",
+    title: "Setup",
     items: [
-      { label: "Dashboard", href: "/super-admin", icon: "layoutDashboard" },
-      { label: "Accounts", href: "/super-admin/accounts", icon: "building2", badge: 24 },
-      { label: "Projects", href: "/super-admin/projects", icon: "folder" },
-    ],
-  },
-  {
-    title: "Configuration",
-    items: [
-      { label: "Users Master", href: "/super-admin/users-master", icon: "users" },
-      { label: "Designations", href: "/super-admin/designations", icon: "badgeCheck" },
-      { label: "Stores", href: "/super-admin/stores", icon: "store" },
-      { label: "Products", href: "/super-admin/products", icon: "package" },
-    ],
-  },
-  {
-    title: "Modules",
-    items: [
-      { label: "Attendance", href: "/super-admin/attendance", icon: "userCheck" },
-      { label: "Approvals", href: "/super-admin/approvals", icon: "shield" },
-      { label: "Module Settings", href: "/super-admin/module-settings", icon: "toggleLeft" },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      { label: "Reports", href: "/super-admin/reports", icon: "lineChart" },
-      { label: "Settings", href: "/super-admin/settings", icon: "settings" },
+      { label: "Accounts", href: "/super-admin/accounts", icon: "cog" },
     ],
   },
 ];
 
 export const accountAdminNav: NavSection[] = [
   {
-    title: "Main",
+    title: "Menu",
     items: [
-      { label: "Dashboard", href: "/account-admin", icon: "layoutDashboard" },
-      { label: "Projects", href: "/account-admin/projects", icon: "folder" },
-    ],
-  },
-  {
-    title: "Configuration",
-    items: [
-      { label: "Account Settings", href: "/account-admin/account-settings", icon: "settings" },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      { label: "Audit Logs", href: "/account-admin/audit-logs", icon: "clipboardList" },
+      { label: "Setup", href: "/account-admin/projects", icon: "settings" },
     ],
   },
 ];
 
+/**
+ * Manager-level nav: Overview, Inbox, and Reports are static core items.
+ * Additional modules are appended from project config at runtime (not hardcoded here).
+ */
+export function managerNav(inboxBadge?: number | string): NavSection[] {
+  return [
+    {
+      title: "Menu",
+      items: [
+        { label: "Overview", href: "/workspace", icon: "layoutDashboard" },
+        {
+          label: "Inbox",
+          href: "/workspace/inbox",
+          icon: "inbox",
+          ...(inboxBadge !== undefined && inboxBadge !== 0 && inboxBadge !== "0"
+            ? { badge: inboxBadge }
+            : {}),
+        },
+        { label: "Reports", href: "/workspace/reports", icon: "lineChart" },
+      ],
+    },
+  ];
+}
+
+/** @deprecated Use projectAdminDrawerNav for the design-spec Project Admin shell. */
 export function projectAdminNav(accountCode: string, projectCode: string): NavSection[] {
   const base = `/project-admin/${accountCode}/${projectCode}`;
   return [
@@ -95,26 +84,54 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
     {
       title: "Master Data",
       items: [
-        { label: "Users", href: `${base}/master-data/users`, icon: "users" },
-        { label: "Designations", href: `${base}/master-data/designations`, icon: "badgeCheck" },
-        { label: "Stores", href: `${base}/master-data/stores`, icon: "store" },
-        { label: "Products", href: `${base}/master-data/products`, icon: "package" },
-        { label: "User-Store Map", href: `${base}/master-data/user-store-map`, icon: "listChecks" },
+        { label: "Users", href: `${base}/uploaders/users`, icon: "users" },
+        { label: "Designations", href: `${base}/uploaders/designations`, icon: "badgeCheck" },
+        { label: "Stores", href: `${base}/uploaders/stores`, icon: "store" },
+        { label: "Products", href: `${base}/uploaders/products`, icon: "package" },
+        { label: "User-Store Map", href: `${base}/uploaders/user-store-map`, icon: "listChecks" },
       ],
     },
     {
       title: "Configuration",
       items: [
-        { label: "Module Toggles", href: `${base}/configuration/module-toggles`, icon: "toggleLeft" },
-        { label: "Attendance Rules", href: `${base}/configuration/attendance-rules`, icon: "userCheck" },
-        { label: "Workflows", href: `${base}/configuration/workflows`, icon: "workflow" },
+        { label: "Modules", href: `${base}/modules`, icon: "toggleLeft" },
+        { label: "Attendance Configuration", href: `${base}/modules/attendance`, icon: "userCheck" },
       ],
     },
-    {
-      title: "System",
-      items: [
-        { label: "Audit Logs", href: `${base}/audit-logs`, icon: "clipboardList" },
-      ],
-    },
+  ];
+}
+
+export type ProjectAdminDrawerItem = {
+  label: string;
+  href: string;
+  icon: "users" | "settings" | "fileText" | "pieChart";
+};
+
+export function projectAdminBase(accountCode: string, projectCode: string): string {
+  return `/project-admin/${accountCode}/${projectCode}`;
+}
+
+/** Design-spec drawer nav: Uploaders, Modules, Form Builder, Reports. */
+export function projectAdminDrawerNav(
+  accountCode: string,
+  projectCode: string,
+): ProjectAdminDrawerItem[] {
+  const base = projectAdminBase(accountCode, projectCode);
+  return [
+    { label: "Uploaders", href: `${base}/uploaders/designations`, icon: "users" },
+    { label: "Modules", href: `${base}/modules`, icon: "settings" },
+    { label: "Form Builder", href: `${base}/form-builder`, icon: "fileText" },
+    { label: "Reports", href: `${base}/reports`, icon: "pieChart" },
+  ];
+}
+
+export function uploadersTabs(accountCode: string, projectCode: string) {
+  const base = `${projectAdminBase(accountCode, projectCode)}/uploaders`;
+  return [
+    { label: "Designations", href: `${base}/designations` },
+    { label: "Users", href: `${base}/users` },
+    { label: "Stores", href: `${base}/stores` },
+    { label: "Products", href: `${base}/products` },
+    { label: "User-Store Map", href: `${base}/user-store-map` },
   ];
 }

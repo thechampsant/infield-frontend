@@ -20,6 +20,21 @@ export function getAdminApi(): AdminApi {
 export { authService } from "./auth-service";
 export type { AuthService } from "./auth-service";
 
+// Re-export designation + role services (INF2-1535)
+export { designationService } from "./designation-service";
+export type {
+  Designation,
+  DesignationDto,
+  UpdateDesignationDto,
+} from "./designation-service";
+export { roleService, toRoleOptions } from "./role-service";
+export type {
+  BackendRole,
+  CreateRolePayload,
+  ProjectRolesSummary,
+  RoleOption,
+} from "./role-service";
+
 // Re-export types
 export type { AdminApi } from "./admin";
 export * from "./types";
@@ -27,3 +42,4 @@ export * from "./types";
 // Re-export API client utilities
 export { ApiError } from "./api-client";
 export type { ApiErrorResponse } from "./api-client";
+export { formatApiError } from "./get-api-error-message";

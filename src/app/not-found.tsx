@@ -58,7 +58,7 @@ export default function NotFound() {
 
         {/* Footer */}
         <p className="mt-12 text-xs text-[var(--orca-text-3)]">
-          Singularity • Under Active Development
+          InField • Under Active Development
         </p>
       </div>
     </main>

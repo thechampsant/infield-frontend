@@ -1,0 +1,280 @@
+/* InField brand — wordmarks, app icon, animated splash */
+
+.infield-brand-wordmark {
+  display: block;
+  height: 28px;
+  width: auto;
+  max-width: min(200px, 42vw);
+  object-fit: contain;
+  object-position: left center;
+}
+
+.infield-brand-wordmark--topbar {
+  height: 30px;
+  max-width: 168px;
+}
+
+.infield-brand-wordmark--hero {
+  height: 44px;
+  max-width: 220px;
+}
+
+.infield-brand-wordmark--auth-panel {
+  height: 36px;
+  max-width: 200px;
+}
+
+.infield-brand-icon {
+  display: block;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.infield-brand-icon--sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.infield-brand-icon--splash-corner {
+  height: 60px;
+  width: auto;
+  max-width: 72px;
+  object-fit: contain;
+  border-radius: 0;
+}
+
+/* Theme-aware wordmark (light surface vs dark hero) */
+.infield-brand-wordmark--theme-auto.infield-brand-wordmark--light {
+  display: block;
+}
+.infield-brand-wordmark--theme-auto.infield-brand-wordmark--dark {
+  display: none;
+}
+html.dark .infield-brand-wordmark--theme-auto.infield-brand-wordmark--light {
+  display: none;
+}
+html.dark .infield-brand-wordmark--theme-auto.infield-brand-wordmark--dark {
+  display: block;
+}
+
+/* Topbar: replace legacy IF tile */
+.tb-brand .infield-brand-wordmark-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tb-brand .tb-brand-tag {
+  margin-top: 0;
+}
+
+/* ── Animated splash (loading / boot) ── */
+.infield-splash-screen {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  background: var(--if2-bg, #f4f7fb);
+}
+
+html.dark .infield-splash-screen {
+  background: #0c1929;
+}
+
+.infield-splash-screen--overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  min-height: 100dvh;
+}
+
+.infield-splash-screen__corner {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 2;
+}
+
+@media (min-width: 640px) {
+  .infield-splash-screen__corner {
+    top: 28px;
+    left: 32px;
+  }
+}
+
+.infield-splash-screen__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 32px;
+  text-align: center;
+}
+
+/* Embedded splash block (e.g. login password left column) */
+.infield-splash-screen__center--inline {
+  position: relative;
+  inset: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+.infield-splash-screen__frame--compact {
+  width: min(240px, 70vw);
+}
+
+.infield-splash-screen__frame {
+  position: relative;
+  width: min(320px, 88vw);
+  max-width: 360px;
+  aspect-ratio: 417 / 410;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.infield-splash-screen__glow {
+  position: absolute;
+  inset: 8%;
+  border-radius: 24px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(43, 89, 224, 0.18) 0%,
+    transparent 68%
+  );
+  animation: infield-splash-glow 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.infield-splash-screen__logo {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: auto;
+  display: block;
+  animation:
+    infield-splash-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    infield-splash-float 2.8s ease-in-out 0.9s infinite;
+  transform-origin: center center;
+}
+
+.infield-splash-screen__msg {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--if2-text-muted, #7a95b5);
+  letter-spacing: 0.02em;
+  animation: infield-splash-msg 0.6s ease 0.35s both;
+}
+
+html.dark .infield-splash-screen__msg {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.infield-splash-screen__dots {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.infield-splash-screen__dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--if2-blue, #1e5fa8);
+  animation: infield-splash-dot 1.2s ease-in-out infinite;
+}
+
+.infield-splash-screen__dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.infield-splash-screen__dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+html.dark .infield-splash-screen__dots span {
+  background: #2b59e0;
+}
+
+@keyframes infield-splash-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes infield-splash-float {
+  0%,
+  100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.02) translateY(-4px);
+  }
+}
+
+@keyframes infield-splash-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes infield-splash-msg {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes infield-splash-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Auth hero: splash.svg lockup — top-left */
+.if2-auth .infield-brand-splash--hero {
+  height: 120px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+}
+
+@media (min-width: 900px) {
+  .if2-auth .infield-brand-splash--hero {
+    height: 140px;
+    max-width: 240px;
+  }
+}

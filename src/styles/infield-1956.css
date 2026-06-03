@@ -1,0 +1,372 @@
+/* ============================================================
+   InField 2.0 - Inbox / Approvals (INF2-1956)
+   Layers on top of infield-1529.css. All rules are scoped under
+   .if2-app so they do not leak into the rest of the application.
+   ============================================================ */
+
+/* Local tokens not present in the base sheet. */
+.if2-app .inbox {
+  --ibx-amber:       #f59e0b;
+  --ibx-amber-dark:  #92400e;
+  --ibx-amber-light: #fef3c7;
+  position: relative;
+}
+
+/* ------------------------------------------------------------
+   PAGE HEADER + PENDING PILL
+   ------------------------------------------------------------ */
+.if2-app .inbox-head {
+  display: flex; align-items: center; gap: var(--if2-sp-12);
+  margin-bottom: var(--if2-sp-20); flex-wrap: wrap;
+}
+.if2-app .inbox-title {
+  font-size: 24px; font-weight: 800; color: var(--if2-navy);
+  letter-spacing: -0.5px; line-height: 1.1;
+}
+.if2-app .inbox-pending-pill {
+  display: inline-flex; align-items: center; gap: var(--if2-sp-8);
+  padding: var(--if2-sp-4) var(--if2-sp-12);
+  background: var(--if2-red-light); border: 1px solid var(--if2-red-mid);
+  border-radius: var(--if2-r-pill);
+  font-size: 11px; font-weight: 800; color: var(--if2-red);
+}
+.if2-app .inbox-pending-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--if2-red);
+  box-shadow: 0 0 0 0 rgba(232,56,45,.6);
+  animation: ibx-pulse 1.8s infinite;
+}
+@keyframes ibx-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(232,56,45,.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(232,56,45,0); }
+  100% { box-shadow: 0 0 0 0 rgba(232,56,45,0); }
+}
+
+/* ------------------------------------------------------------
+   TAB SWITCHER
+   ------------------------------------------------------------ */
+.if2-app .inbox-tabs {
+  display: inline-flex; gap: var(--if2-sp-4);
+  padding: var(--if2-sp-4);
+  background: var(--if2-surface2); border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-pill);
+  margin-bottom: var(--if2-sp-16);
+}
+.if2-app .inbox-tab {
+  display: inline-flex; align-items: center; gap: var(--if2-sp-8);
+  padding: var(--if2-sp-8) var(--if2-sp-16);
+  border: none; background: transparent; cursor: pointer;
+  border-radius: var(--if2-r-pill);
+  font-size: 12px; font-weight: 700; color: var(--if2-text-mid);
+  transition: background .15s, color .15s;
+}
+.if2-app .inbox-tab:hover { color: var(--if2-blue); }
+.if2-app .inbox-tab.active { background: var(--if2-blue); color: #fff; }
+.if2-app .inbox-tab-count {
+  font-size: 10px; font-weight: 800;
+  padding: 1px var(--if2-sp-8); border-radius: var(--if2-r-pill);
+  background: var(--if2-border); color: var(--if2-text-mid); min-width: 18px; text-align: center;
+}
+.if2-app .inbox-tab.active .inbox-tab-count { background: rgba(255,255,255,.25); color: #fff; }
+.if2-app .inbox-tab:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+
+/* ------------------------------------------------------------
+   TOOLBAR
+   ------------------------------------------------------------ */
+.if2-app .inbox-toolbar {
+  display: flex; align-items: center; gap: var(--if2-sp-8);
+  padding: var(--if2-sp-8) var(--if2-sp-12);
+  background: var(--if2-surface); border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-xl); box-shadow: var(--if2-shadow-sm);
+  margin-bottom: var(--if2-sp-12); position: relative; flex-wrap: wrap;
+}
+.if2-app .inbox-toolbar-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--if2-text-muted); margin-right: var(--if2-sp-4);
+}
+.if2-app .inbox-tool-btn {
+  display: inline-flex; align-items: center; gap: var(--if2-sp-4);
+  padding: var(--if2-sp-8) var(--if2-sp-12);
+  border: 1px solid var(--if2-border); background: var(--if2-surface);
+  border-radius: var(--if2-r-md);
+  font-size: 11px; font-weight: 700; color: var(--if2-text-mid);
+  cursor: pointer; transition: all .15s;
+}
+.if2-app .inbox-tool-btn:hover { border-color: var(--if2-blue-light); background: var(--if2-blue-pale); color: var(--if2-blue); }
+.if2-app .inbox-tool-btn.active { background: var(--if2-blue); border-color: var(--if2-blue); color: #fff; }
+.if2-app .inbox-tool-btn.has-filter { border-color: var(--if2-blue); color: var(--if2-blue); background: var(--if2-blue-pale); }
+.if2-app .inbox-tool-btn svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; }
+.if2-app .inbox-tool-btn:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+.if2-app .inbox-sort-arrow { font-size: 11px; font-weight: 800; }
+
+.if2-app .inbox-result-count {
+  margin-left: auto; font-size: 11px; font-weight: 600; color: var(--if2-text-muted);
+}
+
+/* Date filter dropdown */
+.if2-app .inbox-filter-wrap { position: relative; }
+.if2-app .inbox-filter-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+  width: 280px; padding: var(--if2-sp-16);
+  background: var(--if2-surface); border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-lg); box-shadow: var(--if2-shadow-md);
+}
+.if2-app .inbox-filter-field { margin-bottom: var(--if2-sp-12); }
+.if2-app .inbox-filter-field label {
+  display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--if2-text-muted); margin-bottom: var(--if2-sp-4);
+}
+.if2-app .inbox-filter-field input {
+  width: 100%; padding: var(--if2-sp-8) var(--if2-sp-12);
+  border: 1px solid var(--if2-border); border-radius: var(--if2-r-md);
+  font-size: 12px; color: var(--if2-text); font-family: inherit;
+}
+.if2-app .inbox-filter-field input:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 0; border-color: var(--if2-blue); }
+.if2-app .inbox-filter-actions { display: flex; gap: var(--if2-sp-8); margin-top: var(--if2-sp-4); }
+
+/* ------------------------------------------------------------
+   BULK ACTION BAR
+   ------------------------------------------------------------ */
+.if2-app .inbox-bulk-bar {
+  display: flex; align-items: center; gap: var(--if2-sp-12);
+  padding: var(--if2-sp-12) var(--if2-sp-16);
+  background: var(--if2-blue-pale); border: 1px solid var(--if2-blue-light);
+  border-radius: var(--if2-r-lg); margin-bottom: var(--if2-sp-12);
+}
+.if2-app .inbox-bulk-info { font-size: 12px; font-weight: 700; color: var(--if2-blue); }
+.if2-app .inbox-bulk-spacer { margin-left: auto; }
+
+/* ------------------------------------------------------------
+   CHECKBOX (tri-state select-all + row)
+   ------------------------------------------------------------ */
+.if2-app .ibx-check {
+  width: 18px; height: 18px; flex-shrink: 0;
+  border: 1.5px solid var(--if2-border2); border-radius: var(--if2-r-xs);
+  background: var(--if2-surface); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all .15s; color: #fff;
+}
+.if2-app .ibx-check:hover { border-color: var(--if2-blue); }
+.if2-app .ibx-check.checked, .if2-app .ibx-check.partial { background: var(--if2-blue); border-color: var(--if2-blue); }
+.if2-app .ibx-check svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 3; }
+.if2-app .ibx-check:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+
+/* ------------------------------------------------------------
+   TABLE
+   ------------------------------------------------------------ */
+.if2-app .inbox-table-wrap {
+  background: var(--if2-surface); border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-xl); box-shadow: var(--if2-shadow-sm);
+  overflow: hidden;
+}
+.if2-app .inbox-table-scroll { overflow-x: auto; }
+.if2-app .inbox-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.if2-app .inbox-table thead th {
+  text-align: left; font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--if2-text-muted);
+  padding: var(--if2-sp-12) var(--if2-sp-12);
+  border-bottom: 1px solid var(--if2-border); background: var(--if2-surface2);
+  white-space: nowrap;
+}
+.if2-app .inbox-table tbody td {
+  padding: var(--if2-sp-12); font-size: 12px; color: var(--if2-text);
+  border-bottom: 1px solid var(--if2-border); vertical-align: middle;
+}
+.if2-app .inbox-row { transition: background .15s; cursor: pointer; }
+.if2-app .inbox-row:hover { background: var(--if2-surface2); }
+.if2-app .inbox-row.selected { background: var(--if2-blue-pale); }
+.if2-app .inbox-row.expanded { background: var(--if2-surface2); }
+.if2-app .inbox-detail-row > td { padding: 0; border-bottom: 1px solid var(--if2-border); background: var(--if2-surface2); }
+
+.if2-app .ibx-emp { display: flex; align-items: center; gap: var(--if2-sp-8); white-space: nowrap; }
+.if2-app .ibx-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: var(--if2-blue); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800;
+}
+.if2-app .ibx-emp-name { font-weight: 700; color: var(--if2-text); }
+.if2-app .ibx-muted { color: var(--if2-text-muted); white-space: nowrap; }
+.if2-app .ibx-age { color: var(--if2-text-muted); font-size: 11px; white-space: nowrap; }
+
+/* Status pills */
+.if2-app .ibx-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px var(--if2-sp-8); border-radius: var(--if2-r-pill);
+  font-size: 10px; font-weight: 800; white-space: nowrap;
+}
+.if2-app .ibx-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.if2-app .ibx-status.pending  { background: var(--ibx-amber-light); color: var(--ibx-amber-dark); }
+.if2-app .ibx-status.approved { background: var(--if2-teal-light); color: var(--if2-teal-dark); }
+.if2-app .ibx-status.rejected { background: var(--if2-red-light); color: var(--if2-red); }
+.if2-app .ibx-status.sentback { background: var(--if2-blue-pale); color: var(--if2-blue); }
+
+/* Type chip */
+.if2-app .ibx-type {
+  display: inline-block; padding: 2px var(--if2-sp-8);
+  background: var(--if2-blue-pale); color: var(--if2-blue);
+  border-radius: var(--if2-r-sm); font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+
+/* Actions cell */
+.if2-app .ibx-actions { display: flex; align-items: center; gap: var(--if2-sp-8); justify-content: flex-end; white-space: nowrap; }
+.if2-app .ibx-act-btn {
+  padding: var(--if2-sp-4) var(--if2-sp-12); border-radius: var(--if2-r-md);
+  font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent;
+  transition: all .15s;
+}
+.if2-app .ibx-act-approve { background: var(--if2-blue); color: #fff; }
+.if2-app .ibx-act-approve:hover { background: var(--if2-blue-mid); }
+.if2-app .ibx-act-reject { background: var(--if2-red-light); color: var(--if2-red); border-color: var(--if2-red-mid); }
+.if2-app .ibx-act-reject:hover { background: #ffe0de; }
+.if2-app .ibx-act-btn:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+
+.if2-app .ibx-chevron {
+  width: 28px; height: 28px; border-radius: var(--if2-r-md); flex-shrink: 0;
+  border: 1px solid var(--if2-border); background: var(--if2-surface);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: all .15s;
+}
+.if2-app .ibx-chevron:hover { border-color: var(--if2-blue-light); background: var(--if2-blue-pale); }
+.if2-app .ibx-chevron svg { width: 14px; height: 14px; stroke: var(--if2-text-mid); stroke-width: 2; transition: transform .2s; }
+.if2-app .ibx-chevron.open svg { transform: rotate(180deg); stroke: var(--if2-blue); }
+.if2-app .ibx-chevron:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+
+/* ------------------------------------------------------------
+   EXPANDED DETAIL
+   ------------------------------------------------------------ */
+.if2-app .ibx-detail { padding: var(--if2-sp-16) var(--if2-sp-20); }
+.if2-app .ibx-detail-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--if2-sp-8) var(--if2-sp-24);
+}
+.if2-app .ibx-field { display: flex; flex-direction: column; gap: 2px; }
+.if2-app .ibx-field.full { grid-column: 1 / -1; }
+.if2-app .ibx-field-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--if2-text-muted); }
+.if2-app .ibx-field-value { font-size: 12px; color: var(--if2-text); line-height: 1.5; }
+.if2-app .ibx-field-value.missing { color: var(--if2-red); font-weight: 700; }
+.if2-app .ibx-field-value.muted { color: var(--if2-text-muted); }
+
+/* Attachment row */
+.if2-app .ibx-attach {
+  display: inline-flex; align-items: center; gap: var(--if2-sp-8);
+  margin-top: var(--if2-sp-8); padding: var(--if2-sp-8) var(--if2-sp-12);
+  background: var(--if2-surface); border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-md); cursor: pointer; transition: all .15s; text-align: left;
+}
+.if2-app .ibx-attach:hover { border-color: var(--if2-blue-light); background: var(--if2-blue-pale); }
+.if2-app .ibx-attach svg { width: 18px; height: 18px; stroke: var(--if2-blue); stroke-width: 2; flex-shrink: 0; }
+.if2-app .ibx-attach-name { font-size: 12px; font-weight: 700; color: var(--if2-blue); }
+.if2-app .ibx-attach-sub { font-size: 10px; color: var(--if2-text-muted); }
+.if2-app .ibx-attach:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+
+/* Decision row (raised-by-me) */
+.if2-app .ibx-decision {
+  margin-top: var(--if2-sp-12); padding: var(--if2-sp-12);
+  border-radius: var(--if2-r-md); font-size: 12px; font-weight: 600; line-height: 1.5;
+}
+.if2-app .ibx-decision.pending  { background: var(--ibx-amber-light); color: var(--ibx-amber-dark); }
+.if2-app .ibx-decision.approved { background: var(--if2-blue-pale); color: var(--if2-blue); }
+.if2-app .ibx-decision.rejected { background: var(--if2-red-light); color: var(--if2-red); }
+.if2-app .ibx-reject-reason { margin-top: var(--if2-sp-4); font-weight: 700; }
+
+/* Detail loading */
+.if2-app .ibx-detail-loading { display: flex; align-items: center; gap: var(--if2-sp-8); padding: var(--if2-sp-16); color: var(--if2-text-muted); font-size: 12px; }
+
+/* ------------------------------------------------------------
+   MODALS (approve / reject)
+   ------------------------------------------------------------ */
+.if2-app .ibx-modal-overlay {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(8,15,24,.55); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; padding: var(--if2-sp-16);
+}
+.if2-app .ibx-modal {
+  width: 420px; max-width: 100%;
+  background: var(--if2-surface); border-radius: var(--if2-r-3xl);
+  box-shadow: var(--if2-shadow-lg); overflow: hidden;
+  animation: ibx-modal-in .25s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes ibx-modal-in { from { transform: scale(.92) translateY(12px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+.if2-app .ibx-modal-icon-row { display: flex; justify-content: center; padding: var(--if2-sp-28) 0 0; }
+.if2-app .ibx-modal-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.if2-app .ibx-modal-icon.approve { background: var(--if2-blue-pale); border: 2px solid var(--if2-blue-light); color: var(--if2-blue); }
+.if2-app .ibx-modal-icon.reject  { background: var(--if2-red-light); border: 2px solid var(--if2-red-mid); color: var(--if2-red); }
+.if2-app .ibx-modal-icon svg { width: 26px; height: 26px; stroke: currentColor; stroke-width: 2; }
+.if2-app .ibx-modal-body { padding: var(--if2-sp-16) var(--if2-sp-28) var(--if2-sp-8); text-align: center; }
+.if2-app .ibx-modal-title { font-size: 18px; font-weight: 800; color: var(--if2-navy); margin-bottom: var(--if2-sp-8); letter-spacing: -.3px; }
+.if2-app .ibx-modal-desc { font-size: 12px; color: var(--if2-text-muted); line-height: 1.6; }
+.if2-app .ibx-modal-field { padding: var(--if2-sp-8) var(--if2-sp-28) 0; text-align: left; }
+.if2-app .ibx-modal-field textarea {
+  width: 100%; min-height: 88px; resize: vertical;
+  padding: var(--if2-sp-12); border: 1px solid var(--if2-border); border-radius: var(--if2-r-md);
+  font-size: 12px; font-family: inherit; color: var(--if2-text);
+}
+.if2-app .ibx-modal-field textarea:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 0; border-color: var(--if2-blue); }
+.if2-app .ibx-modal-field textarea.invalid { border-color: var(--if2-red); outline-color: var(--if2-red); }
+.if2-app .ibx-modal-error { font-size: 10px; font-weight: 700; color: var(--if2-red); margin-top: var(--if2-sp-4); }
+.if2-app .ibx-modal-actions { display: flex; gap: var(--if2-sp-8); padding: var(--if2-sp-20) var(--if2-sp-28) var(--if2-sp-28); }
+.if2-app .ibx-modal-actions .btn { flex: 1; }
+
+/* Generic buttons used in modal/filter (align with base button language) */
+.if2-app .ibx-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--if2-sp-4);
+  padding: var(--if2-sp-8) var(--if2-sp-16); border-radius: var(--if2-r-md);
+  font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent;
+  transition: all .15s; font-family: inherit;
+}
+.if2-app .ibx-btn:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+.if2-app .ibx-btn-primary { background: var(--if2-blue); color: #fff; }
+.if2-app .ibx-btn-primary:hover { background: var(--if2-blue-mid); }
+.if2-app .ibx-btn-danger { background: var(--if2-red); color: #fff; }
+.if2-app .ibx-btn-danger:hover { background: #cf2b21; }
+.if2-app .ibx-btn-ghost { background: var(--if2-surface2); color: var(--if2-text-mid); border-color: var(--if2-border); }
+.if2-app .ibx-btn-ghost:hover { background: var(--if2-blue-pale); color: var(--if2-blue); border-color: var(--if2-blue-light); }
+.if2-app .ibx-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ------------------------------------------------------------
+   LIGHTBOX
+   ------------------------------------------------------------ */
+.if2-app .ibx-lightbox {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(8,15,24,.85); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: var(--if2-sp-24);
+}
+.if2-app .ibx-lightbox-card {
+  background: var(--if2-surface); border-radius: var(--if2-r-2xl);
+  padding: var(--if2-sp-32); text-align: center; max-width: 460px; width: 100%;
+  box-shadow: var(--if2-shadow-lg);
+}
+.if2-app .ibx-lightbox-icon {
+  width: 72px; height: 72px; border-radius: var(--if2-r-xl); margin: 0 auto var(--if2-sp-16);
+  background: var(--if2-blue-pale); color: var(--if2-blue);
+  display: flex; align-items: center; justify-content: center;
+}
+.if2-app .ibx-lightbox-icon svg { width: 32px; height: 32px; stroke: currentColor; stroke-width: 2; }
+.if2-app .ibx-lightbox-name { font-size: 14px; font-weight: 800; color: var(--if2-navy); margin-bottom: var(--if2-sp-4); }
+.if2-app .ibx-lightbox-sub { font-size: 12px; color: var(--if2-text-muted); }
+.if2-app .ibx-lightbox-close {
+  position: absolute; top: var(--if2-sp-20); right: var(--if2-sp-20);
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+  color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.if2-app .ibx-lightbox-close:hover { background: rgba(255,255,255,.22); }
+.if2-app .ibx-lightbox-close svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2.5; }
+.if2-app .ibx-lightbox-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ------------------------------------------------------------
+   LOADING STATE
+   ------------------------------------------------------------ */
+.if2-app .inbox-loading { display: flex; align-items: center; justify-content: center; gap: var(--if2-sp-12); padding: var(--if2-sp-48); color: var(--if2-text-muted); font-size: 13px; }
+
+/* ------------------------------------------------------------
+   RESPONSIVE
+   ------------------------------------------------------------ */
+@media (max-width: 768px) {
+  .if2-app .ibx-detail-grid { grid-template-columns: 1fr; }
+  .if2-app .inbox-toolbar { gap: var(--if2-sp-4); }
+}

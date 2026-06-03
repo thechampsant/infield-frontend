@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountsProjectsExportRow,
   CreateAccountDto,
   CreateProjectDto,
   ListQuery,
@@ -47,6 +48,17 @@ export interface AdminApi {
     query?: ListQuery,
   ): Promise<Paginated<Project>>;
 
+  /**
+   * List projects for an account by its backend id (account-scoped views,
+   * e.g. Account Admin dashboard). Pass `accountCode` to populate row nav
+   * targets when it is already known.
+   */
+  listProjectsByAccountId(
+    accountId: string,
+    accountCode?: string,
+    query?: ListQuery,
+  ): Promise<Paginated<Project>>;
+
   /** Get a single project by ID */
   getProject(projectId: string): Promise<Project>;
 
@@ -61,6 +73,9 @@ export interface AdminApi {
 
   /** Soft delete a project */
   deleteProject(projectId: string): Promise<void>;
+
+  /** Export all accounts with nested project rows (live: export/all endpoints) */
+  exportAccountsWithProjects(): Promise<AccountsProjectsExportRow[]>;
 
   // ─────────────────────────────────────────────────────────────
   // Users (not in backend yet - future implementation)

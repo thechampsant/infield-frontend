@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Sora } from "next/font/google";
 import "./globals.css";
+import "@/styles/infield-1529.css";
+import "@/styles/infield-1948.css";
+import "@/styles/infield-1536.css";
+import "@/styles/infield-1535.css";
+import "@/styles/infield-1956.css";
+import "@/styles/infield-project-admin.css";
+import "@/styles/infield-brand.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemeInitScript } from "@/components/theme/theme-init-script";
 import { AuthProvider } from "@/lib/auth/auth-context";
@@ -15,9 +22,19 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const sora = Sora({
+  variable: "--font-sora",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
 export const metadata: Metadata = {
-  title: "Singularity",
+  title: "InField",
   description: "Admin, Account & Project Configuration Platform",
+  icons: {
+    icon: "/brand/appicon.svg",
+    apple: "/brand/appicon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -28,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased text-slate-900 dark:text-slate-50`}
+        className={`${geistSans.variable} ${geistMono.variable} ${sora.variable} antialiased text-slate-900 dark:text-slate-50`}
       >
         <ThemeInitScript />
         <ThemeProvider>

@@ -6,8 +6,8 @@
 import type { AdminApi } from "./admin";
 import type {
   Account,
+  AccountsProjectsExportRow,
   BackendAccount,
-  BackendPaginatedResponse,
   BackendProject,
   BackendStatus,
   CreateAccountDto,
@@ -25,17 +25,30 @@ import { apiClient, DEFAULT_PAGE_SIZE } from "./api-client";
 // Mappers: Backend → Frontend
 // ─────────────────────────────────────────────────────────────
 
-/** Map backend status to frontend status */
 function mapStatus(status: BackendStatus): Exclude<Status, "Onboarding"> {
   return status === "ACTIVE" ? "Active" : "Inactive";
 }
 
-/** Map BackendAccount to frontend Account */
+/** Mongo id string from API entities — never use business codes (accountCode, projectCode). */
+function backendId(entity: Record<string, unknown>): string {
+  const id = entity.id ?? entity._id;
+  if (typeof id === "string" && id.trim()) return id.trim();
+  if (id && typeof id === "object") {
+    if ("$oid" in id && typeof (id as { $oid: string }).$oid === "string") {
+      return (id as { $oid: string }).$oid;
+    }
+    if ("toString" in id && typeof id.toString === "function") {
+      const s = id.toString();
+      if (s && s !== "[object Object]") return s;
+    }
+  }
+  return "";
+}
+
 function mapAccount(acc: BackendAccount): Account {
-  // Handle both 'id' and '_id' (MongoDB) field names
   const accAny = acc as unknown as Record<string, unknown>;
-  const id = acc.id || (accAny._id as string) || acc.accountCode;
-  
+  const id = backendId(accAny as { id?: string }) || acc.accountCode;
+
   return {
     id,
     name: acc.accountName || (accAny.name as string) || "",
@@ -48,26 +61,28 @@ function mapAccount(acc: BackendAccount): Account {
   };
 }
 
-/** Map BackendProject to frontend Project */
 function mapProject(prj: BackendProject, accountCode: string): Project {
+  const prjAny = prj as unknown as Record<string, unknown>;
+  const id = backendId(prjAny);
+  if (!id) {
+    throw new Error(
+      `Project response is missing a Mongo id (_id/id). Refusing to use project code "${prj.projectCode}" for role APIs.`,
+    );
+  }
+
   return {
-    id: prj.id,
+    id,
     accountCode,
     name: prj.projectName,
     code: prj.projectCode,
     regionLabel: undefined,
-    projectAdminName: "", // Backend doesn't provide this yet
+    projectAdminName: "",
     projectAdminEmail: prj.email,
     modulesActive: [],
     status: mapStatus(prj.status),
   };
 }
 
-// ─────────────────────────────────────────────────────────────
-// Query String Builder
-// ─────────────────────────────────────────────────────────────
-
-/** Build query string from ListQuery and optional extra params */
 function buildQueryString(
   query?: ListQuery,
   extra?: Record<string, string>,
@@ -87,44 +102,65 @@ function buildQueryString(
   return queryString ? `?${queryString}` : "";
 }
 
+/** Live list endpoints often return a bare array in `data`. */
+function normalizePaginatedList<T, U>(
+  raw: unknown,
+  mapItem: (item: T) => U,
+  query?: ListQuery,
+): Paginated<U> {
+  if (Array.isArray(raw)) {
+    const items = (raw as T[]).map(mapItem);
+    return {
+      items,
+      page: query?.page || 1,
+      pageSize: query?.pageSize || DEFAULT_PAGE_SIZE,
+      total: items.length,
+    };
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const list = (record.items || record.data || []) as T[];
+    const items = list.map(mapItem);
+    return {
+      items,
+      page: (record.page as number) || query?.page || 1,
+      pageSize:
+        (record.pageSize as number) || query?.pageSize || DEFAULT_PAGE_SIZE,
+      total:
+        (record.total as number) ||
+        (record.totalCount as number) ||
+        items.length,
+    };
+  }
+
+  return {
+    items: [],
+    page: query?.page || 1,
+    pageSize: query?.pageSize || DEFAULT_PAGE_SIZE,
+    total: 0,
+  };
+}
+
+function mapExportStatus(status: BackendStatus | string | undefined): string {
+  if (!status) return "";
+  return status === "ACTIVE" || status === "Active" ? "Active" : "Inactive";
+}
+
 // ─────────────────────────────────────────────────────────────
 // Real Admin API Implementation
 // ─────────────────────────────────────────────────────────────
 
 export const realAdminApi: AdminApi = {
-  // ─────────────────────────────────────────────────────────────
-  // Accounts
-  // ─────────────────────────────────────────────────────────────
-
   async listAccounts(query?: ListQuery): Promise<Paginated<Account>> {
-    const response = await apiClient.get<
-      BackendPaginatedResponse<BackendAccount> | BackendAccount[]
-    >(`/api/v1/accounts${buildQueryString(query)}`);
-
-    // Handle different response formats from backend
-    // Backend might return: { items: [...], page, pageSize, total }
-    // Or just an array: [...]
-    // Or: { data: [...], ... }
-    if (Array.isArray(response)) {
-      // Backend returned an array directly
-      return {
-        items: response.map(mapAccount),
-        page: query?.page || 1,
-        pageSize: query?.pageSize || DEFAULT_PAGE_SIZE,
-        total: response.length,
-      };
-    }
-
-    // Check for 'data' property (common API pattern)
-    const responseAny = response as unknown as Record<string, unknown>;
-    const items = responseAny.items || responseAny.data || [];
-
-    return {
-      items: (items as BackendAccount[]).map(mapAccount),
-      page: (responseAny.page as number) || query?.page || 1,
-      pageSize: (responseAny.pageSize as number) || query?.pageSize || DEFAULT_PAGE_SIZE,
-      total: (responseAny.total as number) || (items as BackendAccount[]).length,
-    };
+    const response = await apiClient.get<unknown>(
+      `/api/v1/accounts${buildQueryString(query)}`,
+    );
+    return normalizePaginatedList<BackendAccount, Account>(
+      response,
+      mapAccount,
+      query,
+    );
   },
 
   async getAccount(accountId: string): Promise<Account> {
@@ -142,10 +178,14 @@ export const realAdminApi: AdminApi = {
   },
 
   async createAccount(data: CreateAccountDto): Promise<Account> {
-    const response = await apiClient.post<BackendAccount>(
-      "/api/v1/accounts",
-      data,
-    );
+    // Backend OpenAPI models accountName/email/status only. `phone` is
+    // collected in the form (design requirement) but not yet accepted by the
+    // API, so it is intentionally omitted to avoid rejected requests.
+    const response = await apiClient.post<BackendAccount>("/api/v1/accounts", {
+      accountName: data.accountName,
+      email: data.email,
+      status: data.status,
+    });
     return mapAccount(response);
   },
 
@@ -164,59 +204,50 @@ export const realAdminApi: AdminApi = {
     await apiClient.delete(`/api/v1/accounts/${accountId}`);
   },
 
-  // ─────────────────────────────────────────────────────────────
-  // Projects
-  // ─────────────────────────────────────────────────────────────
-
   async listProjects(
     accountCode: string,
     query?: ListQuery,
   ): Promise<Paginated<Project>> {
-    // Get accountId from accountCode first
     const account = await apiClient.get<BackendAccount>(
       `/api/v1/accounts/code/${accountCode}`,
     );
-    
-    // Handle both 'id' and '_id' (MongoDB) field names
     const accountAny = account as unknown as Record<string, unknown>;
     const accountId = account.id || (accountAny._id as string);
-    
-    // Only include accountId if we have a valid value
+
     const extraParams: Record<string, string> = {};
     if (accountId) {
       extraParams.accountId = accountId;
     }
 
-    const response = await apiClient.get<
-      BackendPaginatedResponse<BackendProject> | BackendProject[]
-    >(`/api/v1/projects${buildQueryString(query, extraParams)}`);
+    const response = await apiClient.get<unknown>(
+      `/api/v1/projects${buildQueryString(query, extraParams)}`,
+    );
+    return normalizePaginatedList<BackendProject, Project>(
+      response,
+      (p) => mapProject(p, accountCode),
+      query,
+    );
+  },
 
-    // Handle different response formats from backend
-    if (Array.isArray(response)) {
-      return {
-        items: response.map((p) => mapProject(p, accountCode)),
-        page: query?.page || 1,
-        pageSize: query?.pageSize || DEFAULT_PAGE_SIZE,
-        total: response.length,
-      };
-    }
-
-    const responseAny = response as unknown as Record<string, unknown>;
-    const items = responseAny.items || responseAny.data || [];
-
-    return {
-      items: (items as BackendProject[]).map((p) => mapProject(p, accountCode)),
-      page: (responseAny.page as number) || query?.page || 1,
-      pageSize: (responseAny.pageSize as number) || query?.pageSize || DEFAULT_PAGE_SIZE,
-      total: (responseAny.total as number) || (items as BackendProject[]).length,
-    };
+  async listProjectsByAccountId(
+    accountId: string,
+    accountCode = "",
+    query?: ListQuery,
+  ): Promise<Paginated<Project>> {
+    const response = await apiClient.get<unknown>(
+      `/api/v1/projects${buildQueryString(query, { accountId })}`,
+    );
+    return normalizePaginatedList<BackendProject, Project>(
+      response,
+      (p) => mapProject(p, accountCode),
+      query,
+    );
   },
 
   async getProject(projectId: string): Promise<Project> {
     const response = await apiClient.get<BackendProject>(
       `/api/v1/projects/${projectId}`,
     );
-    // Note: accountCode not available from this endpoint
     return mapProject(response, "");
   },
 
@@ -224,15 +255,17 @@ export const realAdminApi: AdminApi = {
     const response = await apiClient.get<BackendProject>(
       `/api/v1/projects/code/${projectCode}`,
     );
-    // Note: accountCode not available from this endpoint
     return mapProject(response, "");
   },
 
   async createProject(data: CreateProjectDto): Promise<Project> {
-    const response = await apiClient.post<BackendProject>(
-      "/api/v1/projects",
-      data,
-    );
+    // See createAccount: `phone` is form-only and not part of the API schema.
+    const response = await apiClient.post<BackendProject>("/api/v1/projects", {
+      accountId: data.accountId,
+      projectName: data.projectName,
+      email: data.email,
+      status: data.status,
+    });
     return mapProject(response, "");
   },
 
@@ -251,12 +284,61 @@ export const realAdminApi: AdminApi = {
     await apiClient.delete(`/api/v1/projects/${projectId}`);
   },
 
-  // ─────────────────────────────────────────────────────────────
-  // Users (not implemented in backend yet)
-  // ─────────────────────────────────────────────────────────────
+  async exportAccountsWithProjects(): Promise<AccountsProjectsExportRow[]> {
+    const [accountsRaw, projectsRaw] = await Promise.all([
+      apiClient.get<BackendAccount[]>("/api/v1/accounts/export/all"),
+      apiClient.get<BackendProject[]>("/api/v1/projects/export/all"),
+    ]);
+
+    const accounts = Array.isArray(accountsRaw) ? accountsRaw : [];
+    const projects = Array.isArray(projectsRaw) ? projectsRaw : [];
+
+    const accountById = new Map<string, BackendAccount>();
+    for (const acc of accounts) {
+      const accAny = acc as unknown as Record<string, unknown>;
+      const id = acc.id || (accAny._id as string);
+      if (id) accountById.set(id, acc);
+    }
+
+    const rows: AccountsProjectsExportRow[] = [];
+
+    for (const acc of accounts) {
+      const accAny = acc as unknown as Record<string, unknown>;
+      const accountId = acc.id || (accAny._id as string);
+      const accountProjects = projects.filter((p) => {
+        const pAny = p as unknown as Record<string, unknown>;
+        const pid = pAny.accountId as string | undefined;
+        return pid === accountId;
+      });
+
+      if (accountProjects.length === 0) {
+        rows.push({
+          accountName: acc.accountName,
+          accountCode: acc.accountCode,
+          accountStatus: mapExportStatus(acc.status),
+          projectName: "",
+          projectCode: "",
+          projectStatus: "",
+        });
+        continue;
+      }
+
+      for (const prj of accountProjects) {
+        rows.push({
+          accountName: acc.accountName,
+          accountCode: acc.accountCode,
+          accountStatus: mapExportStatus(acc.status),
+          projectName: prj.projectName,
+          projectCode: prj.projectCode,
+          projectStatus: mapExportStatus(prj.status),
+        });
+      }
+    }
+
+    return rows;
+  },
 
   async listUsers(_accountCode, _projectCode, query) {
-    // Users API not available in backend - return empty for now
     return {
       items: [],
       page: query?.page || 1,
@@ -265,4 +347,3 @@ export const realAdminApi: AdminApi = {
     };
   },
 };
-

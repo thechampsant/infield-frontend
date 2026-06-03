@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-
-export default function ModuleTogglesPage() {
-  return (
-    <ComingSoon
-      title="Module Toggles"
-      description="Enable or disable features and modules for this project. This feature is under development."
-    />
-  );
+export default async function RedirectModuleToggles({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = await params;
+  redirect(`/project-admin/${accountCode}/${projectCode}/modules`);
 }

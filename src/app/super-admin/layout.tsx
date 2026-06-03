@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ConsoleShell } from "@/components/shell/console-shell";
+import { MasterShell } from "@/components/shell/master-shell";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { superAdminNav } from "@/lib/nav/nav";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -21,20 +21,17 @@ export default function SuperAdminLayout({
 
   return (
     <ProtectedRoute>
-      <ConsoleShell
-        brandTitle="Singularity"
-        brandSubtitle="Super Admin Console"
+      <MasterShell
         sections={superAdminNav}
-        breadcrumbs={[{ label: "Dashboard" }]}
-        projectSelector={{ label: "Platform Management" }}
+        homeHref="/super-admin/accounts"
         user={{
-          name: user?.email?.split("@")[0] || "Admin",
-          role: "Super Admin",
+          name: user?.email?.split("@")[0] || "Super Admin",
+          role: "V5 Global · Admin",
         }}
         onLogout={handleLogout}
       >
         {children}
-      </ConsoleShell>
+      </MasterShell>
     </ProtectedRoute>
   );
 }

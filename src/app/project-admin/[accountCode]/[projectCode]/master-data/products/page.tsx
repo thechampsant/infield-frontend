@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-
-export default function ProductsMasterPage() {
-  return (
-    <ComingSoon
-      title="Products Master"
-      description="Manage product catalog, SKUs, and categories. Products API is under development."
-    />
-  );
+export default async function RedirectMasterDataProducts({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = await params;
+  redirect(`/project-admin/${accountCode}/${projectCode}/uploaders/products`);
 }

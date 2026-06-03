@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-
-export default function DesignationsMasterPage() {
-  return (
-    <ComingSoon
-      title="Designations Master"
-      description="Define job titles, roles, and hierarchy levels. Designations API is under development."
-    />
-  );
+export default async function RedirectMasterDataDesignations({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = await params;
+  redirect(`/project-admin/${accountCode}/${projectCode}/uploaders/designations`);
 }

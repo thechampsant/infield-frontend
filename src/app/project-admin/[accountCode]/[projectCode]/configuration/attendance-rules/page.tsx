@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-
-export default function AttendanceRulesPage() {
-  return (
-    <ComingSoon
-      title="Attendance Rules"
-      description="Configure attendance tracking rules, shift timings, and geofencing settings. This feature is under development."
-    />
-  );
+export default async function RedirectAttendanceRules({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = await params;
+  redirect(`/project-admin/${accountCode}/${projectCode}/modules/attendance`);
 }

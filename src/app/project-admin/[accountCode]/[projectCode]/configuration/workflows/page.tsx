@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-
-export default function WorkflowsPage() {
-  return (
-    <ComingSoon
-      title="Workflows"
-      description="Design and manage approval workflows, task assignments, and automation rules. This feature is under development."
-    />
-  );
+export default async function RedirectWorkflows({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = await params;
+  redirect(`/project-admin/${accountCode}/${projectCode}/modules`);
 }

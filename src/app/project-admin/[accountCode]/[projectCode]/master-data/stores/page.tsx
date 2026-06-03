@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-
-export default function StoresMasterPage() {
-  return (
-    <ComingSoon
-      title="Stores Master"
-      description="Manage store locations, addresses, and geofence settings. Stores API is under development."
-    />
-  );
+export default async function RedirectMasterDataStores({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = await params;
+  redirect(`/project-admin/${accountCode}/${projectCode}/uploaders/stores`);
 }

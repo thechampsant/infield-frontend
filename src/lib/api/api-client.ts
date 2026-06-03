@@ -3,6 +3,8 @@
  * Follows Engineering Standards: Security, Error Handling.
  */
 
+import { getApiErrorMessage, unwrapApiData } from "./api-response";
+
 /**
  * Get the API base URL.
  * In browser: Use empty string to leverage Next.js rewrites (avoids CORS).
@@ -14,7 +16,9 @@ function getApiBaseUrl(): string {
     return "";
   }
   // Server: use direct backend URL
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005";
+  return (
+    process.env.NEXT_PUBLIC_API_URL || "https://services.infield.co.in"
+  );
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -31,8 +35,9 @@ class ApiError extends Error {
     public readonly status: number,
     public readonly errorCode: string,
     public readonly requestId?: string,
+    message?: string,
   ) {
-    super(`API Error: ${errorCode}`);
+    super(message || errorCode || "Request failed");
     this.name = "ApiError";
   }
 }
@@ -52,15 +57,21 @@ class ApiClient {
     return this.accessToken;
   }
 
-  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    config: { authToken?: string } = {},
+  ): Promise<T> {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
       ...options.headers,
     };
 
-    if (this.accessToken) {
-      (headers as Record<string, string>)["Authorization"] =
-        `Bearer ${this.accessToken}`;
+    // Per-request bearer override (e.g. short-lived passkey registration token)
+    // takes precedence over the stored session token without clobbering it.
+    const token = config.authToken ?? this.accessToken;
+    if (token) {
+      (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
     }
 
     const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
@@ -77,8 +88,9 @@ class ApiClient {
 
       throw new ApiError(
         response.status,
-        errorBody.errorCode,
+        errorBody.errorCode || "UNKNOWN_ERROR",
         errorBody.requestId,
+        getApiErrorMessage(errorBody, response.statusText),
       );
     }
 
@@ -87,18 +99,27 @@ class ApiClient {
       return undefined as T;
     }
 
-    return response.json();
+    const body = await response.json();
+    return unwrapApiData<T>(body);
   }
 
-  get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: "GET" });
+  get<T>(endpoint: string, config?: { authToken?: string }): Promise<T> {
+    return this.request<T>(endpoint, { method: "GET" }, config);
   }
 
-  post<T>(endpoint: string, data?: unknown): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "POST",
-      body: data ? JSON.stringify(data) : undefined,
-    });
+  post<T>(
+    endpoint: string,
+    data?: unknown,
+    config?: { authToken?: string },
+  ): Promise<T> {
+    return this.request<T>(
+      endpoint,
+      {
+        method: "POST",
+        body: data ? JSON.stringify(data) : undefined,
+      },
+      config,
+    );
   }
 
   put<T>(endpoint: string, data: unknown): Promise<T> {
@@ -108,8 +129,32 @@ class ApiClient {
     });
   }
 
+  patch<T>(endpoint: string, data: unknown): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
   delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: "DELETE" });
+  }
+
+  async getBlob(endpoint: string): Promise<Blob> {
+    const headers: HeadersInit = {};
+    if (this.accessToken) {
+      (headers as Record<string, string>)["Authorization"] =
+        `Bearer ${this.accessToken}`;
+    }
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, "DOWNLOAD_FAILED", undefined, response.statusText);
+    }
+    return response.blob();
   }
 }
 
