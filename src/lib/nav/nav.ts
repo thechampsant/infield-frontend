@@ -84,11 +84,11 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
     {
       title: "Master Data",
       items: [
-        { label: "Users", href: `${base}/uploaders/users`, icon: "users" },
-        { label: "Designations", href: `${base}/uploaders/designations`, icon: "badgeCheck" },
-        { label: "Stores", href: `${base}/uploaders/stores`, icon: "store" },
-        { label: "Products", href: `${base}/uploaders/products`, icon: "package" },
-        { label: "User-Store Map", href: `${base}/uploaders/user-store-map`, icon: "listChecks" },
+        { label: "Users", href: `${base}/master-data/users`, icon: "users" },
+        { label: "Designations", href: `${base}/master-data/designations`, icon: "badgeCheck" },
+        { label: "Stores", href: `${base}/master-data/stores`, icon: "store" },
+        { label: "Products", href: `${base}/master-data/products`, icon: "package" },
+        { label: "User-Store Map", href: `${base}/master-data/user-store-map`, icon: "listChecks" },
       ],
     },
     {
