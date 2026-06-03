@@ -81,20 +81,36 @@ export function AttendanceConfigEdit({
         <div className="section-inner">
           <div className="form-row-2">
             <FormGroup label="Check-in module name">
-              <input
-                className="form-input"
-                value={form.checkInLabel}
-                onChange={(e) => onChange("checkInLabel", e.target.value)}
-                placeholder="Default: Check-In"
-              />
+              <div className="att-checkout-setting">
+                <SettingRow
+                  label="Enable check-in"
+                  checked={form.checkInEnabled}
+                  onChange={(v) => onChange("checkInEnabled", v)}
+                />
+                <input
+                  className="form-input"
+                  value={form.checkInLabel}
+                  onChange={(e) => onChange("checkInLabel", e.target.value)}
+                  placeholder="Default: Check-In"
+                  disabled={!form.checkInEnabled}
+                />
+              </div>
             </FormGroup>
             <FormGroup label="Check-out module name">
-              <input
-                className="form-input"
-                value={form.checkOutLabel}
-                onChange={(e) => onChange("checkOutLabel", e.target.value)}
-                placeholder="Default: Check-Out"
-              />
+              <div className="att-checkout-setting">
+                <SettingRow
+                  label="Enable check-out"
+                  checked={form.checkOutEnabled}
+                  onChange={(v) => onChange("checkOutEnabled", v)}
+                />
+                <input
+                  className="form-input"
+                  value={form.checkOutLabel}
+                  onChange={(e) => onChange("checkOutLabel", e.target.value)}
+                  placeholder="Default: Check-Out"
+                  disabled={!form.checkOutEnabled}
+                />
+              </div>
             </FormGroup>
           </div>
           <SettingRow
@@ -123,16 +139,25 @@ export function AttendanceConfigEdit({
                   <th>Geo-tagged</th>
                   <th>Geo-fenced</th>
                   <th>Photo</th>
+                  <th>Color</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {form.types.map((t, i) => (
                   <tr key={`${t.name}-${i}`}>
                     <td>
-                      <span className="type-name">{t.name}</span>
-                      <span className={`type-badge ${t.isCustom ? "custom" : "default"}`}>
-                        {t.isCustom ? "Custom" : "Default"}
-                      </span>
+                      <div className="att-type-name-cell">
+                        <input
+                          className="form-input att-type-name-input"
+                          value={t.name}
+                          onChange={(e) => updateTypeName(form, onChange, i, e.target.value)}
+                          aria-label={`Attendance type name ${i + 1}`}
+                        />
+                        <span className={`type-badge ${t.isCustom ? "custom" : "default"}`}>
+                          {t.isCustom ? "Custom" : "Default"}
+                        </span>
+                      </div>
                     </td>
                     <td>
                       <Toggle
@@ -157,6 +182,32 @@ export function AttendanceConfigEdit({
                         checked={t.photoRequired}
                         onChange={(v) => updateType(form, onChange, i, "photoRequired", v)}
                       />
+                    </td>
+                    <td>
+                      <div className="att-type-color">
+                        <input
+                          type="color"
+                          className="att-type-color__picker"
+                          value={normalizeHexColour(t.colour)}
+                          onChange={(e) => updateTypeColor(form, onChange, i, e.target.value)}
+                          aria-label={`${t.name} color`}
+                        />
+                        <input
+                          className="form-input att-type-color__hex"
+                          value={normalizeHexColour(t.colour)}
+                          onChange={(e) => updateTypeColor(form, onChange, i, e.target.value)}
+                        />
+                      </div>
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn-sm btn-danger-ghost"
+                        onClick={() => removeType(form, onChange, i)}
+                        disabled={form.types.length <= 1}
+                        type="button"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -474,6 +525,43 @@ export function AttendanceConfigEdit({
   );
 }
 
+function updateTypeColor(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  idx: number,
+  colour: string,
+) {
+  const next = form.types.map((t, i) =>
+    i === idx ? { ...t, colour: normalizeHexColour(colour) } : t,
+  );
+  onChange("types", next);
+}
+
+function updateTypeName(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  idx: number,
+  name: string,
+) {
+  const next = form.types.map((t, i) => (i === idx ? { ...t, name } : t));
+  onChange("types", next);
+}
+
+function removeType(form: AttendanceConfigForm, onChange: ChangeFn, idx: number) {
+  if (form.types.length <= 1) return;
+  onChange(
+    "types",
+    form.types.filter((_, i) => i !== idx),
+  );
+}
+
+function normalizeHexColour(value: string): string {
+  const raw = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw;
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw}`;
+  return "#3377ff";
+}
+
 function updateType(
   form: AttendanceConfigForm,
   onChange: ChangeFn,
@@ -675,6 +763,7 @@ function AddAttendanceTypeModal({
   const [geoTagged, setGeoTagged] = useState(false);
   const [geoFenced, setGeoFenced] = useState(false);
   const [photoRequired, setPhotoRequired] = useState(false);
+  const [colour, setColour] = useState("#7c3aed");
   const trimmed = name.trim();
 
   return (
@@ -693,6 +782,21 @@ function AddAttendanceTypeModal({
         <SettingRow label="Geo-fenced" checked={geoFenced} onChange={setGeoFenced} />
         <SettingRow label="Photo" checked={photoRequired} onChange={setPhotoRequired} />
       </div>
+      <FormGroup label="Color">
+        <div className="att-type-color">
+          <input
+            type="color"
+            className="att-type-color__picker"
+            value={normalizeHexColour(colour)}
+            onChange={(e) => setColour(e.target.value)}
+          />
+          <input
+            className="form-input att-type-color__hex"
+            value={normalizeHexColour(colour)}
+            onChange={(e) => setColour(e.target.value)}
+          />
+        </div>
+      </FormGroup>
       <div className="modal-footer">
         <button className="btn btn-secondary" onClick={onClose}>
           Cancel
@@ -708,7 +812,7 @@ function AddAttendanceTypeModal({
               geoTagged,
               geoFenced,
               photoRequired,
-              colour: "#7c3aed",
+              colour: normalizeHexColour(colour),
             })
           }
         >

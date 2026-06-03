@@ -212,6 +212,7 @@ export function EditUserModal({
             values={udfValues}
             onChange={setUdfValues}
             errors={errors}
+            projectId={projectId}
             prefix="udf_"
           />
         </>

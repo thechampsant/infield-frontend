@@ -34,7 +34,11 @@ export function DataTable({
   loading,
   emptyMessage,
 }: DataTableProps) {
-  const gridCols = columns.map((c) => c.width ?? "1fr").join(" ");
+  const gridCols = columns
+    .map((c) =>
+      typeof c.width === "number" ? `${c.width}px` : (c.width ?? "1fr"),
+    )
+    .join(" ");
 
   return (
     <div
@@ -136,18 +140,25 @@ export function DataTable({
           padding: "12px 20px",
           background: "var(--surface2)",
           borderBottom: "1px solid var(--border)",
+          alignItems: "center",
         }}
       >
         {columns.map((col) => (
           <span
             key={col.key}
             style={{
+              display: "block",
               fontSize: 9,
               fontWeight: 700,
               letterSpacing: "1.5px",
               textTransform: "uppercase",
               color: "var(--text-muted)",
               textAlign: col.align ?? "left",
+              whiteSpace: "nowrap",
+              wordBreak: "normal",
+              overflowWrap: "normal",
+              writingMode: "horizontal-tb",
+              textOrientation: "mixed",
             }}
           >
             {col.label}

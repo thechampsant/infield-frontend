@@ -34,6 +34,28 @@ export type {
   ProjectRolesSummary,
   RoleOption,
 } from "./role-service";
+export { udfConfigService, UDF_ENTITY_TYPES } from "./udf-config-service";
+export type {
+  UdfApiSelectConfig,
+  UdfCascadingSelectConfig,
+  UdfConfigScope,
+  UdfDataSourceDefinition,
+  UdfEntityType,
+  UdfFieldConfig,
+  UdfFieldType,
+  UdfFieldTypeOption,
+  UdfSchemaDocument,
+  UdfSchemaField,
+  UdfSourcePreviewItem,
+  UdfSourcePreviewQuery,
+  UdfVisibilityRule,
+} from "./udf-config-service";
+export { attendanceFormSchemaService } from "./attendance-form-schema-service";
+export type {
+  AttendanceFormSchemaDocument,
+  AttendanceFormType,
+  SaveAttendanceFormSchemaInput,
+} from "./attendance-form-schema-service";
 
 // Re-export types
 export type { AdminApi } from "./admin";

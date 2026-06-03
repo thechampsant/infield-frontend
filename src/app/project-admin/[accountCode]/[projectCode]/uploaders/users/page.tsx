@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { designationService } from "@/lib/api/designation-service";
 import { projectUsersService } from "@/lib/api/project-users-service";
@@ -54,12 +54,6 @@ export default function UsersMasterPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const backendUserIds = useMemo(() => {
-    const map = new Map<string, string>();
-    users.forEach((u) => map.set(u.id, u.backendId));
-    return map;
-  }, [users]);
 
   const handleTemplate = async () => {
     try {
@@ -133,7 +127,6 @@ export default function UsersMasterPage() {
         udfFields={udfFields}
         loading={loading}
         projectId={projectId}
-        backendUserIds={backendUserIds}
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
         onExport={handleExport}

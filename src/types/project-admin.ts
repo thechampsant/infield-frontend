@@ -11,11 +11,21 @@ export interface AuditEntry {
 export type UDFType = "alphanumeric" | "numeric" | "dropdown";
 export type UDFScope = "user" | "store" | "product";
 
+export interface UDFOptionItem {
+  label: string;
+  value: string;
+}
+
 export interface UDFField {
   id: number;
+  fieldKey: string;
   name: string;
   type: UDFType;
   values: string[];
+  optionItems?: UDFOptionItem[];
+  sourceKey?: string;
+  labelKey?: string;
+  valueKey?: string;
   mandatory: boolean;
 }
 

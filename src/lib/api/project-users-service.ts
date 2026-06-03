@@ -3,7 +3,9 @@
  */
 
 import { apiClient } from "./api-client";
+import { udfConfigService } from "./udf-config-service";
 import type { UDFField, ProjectUser } from "@/types/project-admin";
+import type { UdfSchemaField } from "./udf-config-service";
 
 const BASE = "/api/v1/users";
 
@@ -27,6 +29,13 @@ interface RawUser {
 interface PaginatedUsers {
   data?: RawUser[];
   meta?: { total?: number; page?: number; pageSize?: number };
+}
+
+interface UserFormFieldsResponseData {
+  projectId?: string;
+  entityType?: string;
+  staticFields?: unknown;
+  udfFields?: unknown;
 }
 
 function normalizeStatus(raw: RawUser): "active" | "inactive" {
@@ -81,10 +90,109 @@ function parseFormFields(payload: unknown): UDFField[] {
     const options = f.options ?? f.values ?? f.dropdownValues;
     return {
       id: typeof f.id === "number" ? f.id : index + 1,
+      fieldKey: String(f.fieldKey ?? f.key ?? f.name ?? f.label ?? `field_${index + 1}`),
       name: String(f.name ?? f.label ?? f.key ?? `Field ${index + 1}`),
       type,
       values: Array.isArray(options) ? options.map(String) : [],
       mandatory: Boolean(f.mandatory ?? f.required),
+    };
+  });
+}
+
+function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
+  const fields = Array.isArray(payload) ? payload : [];
+
+  return fields
+    .map((item, index) => {
+      const f = item as Record<string, unknown>;
+      const typeRaw = String(f.type ?? "STRING").toUpperCase();
+
+      // Current add/edit user forms can safely render text, number, and
+      // dropdown-like UDFs. Richer types stay configurable in UDF Config and
+      // can be surfaced in runtime forms later without blocking schema setup.
+      let type: UDFField["type"] | null = "alphanumeric";
+      if (typeRaw === "NUMBER") type = "numeric";
+      if (
+        typeRaw === "DROPDOWN" ||
+        typeRaw === "SELECT" ||
+        typeRaw === "API_SELECT" ||
+        typeRaw === "CASCADING_SELECT"
+      ) {
+        type = "dropdown";
+      }
+      if (
+        typeRaw === "DATE" ||
+        typeRaw === "BOOLEAN" ||
+        typeRaw === "IMAGE" ||
+        typeRaw === "FILE"
+      ) {
+        type = null;
+      }
+      if (!type) return null;
+
+      const config =
+        f.config && typeof f.config === "object" && !Array.isArray(f.config)
+          ? (f.config as Record<string, unknown>)
+          : {};
+      const options = Array.isArray(config.options)
+        ? config.options.map(String)
+        : [];
+      const idSeed = String(f.fieldKey ?? f.label ?? index + 1);
+      const id = Array.from(idSeed).reduce(
+        (sum, char) => sum + char.charCodeAt(0),
+        0,
+      );
+
+      const runtimeField: UDFField = {
+        id,
+        fieldKey: String(f.fieldKey ?? `field_${index + 1}`),
+        name: String(f.label ?? f.fieldKey ?? `Field ${index + 1}`),
+        type,
+        values: options,
+        mandatory: Boolean(f.required),
+      };
+
+      if (Array.isArray(options)) {
+        runtimeField.optionItems = options.map((option) => ({
+          label: option,
+          value: option,
+        }));
+      }
+
+      if (typeRaw === "API_SELECT") {
+        runtimeField.sourceKey = String(config.sourceKey ?? "") || undefined;
+        runtimeField.labelKey = String(config.labelKey ?? "") || undefined;
+        runtimeField.valueKey = String(config.valueKey ?? "") || undefined;
+      }
+
+      return runtimeField;
+    })
+    .filter((field): field is UDFField => Boolean(field));
+}
+
+function normalizeUdfSchemaFields(payload: unknown): UdfSchemaField[] {
+  const fields = Array.isArray(payload) ? payload : [];
+
+  return fields.map((item, index) => {
+    const field = item as Record<string, unknown>;
+    return {
+      fieldKey: String(field.fieldKey ?? `field_${index + 1}`),
+      label: String(field.label ?? field.fieldKey ?? `Field ${index + 1}`),
+      type: String(field.type ?? "STRING").toUpperCase() as UdfSchemaField["type"],
+      required: Boolean(field.required),
+      status:
+        typeof field.status === "boolean" ? field.status : true,
+      order:
+        typeof field.order === "number" ? field.order : index + 1,
+      config:
+        field.config && typeof field.config === "object" && !Array.isArray(field.config)
+          ? (field.config as Record<string, unknown>)
+          : {},
+      summaryKey:
+        typeof field.summaryKey === "boolean" ? field.summaryKey : false,
+      visibilityRules: Array.isArray(field.visibilityRules)
+        ? (field.visibilityRules as UdfSchemaField["visibilityRules"])
+        : undefined,
     };
   });
 }
@@ -110,6 +218,53 @@ export interface UpdateProjectUserInput {
   udfs?: Record<string, string>;
 }
 
+export interface SaveUserSchemaInput {
+  projectId: string;
+  fields: UdfSchemaField[];
+}
+
+function normalizeUserSchemaFieldForSave(
+  field: UdfSchemaField,
+  index: number,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    fieldKey: field.fieldKey,
+    label: field.label,
+    type: field.type,
+    ...(field.required !== undefined ? { required: field.required } : {}),
+    order: field.order ?? index + 1,
+    ...(field.status !== undefined ? { status: field.status } : {}),
+    ...(field.summaryKey !== undefined ? { summaryKey: field.summaryKey } : {}),
+    ...(field.visibilityRules ? { visibilityRules: field.visibilityRules } : {}),
+  };
+
+  const config =
+    field.config && typeof field.config === "object" && !Array.isArray(field.config)
+      ? (field.config as Record<string, unknown>)
+      : null;
+
+  if (!config) return base;
+
+  if (field.type === "API_SELECT") {
+    return {
+      ...base,
+      config: {
+        ...(config.sourceKey !== undefined ? { sourceKey: config.sourceKey } : {}),
+        ...(config.labelKey !== undefined ? { labelKey: config.labelKey } : {}),
+        ...(config.valueKey !== undefined ? { valueKey: config.valueKey } : {}),
+        ...(config.storeFilterMode !== undefined
+          ? { storeFilterMode: config.storeFilterMode }
+          : {}),
+      },
+    };
+  }
+
+  return {
+    ...base,
+    config,
+  };
+}
+
 export const projectUsersService = {
   async listByProject(projectId: string, limit = 500): Promise<ProjectUser[]> {
     const res = await apiClient.get<PaginatedUsers | RawUser[]>(
@@ -121,13 +276,66 @@ export const projectUsersService = {
 
   async getFormFields(projectId: string): Promise<UDFField[]> {
     try {
+      const config = await projectUsersService.getFormFieldsConfig(projectId);
+      if (config && config.udfFields.length > 0) {
+        return schemaFieldsToRuntimeFields(config.udfFields);
+      }
+    } catch {
+      // Fall through to legacy parser / schema-based UDF config.
+    }
+
+    try {
       const res = await apiClient.get<unknown>(
         `${BASE}/form-fields/${encodeURIComponent(projectId)}`,
       );
-      return parseFormFields(res);
+      const parsed = parseFormFields(res);
+      if (parsed.length > 0) return parsed;
+    } catch {
+      // Fall through to schema-based UDF config.
+    }
+
+    try {
+      const schema = await udfConfigService.getSchema({
+        projectId,
+        entityType: udfConfigService.entityTypeForScope("user"),
+      });
+      return schemaFieldsToRuntimeFields(schema?.fields ?? []);
     } catch {
       return [];
     }
+  },
+
+  async getFormFieldsConfig(projectId: string): Promise<{
+    projectId: string;
+    entityType: string;
+    udfFields: UdfSchemaField[];
+    staticFields: unknown;
+  } | null> {
+    try {
+      const res = await apiClient.get<{ data?: UserFormFieldsResponseData } | UserFormFieldsResponseData>(
+        `${BASE}/form-fields/${encodeURIComponent(projectId)}`,
+      );
+      const payload = ("data" in (res as Record<string, unknown>)
+        ? (res as { data?: UserFormFieldsResponseData }).data
+        : res) as UserFormFieldsResponseData | undefined;
+      if (!payload || typeof payload !== "object") return null;
+
+      return {
+        projectId: String(payload.projectId ?? projectId),
+        entityType: String(payload.entityType ?? "USER"),
+        udfFields: normalizeUdfSchemaFields(payload.udfFields),
+        staticFields: payload.staticFields ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async saveUserSchema(input: SaveUserSchemaInput): Promise<void> {
+    await apiClient.post(`${BASE}/schema`, {
+      projectId: input.projectId,
+      fields: input.fields.map(normalizeUserSchemaFieldForSave),
+    });
   },
 
   async create(input: CreateProjectUserInput): Promise<void> {

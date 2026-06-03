@@ -8,14 +8,13 @@ import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
 import { EditUserModal } from "./edit-user-modal";
 import { AuditHistoryModal } from "@/components/project-admin/shared/audit-history-modal";
-import type { User, UDFField, Status } from "@/types/project-admin";
+import type { ProjectUser, UDFField, Status } from "@/types/project-admin";
 
 interface UserTableProps {
-  users: User[];
+  users: ProjectUser[];
   udfFields: UDFField[];
   loading: boolean;
   projectId: string;
-  backendUserIds: Map<string, string>;
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
@@ -28,7 +27,6 @@ export function UserTable({
   udfFields,
   loading,
   projectId,
-  backendUserIds,
   onOpenUDFConfig,
   onRefresh,
   onExport,
@@ -53,7 +51,8 @@ export function UserTable({
   const total = users.length;
   const activeCount = users.filter((u) => u.status === "active").length;
 
-  const rows = filtered.map((u) => {
+  const rows = filtered.map((u, index) => {
+    const rowKey = `${u.backendId || u.id}-${index}`;
     const initials = u.name
       .split(" ")
       .map((w) => w[0])
@@ -61,7 +60,7 @@ export function UserTable({
       .slice(0, 2);
     return (
       <div
-        key={u.id}
+        key={rowKey}
         style={{
           display: "grid",
           gridTemplateColumns: GRID,
@@ -142,10 +141,10 @@ export function UserTable({
           <ActionButtons
             status={u.status}
             entityType="users"
-            entityId={u.id}
+            entityId={u.backendId || u.id}
             projectId={projectId}
-            onEdit={() => setEditId(u.id)}
-            onAudit={() => setAuditId(u.id)}
+            onEdit={() => setEditId(u.backendId || u.id)}
+            onAudit={() => setAuditId(u.backendId || u.id)}
             onRefresh={onRefresh}
           />
         </div>
@@ -153,7 +152,9 @@ export function UserTable({
     );
   });
 
-  const editingUser = editId ? users.find((u) => u.id === editId) : undefined;
+  const editingUser = editId
+    ? users.find((u) => (u.backendId || u.id) === editId)
+    : undefined;
 
   return (
     <>
@@ -219,7 +220,7 @@ export function UserTable({
       {editingUser && (
         <EditUserModal
           user={editingUser}
-          backendUserId={backendUserIds.get(editingUser.id) ?? editingUser.id}
+          backendUserId={editingUser.backendId || editingUser.id}
           open={!!editId}
           onClose={() => setEditId(null)}
           udfFields={udfFields}
