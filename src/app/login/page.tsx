@@ -70,10 +70,10 @@ const HERO: Record<Step, Parameters<typeof HeroPanel>[0]> = {
   },
   notSupported: {
     eyebrow: "Compatibility",
-    title: "OTP login",
-    titleEm: "still works.",
+    title: "Use a supported",
+    titleEm: "browser.",
     subtitle:
-      "Not every browser supports passkeys yet. You can still log in securely with an SMS code.",
+      "This web sign-in flow finishes with passkey registration. If passkeys aren't available here, use a supported browser or sign in with your password.",
   },
 };
 
@@ -264,18 +264,15 @@ export default function LoginPage() {
     }
   }, [registrationToken, showToast, completeSession]);
 
-  const handleSkipPasskey = useCallback(() => {
-    // The live backend has no OTP-only session endpoint: OTP verify only yields
-    // a short-lived registration token. A passkey must be created to finish
-    // signing in on web, so "Skip" cannot establish a session by itself.
-    showToast("Create a passkey to finish signing in.", "er");
-  }, [showToast]);
-
   const resetToIdentify = useCallback(() => {
     setStep("identify");
     setIdentifyError(null);
     setPkLoginSub("idle");
   }, []);
+
+  const goToPasswordLogin = useCallback(() => {
+    router.push("/login/password");
+  }, [router]);
 
   let content: ReactNode = null;
   switch (step) {
@@ -334,11 +331,7 @@ export default function LoginPage() {
           loading={otpLoading}
           error={otpError}
           success={otpSuccess}
-          successText={
-            otpVariant === "otp-fallback"
-              ? "Logging you in…"
-              : "Setting up your passkey…"
-          }
+          successText="OTP verified. Setting up your passkey…"
           onVerify={handleVerifyOtp}
           onResend={sendOtp}
           onBack={resetToIdentify}
@@ -353,14 +346,14 @@ export default function LoginPage() {
           errorMessage={pkCreateError}
           onCreate={handleCreatePasskey}
           onRetry={handleCreatePasskey}
-          onSkip={handleSkipPasskey}
+          onUsePassword={goToPasswordLogin}
         />
       );
       break;
     case "notSupported":
       content = (
         <NotSupportedStep
-          onSendOtp={() => startOtpFlow("otp-fallback")}
+          onUsePassword={goToPasswordLogin}
           onBack={resetToIdentify}
         />
       );

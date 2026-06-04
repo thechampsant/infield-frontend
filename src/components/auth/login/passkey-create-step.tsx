@@ -17,14 +17,14 @@ export function PasskeyCreateStep({
   errorMessage,
   onCreate,
   onRetry,
-  onSkip,
+  onUsePassword,
 }: {
   deviceLabel: string;
   subState: SubState;
   errorMessage?: string | null;
   onCreate: () => void;
   onRetry: () => void;
-  onSkip: () => void;
+  onUsePassword: () => void;
 }) {
   if (subState === "scanning") {
     return (
@@ -75,8 +75,8 @@ export function PasskeyCreateStep({
         <button type="button" className="btn btn-primary" onClick={onRetry}>
           Try Again
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onSkip}>
-          Skip — use OTP each time
+        <button type="button" className="btn btn-ghost" onClick={onUsePassword}>
+          Sign in with Password Instead
         </button>
       </div>
     );
@@ -172,8 +172,8 @@ export function PasskeyCreateStep({
         <span className="btn-label">Create Passkey</span>
         <div className="btn-spinner" />
       </button>
-      <button type="button" className="btn btn-ghost" onClick={onSkip}>
-        Skip — use OTP each time
+      <button type="button" className="btn btn-ghost" onClick={onUsePassword}>
+        Sign in with Password Instead
       </button>
 
       <div className="flow-dots">
