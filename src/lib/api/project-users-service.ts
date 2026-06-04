@@ -4,7 +4,7 @@
 
 import { apiClient } from "./api-client";
 import { udfConfigService } from "./udf-config-service";
-import type { UDFField, ProjectUser } from "@/types/project-admin";
+import type { UDFField, ProjectUser, UDFValue } from "@/types/project-admin";
 import type { UdfSchemaField } from "./udf-config-service";
 
 const BASE = "/api/v1/users";
@@ -20,7 +20,7 @@ interface RawUser {
   designation?: string | { name?: string; roleName?: string };
   status?: string;
   isActive?: boolean;
-  udfData?: Record<string, string>;
+  udfData?: Record<string, unknown>;
   createdAt?: string;
   dateOfJoining?: string;
   dateOfExit?: string;
@@ -70,8 +70,19 @@ function normalizeUser(raw: RawUser): ProjectUser {
     doj: raw.dateOfJoining ?? raw.createdAt?.slice(0, 10) ?? "",
     doe: raw.dateOfExit ?? "",
     status: normalizeStatus(raw),
-    udfs: raw.udfData ?? {},
+    udfs: normalizeUdfData(raw.udfData),
   };
+}
+
+function normalizeUdfData(value: unknown): Record<string, UDFValue> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const entries = Object.entries(value as Record<string, unknown>).map(([key, item]) => {
+    if (Array.isArray(item)) {
+      return [key, item.map(String)] as const;
+    }
+    return [key, item == null ? "" : String(item)] as const;
+  });
+  return Object.fromEntries(entries);
 }
 
 function parseFormFields(payload: unknown): UDFField[] {
@@ -163,6 +174,7 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
         runtimeField.sourceKey = String(config.sourceKey ?? "") || undefined;
         runtimeField.labelKey = String(config.labelKey ?? "") || undefined;
         runtimeField.valueKey = String(config.valueKey ?? "") || undefined;
+        runtimeField.multiple = Boolean(config.multiple);
       }
 
       return runtimeField;
@@ -206,7 +218,7 @@ export interface CreateProjectUserInput {
   phoneNumber: string;
   designationId: string;
   dateOfJoining?: string;
-  udfs?: Record<string, string>;
+  udfs?: Record<string, UDFValue>;
 }
 
 export interface UpdateProjectUserInput {
@@ -215,7 +227,7 @@ export interface UpdateProjectUserInput {
   email?: string;
   phoneNumber?: string;
   designationId?: string;
-  udfs?: Record<string, string>;
+  udfs?: Record<string, UDFValue>;
 }
 
 export interface SaveUserSchemaInput {

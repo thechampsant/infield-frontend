@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { udfConfigService } from "@/lib/api";
-import type { UDFField } from "@/types/project-admin";
+import type { UDFField, UDFValue } from "@/types/project-admin";
 
 interface UDFFormFieldsProps {
   fields: UDFField[];
-  values: Record<string, string>;
-  onChange: (values: Record<string, string>) => void;
+  values: Record<string, UDFValue>;
+  onChange: (values: Record<string, UDFValue>) => void;
   errors: string[];
   projectId: string;
   prefix?: string;
@@ -21,9 +22,11 @@ export function UDFFormFields({
   projectId,
   prefix = "udf_",
 }: UDFFormFieldsProps) {
-  const set = (fieldKey: string, val: string) =>
+  const set = (fieldKey: string, val: UDFValue) =>
     onChange({ ...values, [fieldKey]: val });
   const [dynamicOptions, setDynamicOptions] = useState<Record<number, { label: string; value: string }[]>>({});
+  const [openMultiField, setOpenMultiField] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,11 +76,41 @@ export function UDFFormFields({
     };
   }, [fields, projectId]);
 
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(event.target as Node)) {
+        setOpenMultiField(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  const stringValue = (fieldKey: string) => {
+    const value = values[fieldKey];
+    return typeof value === "string" ? value : "";
+  };
+
+  const arrayValue = (fieldKey: string) => {
+    const value = values[fieldKey];
+    return Array.isArray(value) ? value.map(String) : [];
+  };
+
+  const toggleMultiValue = (fieldKey: string, optionValue: string) => {
+    const current = arrayValue(fieldKey);
+    const next = current.includes(optionValue)
+      ? current.filter((value) => value !== optionValue)
+      : [...current, optionValue];
+    set(fieldKey, next);
+  };
+
   const pairs: UDFField[][] = [];
   for (let i = 0; i < fields.length; i += 2) pairs.push(fields.slice(i, i + 2));
 
   return (
-    <>
+    <div ref={rootRef}>
       {pairs.map((pair, pi) => (
         <div
           key={pi}
@@ -103,23 +136,102 @@ export function UDFFormFields({
                 </label>
 
                 {f.type === "dropdown" ? (
-                  <select
-                    className={`form-input${hasErr ? " err" : ""}`}
-                    value={values[f.fieldKey] ?? ""}
-                    onChange={(e) => set(f.fieldKey, e.target.value)}
-                  >
-                    <option value="">Select</option>
-                    {optionItems.map((option) => (
-                      <option key={`${f.id}-${option.value}`} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  f.multiple ? (
+                    <div className="udf-multiSelect">
+                      <button
+                        type="button"
+                        className={`udf-multiSelect__trigger${hasErr ? " err" : ""}`}
+                        onClick={() =>
+                          setOpenMultiField((current) =>
+                            current === f.fieldKey ? null : f.fieldKey,
+                          )
+                        }
+                      >
+                        <div className="udf-multiSelect__value">
+                          {arrayValue(f.fieldKey).length > 0 ? (
+                            <div className="udf-multiSelect__chips">
+                              {arrayValue(f.fieldKey).map((selectedValue) => {
+                                const option = optionItems.find(
+                                  (item) => item.value === selectedValue,
+                                );
+                                return (
+                                  <span
+                                    key={`${f.fieldKey}-${selectedValue}`}
+                                    className="udf-multiSelect__chip"
+                                  >
+                                    {option?.label ?? selectedValue}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="udf-multiSelect__placeholder">
+                              Select one or more options
+                            </span>
+                          )}
+                        </div>
+                        <ChevronDown
+                          className={`udf-multiSelect__chevron${
+                            openMultiField === f.fieldKey ? " open" : ""
+                          }`}
+                          size={16}
+                        />
+                      </button>
+
+                      {openMultiField === f.fieldKey && (
+                        <div className="udf-multiSelect__panel">
+                          {optionItems.length > 0 ? (
+                            optionItems.map((option) => {
+                              const selected = arrayValue(f.fieldKey).includes(
+                                option.value,
+                              );
+                              return (
+                                <button
+                                  key={`${f.id}-${option.value}`}
+                                  type="button"
+                                  className={`udf-multiSelect__option${
+                                    selected ? " selected" : ""
+                                  }`}
+                                  onClick={() =>
+                                    toggleMultiValue(f.fieldKey, option.value)
+                                  }
+                                >
+                                  <span className="udf-multiSelect__check">
+                                    {selected ? <Check size={14} /> : null}
+                                  </span>
+                                  <span className="udf-multiSelect__optionLabel">
+                                    {option.label}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="udf-multiSelect__empty">
+                              No options available
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      className={`form-input${hasErr ? " err" : ""}`}
+                      value={stringValue(f.fieldKey)}
+                      onChange={(e) => set(f.fieldKey, e.target.value)}
+                    >
+                      <option value="">Select</option>
+                      {optionItems.map((option) => (
+                        <option key={`${f.id}-${option.value}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )
                 ) : (
                   <input
                     type={f.type === "numeric" ? "tel" : "text"}
                     className={`form-input${hasErr ? " err" : ""}`}
-                    value={values[f.fieldKey] ?? ""}
+                    value={stringValue(f.fieldKey)}
                     onChange={(e) => set(f.fieldKey, e.target.value)}
                     placeholder={`Enter ${f.name}`}
                   />
@@ -130,6 +242,6 @@ export function UDFFormFields({
           {pair.length === 1 && <div />}
         </div>
       ))}
-    </>
+    </div>
   );
 }
