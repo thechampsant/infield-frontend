@@ -5,7 +5,7 @@ import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { designationService } from "@/lib/api/designation-service";
 import { projectUsersService } from "@/lib/api/project-users-service";
-import type { UDFField } from "@/types/project-admin";
+import type { UDFField, UDFValue } from "@/types/project-admin";
 
 interface AddUserModalProps {
   open: boolean;
@@ -34,7 +34,7 @@ export function AddUserModal({
   const [designations, setDesignations] = useState<
     { id: string; name: string }[]
   >([]);
-  const [udfValues, setUdfValues] = useState<Record<string, string>>({});
+  const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -75,7 +75,12 @@ export function AddUserModal({
     if (!form.email) errs.push("email");
     if (!form.designation) errs.push("designation");
     udfFields.forEach((f) => {
-      if (f.mandatory && !udfValues[f.fieldKey]) errs.push(`udf_${f.id}`);
+      const value = udfValues[f.fieldKey];
+      const missing =
+        value == null ||
+        value === "" ||
+        (Array.isArray(value) && value.length === 0);
+      if (f.mandatory && missing) errs.push(`udf_${f.id}`);
     });
     if (errs.length) {
       setErrors(errs);

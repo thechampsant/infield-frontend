@@ -5,7 +5,7 @@ import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { designationService } from "@/lib/api/designation-service";
 import { projectUsersService } from "@/lib/api/project-users-service";
-import type { UDFField, User } from "@/types/project-admin";
+import type { UDFField, UDFValue, User } from "@/types/project-admin";
 
 export function EditUserModal({
   user,
@@ -35,7 +35,7 @@ export function EditUserModal({
   const [designations, setDesignations] = useState<
     { id: string; name: string }[]
   >([]);
-  const [udfValues, setUdfValues] = useState<Record<string, string>>(user.udfs);
+  const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>(user.udfs);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);

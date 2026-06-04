@@ -16,6 +16,8 @@ export interface UDFOptionItem {
   value: string;
 }
 
+export type UDFValue = string | string[];
+
 export interface UDFField {
   id: number;
   fieldKey: string;
@@ -26,6 +28,7 @@ export interface UDFField {
   sourceKey?: string;
   labelKey?: string;
   valueKey?: string;
+  multiple?: boolean;
   mandatory: boolean;
 }
 
@@ -47,7 +50,7 @@ export interface User {
   doj: string;
   doe: string;
   status: Status;
-  udfs: Record<string, string>;
+  udfs: Record<string, UDFValue>;
 }
 
 export interface ProjectUser extends User {
@@ -57,13 +60,13 @@ export interface ProjectUser extends User {
 export interface Store {
   code: string;
   status: Status;
-  udfs: Record<string, string>;
+  udfs: Record<string, UDFValue>;
 }
 
 export interface Product {
   code: string;
   status: Status;
-  udfs: Record<string, string>;
+  udfs: Record<string, UDFValue>;
 }
 
 export type MappingType = "direct" | "pjp";
