@@ -9,8 +9,22 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Check, LogOut } from "lucide-react";
+import {
+  Bell,
+  Briefcase,
+  Building2,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  Copy,
+  LogOut,
+  Mail,
+  Phone,
+  User,
+  X,
+} from "lucide-react";
 import { InfieldBrandLogo } from "@/components/brand/infield-brand-logo";
+import { authService } from "@/lib/api/auth-service";
 import { cn } from "@/lib/utils/cn";
 import { NAV_ICONS } from "@/lib/nav/icons";
 import type { NavSection } from "@/lib/nav/nav";
@@ -39,6 +53,16 @@ export function useSetBreadcrumbs(items: Breadcrumb[] | null) {
 interface ShellUser {
   name: string;
   role: string;
+}
+
+interface ProfileData {
+  fullName: string;
+  designation: string;
+  mobile: string;
+  email: string;
+  dateOfJoining: string;
+  company: string;
+  raw: Record<string, unknown>;
 }
 
 export interface ClientBrandDisplay {
@@ -74,9 +98,18 @@ export function MasterShell({
   const [override, setOverride] = useState<Breadcrumb[] | null>(null);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
 
   const breadcrumbs = override ?? defaultBreadcrumbs(pathname);
-  const initials = (user?.name ?? "SA").slice(0, 2).toUpperCase();
+  const profileName = profile?.fullName || user?.name || "Super Admin";
+  const profileRole = profile?.designation || user?.role || brandTag;
+  const initials = profileName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "SA";
 
   const notifActive = Boolean(
     notificationsHref &&
@@ -97,6 +130,23 @@ export function MasterShell({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [signOutOpen]);
+
+  useEffect(() => {
+    let active = true;
+    authService
+      .getMe()
+      .then((response) => {
+        if (!active) return;
+        setProfile(normalizeProfile(response));
+      })
+      .catch(() => {
+        if (!active) return;
+        setProfile(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function confirmSignOut() {
     setSignOutOpen(false);
@@ -236,33 +286,24 @@ export function MasterShell({
                   </Link>
                 )}
 
-                {profileHref ? (
-                  <Link
-                    href={profileHref}
-                    className={cn("name-card", profileActive && "active-nav")}
-                    aria-label="Profile"
-                  >
-                    <div className="nc-avatar">
-                      {initials}
-                      <div className="nc-status" />
-                    </div>
-                    <div className="nc-text">
-                      <div className="nc-name">{user?.name ?? "Super Admin"}</div>
-                      <div className="nc-role">{user?.role ?? brandTag}</div>
-                    </div>
-                  </Link>
-                ) : (
-                  <div className="name-card">
-                    <div className="nc-avatar">
-                      {initials}
-                      <div className="nc-status" />
-                    </div>
-                    <div className="nc-text">
-                      <div className="nc-name">{user?.name ?? "Super Admin"}</div>
-                      <div className="nc-role">{user?.role ?? brandTag}</div>
-                    </div>
+                <button
+                  type="button"
+                  className={cn("name-card", (profileActive || profileOpen) && "active-nav")}
+                  aria-label="Profile"
+                  onClick={() => setProfileOpen(true)}
+                >
+                  <div className="nc-avatar">
+                    {initials}
+                    <div className="nc-status" />
                   </div>
-                )}
+                  <div className="nc-text">
+                    <div className="nc-name">{profileName}</div>
+                    <div className="nc-role">{profileRole}</div>
+                  </div>
+                  <span className="nc-caret" aria-hidden="true">
+                    <ChevronDown />
+                  </span>
+                </button>
               </div>
             </header>
 
@@ -316,6 +357,106 @@ export function MasterShell({
           </div>
         )}
 
+        {profileOpen && (
+          <div
+            className="pf-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profileTitle"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setProfileOpen(false);
+            }}
+          >
+            <aside className="pf-drawer">
+              <div className="pf-hero">
+                <div className="pf-hero-top">
+                  <div className="pf-eyebrow" id="profileTitle">
+                    My Profile
+                  </div>
+                  <button
+                    type="button"
+                    className="pf-close"
+                    onClick={() => setProfileOpen(false)}
+                    aria-label="Close profile"
+                  >
+                    <X />
+                  </button>
+                </div>
+
+                <div className="pf-hero-main">
+                  <div className="pf-avatar">{initials}</div>
+                  <div className="pf-hero-copy">
+                    <div className="pf-name">{profileName}</div>
+                    <div className="pf-sub">{profileRole}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pf-body">
+                <div className="pf-stack">
+                  <ProfileInfoCard
+                    icon={<User />}
+                    label="Full Name"
+                    value={profile?.fullName || profileName}
+                    tone="blue"
+                  />
+                  <ProfileInfoCard
+                    icon={<Phone />}
+                    label="Mobile"
+                    value={profile?.mobile || "Not available"}
+                    copyValue={profile?.mobile}
+                    tone="green"
+                  />
+                  <ProfileInfoCard
+                    icon={<Mail />}
+                    label="E-Mail ID"
+                    value={profile?.email || "Not available"}
+                    copyValue={profile?.email}
+                    tone="indigo"
+                  />
+                </div>
+
+                <div className="pf-section">
+                  <div className="pf-section-title">
+                    <Briefcase />
+                    <span>Work Information</span>
+                  </div>
+                  <ProfileInfoCard
+                    icon={<Briefcase />}
+                    label="Designation"
+                    value={profile?.designation || "Not available"}
+                    tone="amber"
+                  />
+                  <ProfileInfoCard
+                    icon={<CalendarDays />}
+                    label="Date Of Joining"
+                    value={formatProfileDate(profile?.dateOfJoining) || "Not available"}
+                    tone="violet"
+                  />
+                  <ProfileInfoCard
+                    icon={<Building2 />}
+                    label="Organization"
+                    value={profile?.company || brandTag}
+                    tone="slate"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="pf-signout"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    setSignOutOpen(true);
+                  }}
+                >
+                  <LogOut />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </aside>
+          </div>
+        )}
+
         {/* Signed-out full-screen confirmation */}
         {signedOut && (
           <div className="logged-out-screen visible" aria-live="polite">
@@ -331,13 +472,104 @@ export function MasterShell({
   );
 }
 
+function normalizeProfile(value: unknown): ProfileData {
+  const raw = (value ?? {}) as Record<string, unknown>;
+  const first = stringValue(raw.firstName);
+  const last = stringValue(raw.lastName);
+  const fullName =
+    [first, last].filter(Boolean).join(" ") ||
+    stringValue(raw.name) ||
+    stringValue(raw.fullName) ||
+    stringValue(raw.displayName) ||
+    stringValue(raw.email).split("@")[0] ||
+    "User";
+
+  return {
+    fullName,
+    designation:
+      stringValue(raw.designation) ||
+      stringValue(raw.designationName) ||
+      stringValue(raw.jobTitle) ||
+      stringValue(raw.role) ||
+      "Not available",
+    mobile:
+      stringValue(raw.mobile) ||
+      stringValue(raw.phone) ||
+      stringValue(raw.phoneNumber) ||
+      stringValue(raw.contactNumber),
+    email: stringValue(raw.email),
+    dateOfJoining:
+      stringValue(raw.dateOfJoining) ||
+      stringValue(raw.joiningDate) ||
+      stringValue(raw.createdAt),
+    company:
+      stringValue(raw.companyName) ||
+      stringValue(raw.accountName) ||
+      stringValue(raw.organizationName) ||
+      stringValue(raw.clientName),
+    raw,
+  };
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function formatProfileDate(value?: string): string {
+  const raw = stringValue(value);
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function ProfileInfoCard({
+  icon,
+  label,
+  value,
+  copyValue,
+  tone = "blue",
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  copyValue?: string;
+  tone?: "blue" | "green" | "indigo" | "amber" | "violet" | "slate";
+}) {
+  return (
+    <div className="pf-card">
+      <div className={cn("pf-card-icon", `pf-card-icon--${tone}`)}>{icon}</div>
+      <div className="pf-card-content">
+        <div className="pf-card-label">{label}</div>
+        <div className="pf-card-value">{value}</div>
+      </div>
+      {copyValue ? (
+        <button
+          type="button"
+          className="pf-copy"
+          aria-label={`Copy ${label}`}
+          onClick={() => {
+            void navigator.clipboard?.writeText(copyValue);
+          }}
+        >
+          <Copy />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function defaultBreadcrumbs(pathname: string): Breadcrumb[] {
   if (pathname.startsWith("/workspace")) {
     const crumbs: Breadcrumb[] = [
       { label: "Workspace", href: "/workspace" },
     ];
-    const module = workspaceModuleLabel(pathname);
-    if (module) crumbs.push({ label: module });
+    const workspaceSection = workspaceModuleLabel(pathname);
+    if (workspaceSection) crumbs.push({ label: workspaceSection });
     return crumbs;
   }
 

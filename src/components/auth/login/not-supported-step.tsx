@@ -1,10 +1,10 @@
 "use client";
 
 export function NotSupportedStep({
-  onSendOtp,
+  onUsePassword,
   onBack,
 }: {
-  onSendOtp: () => void;
+  onUsePassword: () => void;
   onBack: () => void;
 }) {
   return (
@@ -34,8 +34,9 @@ export function NotSupportedStep({
         </div>
         <div className="pk-label">Passkey Not Supported</div>
         <div className="pk-desc">
-          This browser or device doesn&apos;t support passkeys. You can still
-          sign in securely via OTP.
+          This browser or device doesn&apos;t support passkeys. Since this web
+          flow finishes with WebAuthn registration, use a supported browser or
+          sign in with your password instead.
         </div>
       </div>
 
@@ -46,14 +47,15 @@ export function NotSupportedStep({
       </div>
 
       <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
-        Continue with OTP
+        Continue another way
       </h3>
       <p className="auth-sub" style={{ marginBottom: 20 }}>
-        Secure login to your registered phone — always available as a fallback.
+        Chrome 108+, Edge 108+, Safari 16+, or Firefox 122+ are recommended for
+        passkey login on web.
       </p>
 
-      <button type="button" className="btn btn-primary" onClick={onSendOtp}>
-        Send OTP to Login
+      <button type="button" className="btn btn-primary" onClick={onUsePassword}>
+        Sign in with Password
       </button>
       <button type="button" className="btn btn-ghost" onClick={onBack}>
         Try a different account

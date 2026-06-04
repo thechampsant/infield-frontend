@@ -137,17 +137,314 @@
    TOPBAR - name card hover / active
    ------------------------------------------------------------ */
 .if2-app .name-card {
-  border: 1px solid var(--if2-border);
-  background: var(--if2-surface2);
-  border-radius: var(--if2-r-pill);
-  padding: var(--if2-sp-4) var(--if2-sp-12) var(--if2-sp-4) var(--if2-sp-4);
+  border: 1px solid rgba(205, 220, 236, .95);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(246,250,255,.96) 100%);
+  border-radius: 18px;
+  padding: var(--if2-sp-5) var(--if2-sp-10) var(--if2-sp-5) var(--if2-sp-5);
   cursor: pointer;
-  transition: border-color .2s, background .2s, box-shadow .2s;
+  min-height: 46px;
+  box-shadow: 0 6px 18px rgba(30, 95, 168, .06);
+  transition: transform .15s, border-color .2s, background .2s, box-shadow .2s;
 }
-.if2-app a.name-card:hover { border-color: var(--if2-blue); background: var(--if2-blue-pale); box-shadow: var(--if2-shadow-sm); }
-.if2-app .name-card.active-nav { border-color: var(--if2-blue); background: var(--if2-blue-pale); }
+.if2-app .name-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(84, 144, 214, .5);
+  background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);
+  box-shadow: 0 10px 24px rgba(30, 95, 168, .12);
+}
+.if2-app .name-card.active-nav {
+  border-color: rgba(84, 144, 214, .65);
+  background: linear-gradient(180deg, #ffffff 0%, #ebf4ff 100%);
+  box-shadow: 0 10px 24px rgba(30, 95, 168, .14);
+}
 .if2-app .name-card:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
-.if2-app .nc-avatar { border-radius: 50%; }
+.if2-app .nc-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.24);
+}
+.if2-app .nc-status { right: -1px; bottom: -1px; }
+.if2-app .nc-text {
+  min-width: 0;
+  align-items: flex-start;
+}
+.if2-app .nc-name {
+  font-size: 12px;
+  max-width: 156px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.if2-app .nc-role {
+  font-size: 9px;
+  margin-top: 3px;
+  max-width: 156px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: .2px;
+}
+.if2-app .nc-caret {
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+  background: rgba(224, 236, 249, .9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--if2-sp-4);
+  flex-shrink: 0;
+}
+.if2-app .nc-caret svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--if2-text-mid);
+}
+
+/* ------------------------------------------------------------
+   PROFILE DRAWER
+   ------------------------------------------------------------ */
+.if2-app .pf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(8, 15, 24, .34);
+  backdrop-filter: blur(4px);
+}
+.if2-app .pf-drawer {
+  width: min(492px, 100vw);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at top left, rgba(84, 144, 214, .12) 0%, transparent 24%),
+    linear-gradient(180deg, #f6f9fd 0%, #edf3fa 100%);
+  box-shadow: -20px 0 56px rgba(12, 25, 41, .22);
+  animation: pf-slide-in .22s ease;
+}
+@keyframes pf-slide-in {
+  from { transform: translateX(28px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.if2-app .pf-hero {
+  padding: 22px 24px 26px;
+  background:
+    radial-gradient(circle at top right, rgba(255,255,255,.14) 0%, transparent 28%),
+    linear-gradient(155deg, #173150 0%, #1f3e64 58%, #274c78 100%);
+  color: #fff;
+  border-bottom-left-radius: 30px;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.06);
+}
+.if2-app .pf-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.if2-app .pf-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 3.2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.74);
+}
+.if2-app .pf-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.if2-app .pf-close svg {
+  width: 16px;
+  height: 16px;
+  stroke: #fff;
+}
+.if2-app .pf-hero-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.if2-app .pf-avatar {
+  width: 86px;
+  height: 86px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: linear-gradient(180deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.06) 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+}
+.if2-app .pf-hero-copy {
+  min-width: 0;
+}
+.if2-app .pf-name {
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -.2px;
+}
+.if2-app .pf-sub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: rgba(255,255,255,.8);
+  font-weight: 500;
+}
+.if2-app .pf-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.if2-app .pf-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.if2-app .pf-card,
+.if2-app .pf-section {
+  background: rgba(255,255,255,.94);
+  border: 1px solid rgba(210, 223, 238, .96);
+  border-radius: 22px;
+  box-shadow: 0 10px 24px rgba(30, 95, 168, .08);
+}
+.if2-app .pf-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0,1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+}
+.if2-app .pf-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.if2-app .pf-card-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.if2-app .pf-card-icon--blue {
+  background: linear-gradient(180deg, #eff5ff 0%, #e6f0ff 100%);
+  border: 1px solid #d4e3fb;
+}
+.if2-app .pf-card-icon--blue svg { stroke: #3e6fbe; }
+.if2-app .pf-card-icon--green {
+  background: linear-gradient(180deg, #eefbf4 0%, #e2f7ec 100%);
+  border: 1px solid #d0eedf;
+}
+.if2-app .pf-card-icon--green svg { stroke: #2fa36c; }
+.if2-app .pf-card-icon--indigo {
+  background: linear-gradient(180deg, #f0f4ff 0%, #e7edff 100%);
+  border: 1px solid #d8e0ff;
+}
+.if2-app .pf-card-icon--indigo svg { stroke: #5577d8; }
+.if2-app .pf-card-icon--amber {
+  background: linear-gradient(180deg, #fff9e8 0%, #fff2c9 100%);
+  border: 1px solid #f4e3a6;
+}
+.if2-app .pf-card-icon--amber svg { stroke: #c7911f; }
+.if2-app .pf-card-icon--violet {
+  background: linear-gradient(180deg, #f8f0ff 0%, #f0e3ff 100%);
+  border: 1px solid #e4cffd;
+}
+.if2-app .pf-card-icon--violet svg { stroke: #8c57d3; }
+.if2-app .pf-card-icon--slate {
+  background: linear-gradient(180deg, #f4f8ff 0%, #edf2fb 100%);
+  border: 1px solid #dce6f6;
+}
+.if2-app .pf-card-icon--slate svg { stroke: #6d85b0; }
+.if2-app .pf-card-content {
+  min-width: 0;
+}
+.if2-app .pf-card-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: #8298b7;
+}
+.if2-app .pf-card-value {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--if2-navy);
+  word-break: break-word;
+}
+.if2-app .pf-copy {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #d7e4f3;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f8fd 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.if2-app .pf-copy svg {
+  width: 15px;
+  height: 15px;
+  stroke: #8ca2c0;
+}
+.if2-app .pf-section {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.if2-app .pf-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.9px;
+  text-transform: uppercase;
+  color: #5a7397;
+}
+.if2-app .pf-section-title svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--if2-blue);
+}
+.if2-app .pf-signout {
+  margin-top: auto;
+  min-height: 56px;
+  border-radius: 20px;
+  border: 1px solid #ffd7d1;
+  background: linear-gradient(180deg, #fff7f5 0%, #fff1ee 100%);
+  color: var(--if2-red);
+  font-size: 15px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--if2-sp-12);
+}
+.if2-app .pf-signout svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
 
 /* ------------------------------------------------------------
    SIGN-OUT CONFIRMATION MODAL
@@ -306,5 +603,20 @@
 }
 @media (max-width: 640px) {
   .if2-app .nc-text { display: none; }
-  .if2-app .name-card { padding: var(--if2-sp-4); border-radius: 50%; }
+  .if2-app .name-card {
+    padding: var(--if2-sp-4);
+    min-height: 42px;
+    border-radius: 14px;
+  }
+  .if2-app .nc-caret { display: none; }
+  .if2-app .pf-drawer { width: 100vw; }
+  .if2-app .pf-hero { padding: 20px 18px 24px; }
+  .if2-app .pf-avatar { width: 72px; height: 72px; font-size: 26px; }
+  .if2-app .pf-name { font-size: 17px; }
+  .if2-app .pf-sub { font-size: 13px; }
+  .if2-app .pf-body { padding: 18px 16px 22px; }
+  .if2-app .pf-card { grid-template-columns: 42px minmax(0,1fr) auto; padding: 14px; }
+  .if2-app .pf-card-icon { width: 42px; height: 42px; border-radius: 12px; }
+  .if2-app .pf-card-value { font-size: 14px; }
+  .if2-app .pf-signout { min-height: 52px; font-size: 14px; }
 }
