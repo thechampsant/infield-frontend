@@ -878,6 +878,56 @@
   gap: 14px;
 }
 
+.claims-page .claims-radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.claims-page .claims-radioOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid var(--claims-border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.claims-page .claims-radioOption:hover {
+  border-color: var(--claims-blue);
+  background-color: var(--claims-blue-soft);
+}
+
+.claims-page .claims-radioOption input[type="radio"] {
+  margin-top: 4px;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--claims-blue);
+}
+
+.claims-page .claims-radioOption input[type="radio"]:checked + div strong {
+  color: var(--claims-blue);
+}
+
+.claims-page .claims-radioOption strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--claims-heading);
+}
+
+.claims-page .claims-radioOption p {
+  font-size: 13px;
+  color: var(--claims-text-soft);
+  margin: 0;
+  line-height: 1.4;
+}
+
 .claims-page .claims-accordion__body {
   padding: 14px;
   border-top: 1px solid #edf2f8;
@@ -997,5 +1047,898 @@
 
   .claims-page .claims-configCard__actions {
     grid-column: auto;
+  }
+}
+
+
+/* ============================================================
+   Claims Form Builder - Improved Layout
+   ============================================================ */
+
+.claims-form-builder__staticFields {
+  display: flex;
+  gap: 12px;
+  padding: 14px 18px;
+  margin: 0 20px 16px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+}
+
+.claims-form-builder__staticField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: white;
+  border-radius: 8px;
+  flex: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.claims-form-builder__staticField strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0c4a6e;
+}
+
+.claims-form-builder__staticField span {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* Override form builder layout for claims */
+.claims-page .att-form-builder {
+  background: var(--claims-surface);
+}
+
+.claims-page .att-form-builder__head {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(239, 246, 255, 0.95) 100%);
+  border-bottom: 2px solid var(--claims-border);
+  padding: 24px;
+}
+
+.claims-page .att-form-builder__title {
+  color: var(--claims-heading);
+  font-size: 24px;
+  margin: 8px 0;
+}
+
+.claims-page .att-form-builder__desc {
+  color: var(--claims-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.claims-page .att-form-builder__layout {
+  background: #fafbfc;
+}
+
+.claims-page .att-form-builder__palette,
+.claims-page .att-form-builder__canvas,
+.claims-page .att-form-builder__inspector {
+  background: white;
+  padding: 20px;
+}
+
+.claims-page .att-form-builder__panelTitle {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.claims-page .att-form-builder__paletteItem {
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: white;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.claims-page .att-form-builder__paletteItem:hover {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  transform: translateX(2px);
+}
+
+.claims-page .att-form-builder__paletteItem strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--claims-heading);
+  margin-bottom: 3px;
+}
+
+.claims-page .att-form-builder__paletteItem span {
+  font-size: 11px;
+  color: var(--claims-text-soft);
+}
+
+.claims-page .att-form-builder__fieldCard {
+  padding: 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  background: white;
+  transition: all 0.15s ease;
+}
+
+.claims-page .att-form-builder__fieldCard:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.claims-page .att-form-builder__fieldCard.selected {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.claims-page .att-form-builder__fieldOrder {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.claims-page .att-form-builder__fieldType {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  color: #475569;
+}
+
+.claims-page .att-form-builder__fieldCard strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--claims-heading);
+  margin: 8px 0 2px;
+}
+
+.claims-page .att-form-builder__fieldCard span {
+  font-size: 12px;
+  color: var(--claims-text-soft);
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.claims-page .att-form-builder__empty {
+  padding: 32px 20px;
+  text-align: center;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  color: var(--claims-text-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.claims-page .att-form-builder__inspectorActions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.claims-page .att-form-builder__field {
+  margin-bottom: 16px;
+}
+
+.claims-page .att-form-builder__field span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.claims-page .att-form-builder__field input,
+.claims-page .att-form-builder__field select,
+.claims-page .att-form-builder__field textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.claims-page .att-form-builder__field input:focus,
+.claims-page .att-form-builder__field select:focus,
+.claims-page .att-form-builder__field textarea:focus {
+  outline: none;
+  border-color: var(--claims-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.claims-page .att-form-builder__toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.claims-page .att-form-builder__toggles label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.claims-page .att-form-builder__toggles input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--claims-blue);
+}
+
+.claims-page .att-form-builder__fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.claims-page .att-form-builder__preview {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.claims-page .att-form-builder__previewHead {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.claims-page .att-form-builder__previewHead strong {
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.claims-page .att-form-builder__previewKeys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.claims-page .att-form-builder__previewKey {
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--claims-blue);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.claims-page .att-form-builder__previewKey:hover {
+  background: var(--claims-blue);
+  color: white;
+  border-color: var(--claims-blue);
+}
+
+.claims-page .att-form-builder__previewRows pre {
+  margin: 0;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-x: auto;
+  color: #475569;
+}
+
+.claims-page .att-form-builder__errors {
+  margin: 0 20px 16px;
+  padding: 14px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.claims-page .att-form-builder__errors p {
+  margin: 6px 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .claims-page .att-form-builder__layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .claims-page .att-form-builder__palette,
+  .claims-page .att-form-builder__canvas {
+    border-right: none;
+    border-bottom: 1px solid var(--claims-border);
+  }
+  
+  .claims-form-builder__staticFields {
+    flex-direction: column;
+  }
+}
+
+
+/* ============================================================
+   Claims Form Builder V2 - WYSIWYG Canvas Style
+   ============================================================ */
+
+.claims-form-builder-v2 {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+/* Header */
+.claims-fb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.claims-fb-backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.claims-fb-backBtn:hover {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  color: var(--claims-blue);
+}
+
+.claims-fb-headerInfo h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--claims-heading);
+}
+
+.claims-fb-headerInfo p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--claims-text-soft);
+}
+
+.claims-fb-headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Errors */
+.claims-fb-errors {
+  margin: 16px 24px 0;
+  padding: 14px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.claims-fb-errors p {
+  margin: 4px 0;
+}
+
+/* Stepper */
+.claims-fb-stepper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.claims-fb-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.claims-fb-step.completed,
+.claims-fb-step.active {
+  color: var(--claims-green);
+}
+
+.claims-fb-stepNum {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.claims-fb-step.completed .claims-fb-stepNum,
+.claims-fb-step.active .claims-fb-stepNum {
+  background: var(--claims-green);
+  color: white;
+}
+
+/* Main Layout */
+.claims-fb-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: 1px;
+  flex: 1;
+  background: #e5e7eb;
+}
+
+/* Left Sidebar - Components */
+.claims-fb-sidebar {
+  padding: 20px;
+  background: white;
+  overflow-y: auto;
+}
+
+.claims-fb-sidebar h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--claims-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.claims-fb-sidebarHint {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: var(--claims-text-soft);
+}
+
+.claims-fb-components {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.claims-fb-component {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.claims-fb-component:hover {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  color: var(--claims-blue);
+  transform: translateX(3px);
+}
+
+.claims-fb-componentIcon {
+  font-size: 18px;
+}
+
+/* Center - Form Preview */
+.claims-fb-canvas {
+  padding: 24px;
+  background: #f8fafc;
+  overflow-y: auto;
+}
+
+.claims-fb-canvasHeader {
+  margin-bottom: 24px;
+}
+
+.claims-fb-canvasHeader h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--claims-heading);
+}
+
+.claims-fb-canvasHeader p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--claims-text-soft);
+}
+
+.claims-fb-formPreview {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.claims-fb-field {
+  position: relative;
+  padding: 16px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.claims-fb-field:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.claims-fb-field.selected {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.claims-fb-field.auto {
+  background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+  border-color: #fde047;
+  cursor: default;
+}
+
+.claims-fb-fieldHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.claims-fb-fieldBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.claims-fb-fieldBadge.type {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  min-width: 32px;
+}
+
+.claims-fb-fieldBadge.fieldType {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.claims-fb-fieldBadge.required {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.claims-fb-fieldBadge.ai {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: white;
+}
+
+.claims-fb-fieldBadge.config {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.claims-fb-fieldBadge.conditional {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #a5b4fc;
+}
+
+.claims-fb-fieldActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.claims-fb-iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.claims-fb-iconBtn:hover {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  color: var(--claims-blue);
+}
+
+.claims-fb-iconBtn.danger:hover {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.claims-fb-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.claims-fb-field label .required {
+  color: #dc2626;
+}
+
+.claims-fb-field input,
+.claims-fb-field select,
+.claims-fb-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.claims-fb-field input:disabled,
+.claims-fb-field select:disabled,
+.claims-fb-field textarea:disabled {
+  cursor: not-allowed;
+}
+
+.claims-fb-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.claims-fb-emptyState {
+  padding: 48px 24px;
+  text-align: center;
+  background: white;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
+.claims-fb-emptyState p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--claims-text-soft);
+}
+
+.claims-fb-emptyState .hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.claims-fb-addFieldBtn {
+  width: 100%;
+  padding: 14px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  background: white;
+  color: var(--claims-text-soft);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.claims-fb-addFieldBtn:hover {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  color: var(--claims-blue);
+}
+
+/* Right Sidebar - Properties */
+.claims-fb-properties {
+  padding: 20px;
+  background: white;
+  overflow-y: auto;
+}
+
+.claims-fb-properties h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--claims-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.claims-fb-propertiesHint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--claims-text-soft);
+  line-height: 1.6;
+}
+
+.claims-fb-propertiesForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.claims-fb-formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.claims-fb-formGroup label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.claims-fb-formGroup .form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.claims-fb-formGroup .form-input:focus {
+  outline: none;
+  border-color: var(--claims-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.claims-fb-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+
+.claims-fb-toggles label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.claims-fb-toggles input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--claims-blue);
+}
+
+.claims-fb-allTypes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.claims-fb-typeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.claims-fb-formGroup .hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .claims-fb-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .claims-fb-sidebar,
+  .claims-fb-properties {
+    border-bottom: 1px solid #e5e7eb;
+  }
+}
+
+@media (max-width: 768px) {
+  .claims-fb-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .claims-fb-headerActions {
+    flex-direction: column;
+  }
+  
+  .claims-fb-formPreview {
+    padding: 0;
   }
 }
