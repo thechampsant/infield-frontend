@@ -93,6 +93,12 @@ export interface SaveClaimTypeInput {
   iconUrl?: string;
 }
 
+export interface ClaimTypeCreateResponse {
+  claimTypeId: string;
+  udfSchemaKey: string;
+  config?: ClaimsConfigDocument | ClaimsTemplateDocument;
+}
+
 export interface SaveClaimSchemaInput {
   projectId: string;
   schemaKey: string;
@@ -434,6 +440,29 @@ export const claimsConfigService = {
     );
   },
 
+  async listAllConfigs(projectId: string): Promise<ClaimsTemplateDocument[]> {
+    if (!projectId) return [];
+
+    if (USE_MOCK_API) {
+      await delay();
+      const templates = Array.from(mockTemplateStore.values()).filter((item) => item.projectId === projectId);
+      const directConfigs = Array.from(mockConfigStore.values())
+        .filter((item) => item.projectId === projectId)
+        .map((config): ClaimsTemplateDocument => ({
+          ...config,
+          isTemplate: false,
+          templateName: `Direct - ${config.designationId}`,
+          applicableDesignations: [config.designationId],
+        }));
+      return [...templates, ...directConfigs];
+    }
+
+    const raw = await apiClient.get<unknown[]>(`${BASE}/all?${buildTemplateListQuery(projectId)}`);
+    return (Array.isArray(raw) ? raw : []).map((item) =>
+      normalizeClaimsTemplate(item, { projectId }),
+    );
+  },
+
   async getTemplate(projectId: string, templateId: string): Promise<ClaimsTemplateDocument | null> {
     if (!projectId || !templateId) return null;
 
@@ -616,11 +645,17 @@ export const claimsConfigService = {
     });
   },
 
-  async createClaimType(input: SaveClaimTypeInput): Promise<ClaimsConfigDocument> {
+  async createDirectConfig(input: SaveClaimsConfigInput): Promise<ClaimsConfigDocument> {
+    // Direct config uses the same endpoint as saveConfig
+    return this.saveConfig(input);
+  },
+
+  async createClaimType(input: SaveClaimTypeInput): Promise<ClaimTypeCreateResponse> {
     if (USE_MOCK_API) {
       await delay();
       const ownerId = input.templateId ?? input.designationId ?? "";
       const id = `claim_type_${claimTypeSeq(input.projectId, ownerId)}`;
+      const udfSchemaKey = `${input.projectId}_${ownerId}_${id}`;
       const nextClaimType: ClaimTypeDefinition = {
         id,
         name: input.name.trim(),
@@ -628,7 +663,7 @@ export const claimsConfigService = {
         capType: input.capType,
         fixedCap: input.fixedCap,
         conditionalCap: input.conditionalCap,
-        udfSchemaKey: `${input.projectId}_${ownerId}_${id}`,
+        udfSchemaKey,
         iconUrl: input.iconUrl?.trim() || undefined,
         approvalWorkflow: input.approvalWorkflow,
       };
@@ -645,14 +680,9 @@ export const claimsConfigService = {
         };
         mockTemplateStore.set(input.templateId, nextTemplate);
         return {
-          id: nextTemplate.id,
-          projectId: nextTemplate.projectId,
-          designationId: nextTemplate.applicableDesignations[0] ?? "",
-          isModuleEnabled: nextTemplate.isModuleEnabled,
-          backdateConfig: nextTemplate.backdateConfig,
-          claimTypes: nextTemplate.claimTypes,
-          createdAt: nextTemplate.createdAt,
-          updatedAt: nextTemplate.updatedAt,
+          claimTypeId: id,
+          udfSchemaKey,
+          config: nextTemplate,
         };
       }
 
@@ -663,14 +693,20 @@ export const claimsConfigService = {
         updatedAt: new Date().toISOString(),
       };
       mockConfigStore.set(configKey(input.projectId, input.designationId ?? ""), next);
-      return next;
+      return {
+        claimTypeId: id,
+        udfSchemaKey,
+        config: next,
+      };
     }
 
     const raw = await apiClient.post<unknown>(`${BASE}/claim-type`, input);
-    return normalizeClaimsConfig(raw, {
-      projectId: input.projectId,
-      designationId: input.designationId ?? "",
-    });
+    const data = asRecord(unwrapApiData(raw));
+    return {
+      claimTypeId: stringValue(data.claimTypeId) || "",
+      udfSchemaKey: stringValue(data.udfSchemaKey) || "",
+      config: data.config ? normalizeClaimsTemplate(data.config, { projectId: input.projectId }) : undefined,
+    };
   },
 
   async updateClaimType(
@@ -738,9 +774,21 @@ export const claimsConfigService = {
       return next;
     }
 
+    // Separate query params from body
+    const { projectId, designationId, templateId, ...bodyPayload } = input;
+    
+    // Build query string — for templates, pass templateId as designationId
+    // (the backend service accepts either a designationId or a templateId in that param)
+    const queryParams = new URLSearchParams();
+    queryParams.append('projectId', projectId);
+    const idForQuery = templateId || designationId;
+    if (idForQuery) {
+      queryParams.append('designationId', idForQuery);
+    }
+    
     const raw = await apiClient.patch<unknown>(
-      `${BASE}/claim-type/${encodeURIComponent(claimTypeId)}`,
-      input,
+      `${BASE}/claim-type/${encodeURIComponent(claimTypeId)}?${queryParams.toString()}`,
+      bodyPayload,
     );
     return normalizeClaimsConfig(raw, {
       projectId: input.projectId,

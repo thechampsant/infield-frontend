@@ -4,18 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  BadgeCheck,
-  BriefcaseBusiness,
-  CalendarDays,
-  Check,
-  CircleAlert,
   Copy,
-  FolderKanban,
   Pencil,
   Plus,
   Trash2,
   ChevronDown,
-  UserRound,
 } from "lucide-react";
 import {
   claimsConfigService,
@@ -33,11 +26,10 @@ import {
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { projectAdminBase } from "@/lib/nav/nav";
-import { ClaimsFormBuilder } from "./claims-form-builder";
+import { ClaimsFormBuilderV2 } from "./claims-form-builder-v2";
 
 type ViewMode = "list" | "editor" | "builder";
-type EditorPanel = "settings" | "window" | "types" | "approval";
-type TimeWindowMode = "tminus" | "date-range";
+type ConfigType = "template" | "direct";
 
 type EditorCondition = {
   id: string;
@@ -57,6 +49,8 @@ type EditorApprovalLevel = {
 
 type EditorClaimType = {
   id: string;
+  serverClaimTypeId?: string; // Backend ID after save
+  udfSchemaKey?: string; // Backend-generated schema key
   name: string;
   active: boolean;
   capType: "fixed" | "conditional" | "no-cap";
@@ -66,17 +60,20 @@ type EditorClaimType = {
   conditions: EditorCondition[];
   iconUrl: string;
   expanded: boolean;
+  approvalWorkflow?: {
+    levels: EditorApprovalLevel[];
+  };
 };
 
 type EditorTemplate = {
   id: string;
+  configType: ConfigType;
   templateName: string;
   designationIds: string[];
+  designationId?: string;
   isModuleEnabled: boolean;
   backdateEnabled: boolean;
   backdateDays: string;
-  approvalEnabled: boolean;
-  approvalLevels: EditorApprovalLevel[];
   claimTypes: EditorClaimType[];
 };
 
@@ -123,13 +120,13 @@ function createEmptyClaimType(): EditorClaimType {
 function createEmptyTemplate(): EditorTemplate {
   return {
     id: "",
+    configType: "template",
     templateName: "",
     designationIds: [],
+    designationId: "",
     isModuleEnabled: true,
     backdateEnabled: true,
     backdateDays: "7",
-    approvalEnabled: false,
-    approvalLevels: [],
     claimTypes: [createEmptyClaimType()],
   };
 }
@@ -138,20 +135,22 @@ function toEditorTemplate(template: ClaimsTemplateDocument | null): EditorTempla
   if (!template) return createEmptyTemplate();
   return {
     id: template.id,
+    configType: "template",
     templateName: template.templateName,
     designationIds: template.applicableDesignations,
+    designationId: "",
     isModuleEnabled: template.isModuleEnabled,
     backdateEnabled: template.backdateConfig?.isEnabled ?? false,
     backdateDays:
       typeof template.backdateConfig?.allowedDays === "number" && template.backdateConfig.allowedDays > 0
         ? String(template.backdateConfig.allowedDays)
         : "7",
-    approvalEnabled: false,
-    approvalLevels: [],
     claimTypes:
       template.claimTypes.length > 0
         ? template.claimTypes.map((claimType) => ({
             id: claimType.id,
+            serverClaimTypeId: claimType.id, // Already saved to backend
+            udfSchemaKey: claimType.udfSchemaKey, // Backend-generated
             name: claimType.name,
             active: claimType.isActive,
             capType: claimType.capType,
@@ -173,6 +172,16 @@ function toEditorTemplate(template: ClaimsTemplateDocument | null): EditorTempla
               })) ?? [],
             iconUrl: claimType.iconUrl ?? "",
             expanded: false,
+            approvalWorkflow: claimType.approvalWorkflow?.isEnabled
+              ? {
+                  levels: claimType.approvalWorkflow.levels.map((level, index) => ({
+                    id: makeId("approval"),
+                    order: String(level.order ?? index + 1),
+                    designationId: level.designationId,
+                    mode: level.mode,
+                  })),
+                }
+              : undefined,
           }))
         : [createEmptyClaimType()],
   };
@@ -231,8 +240,19 @@ function validateTemplate(template: EditorTemplate): string[] {
       errors.push("Backdate days must be a positive whole number.");
     }
   }
-  if (template.approvalEnabled && template.approvalLevels.length === 0) {
-    errors.push("Add at least one approval level or disable approval.");
+  return errors;
+}
+
+function validateDirectConfig(config: EditorTemplate): string[] {
+  const errors: string[] = [];
+  if (!config.designationId) {
+    errors.push("Please select a designation.");
+  }
+  if (config.backdateEnabled) {
+    const days = Number(config.backdateDays);
+    if (!Number.isFinite(days) || days <= 0 || !Number.isInteger(days)) {
+      errors.push("Backdate days must be a positive whole number.");
+    }
   }
   return errors;
 }
@@ -341,6 +361,7 @@ export function ClaimsConfigPage({
   const modulesHref = `${projectAdminBase(accountCode, projectCode)}/modules`;
 
   const [view, setView] = useState<ViewMode>("list");
+  const [configType, setConfigType] = useState<ConfigType>("template");
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<ClaimsTemplateDocument[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
@@ -357,11 +378,6 @@ export function ClaimsConfigPage({
   const [deleteTarget, setDeleteTarget] = useState<ClaimsTemplateDocument | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [expandedPanel, setExpandedPanel] = useState<EditorPanel>("settings");
-  const [timeWindowMode, setTimeWindowMode] = useState<TimeWindowMode>("tminus");
-  const [designationToAdd, setDesignationToAdd] = useState("");
-  const [dateRangeStartDay, setDateRangeStartDay] = useState("16");
-  const [dateRangeEndDay, setDateRangeEndDay] = useState("16");
 
   const claimsFlow = getWizardFlow(featureWizard, "claims");
   const claimsProgress = flowCompletion(claimsFlow);
@@ -384,7 +400,7 @@ export function ClaimsConfigPage({
     setLoadError(null);
     try {
       const [nextTemplates, nextDesignations, nextWizard] = await Promise.all([
-        claimsConfigService.listTemplates(projectId),
+        claimsConfigService.listAllConfigs(projectId),
         designationService.listByProject(projectId),
         featureWizardService.getByProject(projectId),
       ]);
@@ -404,19 +420,42 @@ export function ClaimsConfigPage({
 
   useEffect(() => {
     if (!selectedClaimType) return;
-    if (savedSchemasByClaimTypeId[selectedClaimType.id]) return;
+    
+    // Only skip loading if we already have this schema loaded for this specific claim type
+    const alreadyLoaded = savedSchemasByClaimTypeId[selectedClaimType.id] !== undefined;
+    if (alreadyLoaded) return;
 
     let cancelled = false;
     async function loadSchema() {
       try {
-        const schemaKey = normalizeClaimTypeSchemaKey(projectId, activeTemplate.id || "draft", selectedClaimType.id);
+        // Use backend-returned udfSchemaKey if available
+        const schemaKey = selectedClaimType.udfSchemaKey || 
+          normalizeClaimTypeSchemaKey(projectId, activeTemplate.id || "draft", selectedClaimType.id);
+        
+        console.log('[Form Builder] Loading schema for claim type:', {
+          claimTypeName: selectedClaimType.name,
+          claimTypeId: selectedClaimType.id,
+          udfSchemaKey: selectedClaimType.udfSchemaKey,
+          computedSchemaKey: schemaKey,
+          projectId,
+          templateId: activeTemplate.id
+        });
+        
         const schema = await claimsConfigService.getUdfSchema(projectId, schemaKey);
         if (cancelled) return;
         const fields = schema?.fields ?? [];
+        
+        console.log('[Form Builder] Schema loaded:', {
+          schemaKey,
+          fieldsCount: fields.length,
+          fields: fields.map(f => ({ key: f.fieldKey, label: f.label, type: f.type }))
+        });
+        
         setSchemasByClaimTypeId((prev) => ({ ...prev, [selectedClaimType.id]: fields }));
         setSavedSchemasByClaimTypeId((prev) => ({ ...prev, [selectedClaimType.id]: fields }));
       } catch (err) {
         if (!cancelled) {
+          console.error('[Form Builder] Failed to load schema:', err);
           setSchemaErrors((prev) => ({
             ...prev,
             [selectedClaimType.id]: formatApiError(err, "Failed to load form schema"),
@@ -428,7 +467,8 @@ export function ClaimsConfigPage({
     return () => {
       cancelled = true;
     };
-  }, [activeTemplate.id, projectId, savedSchemasByClaimTypeId, selectedClaimType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTemplate.id, projectId, selectedClaimType?.id, selectedClaimType?.udfSchemaKey]);
 
   function applyTemplate(template: ClaimsTemplateDocument | null, nextView: ViewMode = "editor") {
     const editorTemplate = toEditorTemplate(template);
@@ -438,15 +478,11 @@ export function ClaimsConfigPage({
       editorTemplate.claimTypes = draftClaimTypes;
     }
     setActiveTemplate(editorTemplate);
+    setConfigType(editorTemplate.configType);
     setSelectedBuilderClaimTypeId(editorTemplate.claimTypes[0]?.id ?? "");
     setFormErrors([]);
     setSchemaErrors({});
     setSchemaValidation({});
-    setExpandedPanel("settings");
-    setTimeWindowMode("tminus");
-    setDesignationToAdd("");
-    setDateRangeStartDay("16");
-    setDateRangeEndDay("16");
     setView(nextView);
   }
 
@@ -471,70 +507,227 @@ export function ClaimsConfigPage({
   }
 
   async function handleSaveTemplate() {
-    const errors = [...validateTemplate(activeTemplate), ...validateClaimTypes(activeTemplate.claimTypes)];
+    const errors = configType === 'template'
+      ? [...validateTemplate(activeTemplate), ...validateClaimTypes(activeTemplate.claimTypes)]
+      : [...validateDirectConfig(activeTemplate), ...validateClaimTypes(activeTemplate.claimTypes)];
+    
     setFormErrors(errors);
     if (errors.length > 0) {
-      setToast({ message: "Please fix the highlighted claims configuration fields.", type: "error" });
+      setToast({ message: "Please fix the highlighted fields.", type: "error" });
       return;
     }
 
     setSaving(true);
     try {
-      const payload = {
-        projectId,
-        templateName: activeTemplate.templateName.trim(),
-        applicableDesignations: activeTemplate.designationIds,
-        isModuleEnabled: activeTemplate.isModuleEnabled,
-        backdateConfig: activeTemplate.backdateEnabled
-          ? {
-              isEnabled: true,
-              allowedDays: Number(activeTemplate.backdateDays),
-            }
-          : {
-              isEnabled: false,
-              allowedDays: 0,
-            },
-      };
+      if (configType === 'template') {
+        // TEMPLATE MODE: Existing logic
+        const payload = {
+          projectId,
+          templateName: activeTemplate.templateName.trim(),
+          applicableDesignations: activeTemplate.designationIds,
+          isModuleEnabled: activeTemplate.isModuleEnabled,
+          backdateConfig: activeTemplate.backdateEnabled
+            ? {
+                isEnabled: true,
+                allowedDays: Number(activeTemplate.backdateDays),
+              }
+            : {
+                isEnabled: false,
+                allowedDays: 0,
+              },
+        };
 
-      const savedTemplate = activeTemplate.id
-        ? await claimsConfigService.updateTemplate(projectId, activeTemplate.id, {
-            templateName: payload.templateName,
-            isModuleEnabled: payload.isModuleEnabled,
-            backdateConfig: payload.backdateConfig,
-          })
-        : await claimsConfigService.createTemplate(payload);
+        const savedTemplate = activeTemplate.id
+          ? await claimsConfigService.updateTemplate(projectId, activeTemplate.id, {
+              templateName: payload.templateName,
+              isModuleEnabled: payload.isModuleEnabled,
+              backdateConfig: payload.backdateConfig,
+            })
+          : await claimsConfigService.createTemplate(payload);
 
-      let nextTemplate = savedTemplate;
-      const currentIds = new Set(savedTemplate.applicableDesignations);
-      const nextIds = new Set(activeTemplate.designationIds);
+        // Update designations
+        let nextTemplate = savedTemplate;
+        const currentIds = new Set(savedTemplate.applicableDesignations);
+        const nextIds = new Set(activeTemplate.designationIds);
 
-      for (const designationId of activeTemplate.designationIds) {
-        if (!currentIds.has(designationId)) {
-          nextTemplate = await claimsConfigService.addDesignationToTemplate(
-            projectId,
-            savedTemplate.id,
-            designationId,
-          );
+        for (const designationId of activeTemplate.designationIds) {
+          if (!currentIds.has(designationId)) {
+            nextTemplate = await claimsConfigService.addDesignationToTemplate(
+              projectId,
+              savedTemplate.id,
+              designationId,
+            );
+          }
         }
-      }
 
-      for (const designationId of savedTemplate.applicableDesignations) {
-        if (!nextIds.has(designationId)) {
-          nextTemplate = await claimsConfigService.removeDesignationFromTemplate(
-            projectId,
-            savedTemplate.id,
-            designationId,
-          );
+        for (const designationId of savedTemplate.applicableDesignations) {
+          if (!nextIds.has(designationId)) {
+            nextTemplate = await claimsConfigService.removeDesignationFromTemplate(
+              projectId,
+              savedTemplate.id,
+              designationId,
+            );
+          }
         }
-      }
 
-      persistCurrentClaimTypeDrafts(nextTemplate.id, activeTemplate.claimTypes);
-      await load();
-      applyTemplate(nextTemplate, "builder");
-      setToast({ message: "Claims configuration saved.", type: "success" });
+        // Save claim types with templateId
+        const updatedClaimTypes: EditorClaimType[] = [];
+        
+        for (const claimType of activeTemplate.claimTypes) {
+          const approvalWorkflow = claimType.approvalWorkflow?.levels.length
+            ? {
+                isEnabled: true,
+                levels: claimType.approvalWorkflow.levels.map((level, i) => ({
+                  order: Number(level.order) || i + 1,
+                  designationId: level.designationId,
+                  mode: level.mode,
+                })),
+              }
+            : undefined;
+
+          const claimTypePayload = {
+            name: claimType.name.trim(),
+            isActive: claimType.active,
+            capType: claimType.capType,
+            fixedCap: claimType.capType === "fixed" ? Number(claimType.fixedCap) : undefined,
+            conditionalCap: claimType.capType === "conditional" ? {
+              defaultCap: Number(claimType.conditionalDefaultCap),
+              conditions: claimType.conditions.map((c, i) => ({
+                conditionField: claimType.conditionalField,
+                operator: c.operator,
+                conditionValue: c.conditionValue,
+                capAmount: Number(c.capAmount),
+                order: i + 1,
+              })),
+            } : undefined,
+            approvalWorkflow,
+            iconUrl: claimType.iconUrl || undefined,
+          };
+
+          if (claimType.serverClaimTypeId) {
+            // Update: pass projectId/templateId as separate parameters, not in payload
+            await claimsConfigService.updateClaimType(claimType.serverClaimTypeId, {
+              projectId,
+              templateId: nextTemplate.id,
+              ...claimTypePayload,
+            });
+            updatedClaimTypes.push(claimType);
+          } else {
+            // Create: include projectId and templateId in payload
+            const response = await claimsConfigService.createClaimType({
+              projectId,
+              templateId: nextTemplate.id,
+              ...claimTypePayload,
+            });
+            updatedClaimTypes.push({
+              ...claimType,
+              serverClaimTypeId: response.claimTypeId,
+              udfSchemaKey: response.udfSchemaKey,
+            });
+          }
+        }
+
+        setActiveTemplate(prev => ({
+          ...prev,
+          id: nextTemplate.id,
+          claimTypes: updatedClaimTypes,
+        }));
+
+        removeDraftClaimTypes(projectId, nextTemplate.id);
+        await load();
+        setToast({ message: "Template saved successfully.", type: "success" });
+        setView("builder");
+        
+      } else {
+        // DIRECT MODE: New logic
+        const payload = {
+          projectId,
+          designationId: activeTemplate.designationId!,
+          isModuleEnabled: activeTemplate.isModuleEnabled,
+          backdateConfig: activeTemplate.backdateEnabled
+            ? {
+                isEnabled: true,
+                allowedDays: Number(activeTemplate.backdateDays),
+              }
+            : {
+                isEnabled: false,
+                allowedDays: 0,
+              },
+        };
+
+        // Create direct config
+        const savedConfig = await claimsConfigService.createDirectConfig(payload);
+
+        // Save claim types with designationId
+        const updatedClaimTypes: EditorClaimType[] = [];
+        
+        for (const claimType of activeTemplate.claimTypes) {
+          const approvalWorkflow = claimType.approvalWorkflow?.levels.length
+            ? {
+                isEnabled: true,
+                levels: claimType.approvalWorkflow.levels.map((level, i) => ({
+                  order: Number(level.order) || i + 1,
+                  designationId: level.designationId,
+                  mode: level.mode,
+                })),
+              }
+            : undefined;
+
+          const claimTypePayload = {
+            name: claimType.name.trim(),
+            isActive: claimType.active,
+            capType: claimType.capType,
+            fixedCap: claimType.capType === "fixed" ? Number(claimType.fixedCap) : undefined,
+            conditionalCap: claimType.capType === "conditional" ? {
+              defaultCap: Number(claimType.conditionalDefaultCap),
+              conditions: claimType.conditions.map((c, i) => ({
+                conditionField: claimType.conditionalField,
+                operator: c.operator,
+                conditionValue: c.conditionValue,
+                capAmount: Number(c.capAmount),
+                order: i + 1,
+              })),
+            } : undefined,
+            approvalWorkflow,
+            iconUrl: claimType.iconUrl || undefined,
+          };
+
+          if (claimType.serverClaimTypeId) {
+            // Update: pass projectId/designationId as separate parameters
+            await claimsConfigService.updateClaimType(claimType.serverClaimTypeId, {
+              projectId,
+              designationId: activeTemplate.designationId!,
+              ...claimTypePayload,
+            });
+            updatedClaimTypes.push(claimType);
+          } else {
+            // Create: include projectId and designationId in payload
+            const response = await claimsConfigService.createClaimType({
+              projectId,
+              designationId: activeTemplate.designationId!,
+              ...claimTypePayload,
+            });
+            updatedClaimTypes.push({
+              ...claimType,
+              serverClaimTypeId: response.claimTypeId,
+              udfSchemaKey: response.udfSchemaKey,
+            });
+          }
+        }
+
+        setActiveTemplate(prev => ({
+          ...prev,
+          id: savedConfig.id,
+          claimTypes: updatedClaimTypes,
+        }));
+
+        await load();
+        setToast({ message: "Direct config saved successfully.", type: "success" });
+        setView("builder");
+      }
     } catch (err) {
       setToast({
-        message: formatApiError(err, "Failed to save claims configuration"),
+        message: formatApiError(err, "Failed to save configuration"),
         type: "error",
       });
     } finally {
@@ -601,10 +794,13 @@ export function ClaimsConfigPage({
 
     setSavingSchema(true);
     try {
-      const templateId = activeTemplate.id || "draft";
+      // Use backend-returned udfSchemaKey if available, otherwise fallback
+      const schemaKey = selectedClaimType.udfSchemaKey || 
+        normalizeClaimTypeSchemaKey(projectId, activeTemplate.id || "draft", selectedClaimType.id);
+      
       await claimsConfigService.saveUdfSchema({
         projectId,
-        schemaKey: normalizeClaimTypeSchemaKey(projectId, templateId, selectedClaimType.id),
+        schemaKey,
         fields: selectedSchema,
       });
       setSavedSchemasByClaimTypeId((prev) => ({ ...prev, [selectedClaimType.id]: selectedSchema }));
@@ -619,45 +815,7 @@ export function ClaimsConfigPage({
     }
   }
 
-  const selectedDesignationNames = activeTemplate.designationIds.map(
-    (id) => designationNameById.get(id) ?? id,
-  );
-  const availableDesignations = designations.filter(
-    (designation) => !activeTemplate.designationIds.includes(designation.id),
-  );
-
-  function toggleDesignation(designationId: string) {
-    const selected = activeTemplate.designationIds.includes(designationId);
-    updateTemplate(
-      "designationIds",
-      selected
-        ? activeTemplate.designationIds.filter((id) => id !== designationId)
-        : [...activeTemplate.designationIds, designationId],
-    );
-  }
-
-  function formatClaimTypeSummary(claimType: EditorClaimType): string {
-    if (claimType.capType === "conditional") {
-      return `Conditional · ${claimType.conditions.length} condition${claimType.conditions.length !== 1 ? "s" : ""}`;
-    }
-    if (claimType.capType === "no-cap") {
-      return "No cap";
-    }
-    return `Fixed ₹${claimType.fixedCap || "0"}`;
-  }
-
-  function addApprovalLevel() {
-    updateTemplate("approvalLevels", [
-      ...activeTemplate.approvalLevels,
-      createEmptyApprovalLevel(activeTemplate.approvalLevels.length),
-    ]);
-  }
-
-  function addSelectedDesignation() {
-    if (!designationToAdd) return;
-    toggleDesignation(designationToAdd);
-    setDesignationToAdd("");
-  }
+  const claimsFlowItems = claimsFlow?.steps ?? [];
 
   if (loading) {
     return (
@@ -734,7 +892,12 @@ export function ClaimsConfigPage({
                   >
                     <div className="claims-configCard__index">{index + 1}</div>
                     <div className="claims-configCard__body">
-                      <strong>{template.templateName}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <strong>{template.templateName}</strong>
+                        <span className={`claims-statusPill ${template.isTemplate ? '' : 'active'}`} style={{ fontSize: '9px' }}>
+                          {template.isTemplate ? 'TEMPLATE' : 'DIRECT'}
+                        </span>
+                      </div>
                       <p>
                         {template.applicableDesignations.length
                           ? template.applicableDesignations
@@ -776,31 +939,22 @@ export function ClaimsConfigPage({
 
         {view === "editor" ? (
           <div className="claims-editorView">
-            <div className="claims-listHeader claims-listHeader--editor">
-              <div>
-                <p className="claims-eyebrow">Claims Module</p>
-                <h1 className="claims-title">
-                  {activeTemplate.templateName.trim() || "New Claims Configuration"}
-                </h1>
-                <p className="claims-subtitle">
-                  Configure claim types with conditional caps, time window, and approval chain.
-                </p>
+            <div className="claims-builderTopbar">
+              <div className="claims-builderTopbar__left">
+                <button className="claims-configBackBtn" onClick={() => setView("list")}>
+                  <ArrowLeft size={14} /> Configurations
+                </button>
+                <div>
+                  <div className="claims-titleSm">
+                    Claims Setup ·{" "}
+                    <span>{activeTemplate.templateName.trim() || "New Configuration"}</span>
+                  </div>
+                  <div className="claims-subtitleSm">Step 1 of 2 · Configuration Editor</div>
+                </div>
               </div>
-              <button className="claims-backLink claims-backLink--hero" onClick={() => setView("list")}>
-                <ArrowLeft size={14} /> All Configs
+              <button className="claims-primaryBtn" onClick={() => void handleSaveTemplate()} disabled={saving}>
+                {saving ? "Saving…" : "Save & Proceed"}
               </button>
-            </div>
-
-            <div className="claims-heroStepper">
-              <div className="claims-heroStepper__step claims-heroStepper__step--active">
-                <span className="claims-heroStepper__bubble">1</span>
-                <strong>Configuration Setup</strong>
-              </div>
-              <span className="claims-heroStepper__arrow">→</span>
-              <div className="claims-heroStepper__step">
-                <span className="claims-heroStepper__bubble claims-heroStepper__bubble--ghost">2</span>
-                <strong>Form Builder</strong>
-              </div>
             </div>
 
             {formErrors.length > 0 ? (
@@ -811,297 +965,296 @@ export function ClaimsConfigPage({
               </div>
             ) : null}
 
-            <div className="claims-editorStack">
-              <section className={`claims-detailCard${expandedPanel === "settings" ? " expanded" : ""}`}>
-                <button
-                  type="button"
-                  className="claims-detailCard__header"
-                  onClick={() => setExpandedPanel(expandedPanel === "settings" ? "window" : "settings")}
-                >
-                  <div className="claims-detailCard__icon claims-detailCard__icon--green">
-                    <FolderKanban size={22} />
+            <div className="claims-editorGrid">
+              <div className="claims-editorMain">
+                <section className="claims-sectionCard">
+                  <div className="claims-sectionCard__head">
+                    <div>
+                      <p className="claims-sectionEyebrow">Mode Selection</p>
+                      <h2>Configuration Type</h2>
+                    </div>
                   </div>
-                  <div className="claims-detailCard__title">
-                    <h2>Configuration Settings</h2>
-                    <p>Config name & designations</p>
+                  <div className="claims-radioGroup">
+                    <label className="claims-radioOption">
+                      <input
+                        type="radio"
+                        name="configType"
+                        value="template"
+                        checked={configType === 'template'}
+                        onChange={() => {
+                          setConfigType('template');
+                          updateTemplate('configType', 'template');
+                        }}
+                      />
+                      <div>
+                        <strong>Template (Shared Configuration)</strong>
+                        <p>Apply same claims config to multiple designations</p>
+                      </div>
+                    </label>
+                    <label className="claims-radioOption">
+                      <input
+                        type="radio"
+                        name="configType"
+                        value="direct"
+                        checked={configType === 'direct'}
+                        onChange={() => {
+                          setConfigType('direct');
+                          updateTemplate('configType', 'direct');
+                        }}
+                      />
+                      <div>
+                        <strong>Direct (Designation-Specific)</strong>
+                        <p>Create config for one specific designation only</p>
+                      </div>
+                    </label>
                   </div>
-                  <ChevronDown className="claims-detailCard__chevron" size={20} />
-                </button>
+                </section>
 
-                {expandedPanel === "settings" ? (
-                  <div className="claims-detailCard__body">
-                    <div className="claims-detailPanel">
+                <section className="claims-sectionCard">
+                  <div className="claims-sectionCard__head">
+                    <div>
+                      <p className="claims-sectionEyebrow">S1-A</p>
+                      <h2>Configuration Details</h2>
+                    </div>
+                  </div>
+                  <div className="claims-fieldGrid two">
+                    {configType === 'template' && (
                       <label className="claims-field">
                         <span>Configuration Name</span>
                         <input
-                          className="form-input claims-input"
+                          className="form-input"
                           value={activeTemplate.templateName}
                           onChange={(e) => updateTemplate("templateName", e.target.value)}
                           placeholder="Executive Claims Config"
                         />
                       </label>
-
-                      <div className="claims-field">
-                        <span>Applicable Designations</span>
-                        <div className="claims-selectAddRow">
-                          <select
-                            className="form-input claims-input"
-                            value={designationToAdd}
-                            onChange={(e) => setDesignationToAdd(e.target.value)}
-                          >
-                            <option value="">Select designation</option>
-                            {availableDesignations.map((designation) => (
-                              <option key={designation.id} value={designation.id}>
-                                {designation.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="claims-cardBtn claims-cardBtn--detailAdd"
-                            onClick={addSelectedDesignation}
-                            disabled={!designationToAdd}
-                          >
-                            <Plus size={14} /> Add
-                          </button>
-                        </div>
-                        <div className="claims-tagInput">
-                          {selectedDesignationNames.length > 0 ? (
-                            activeTemplate.designationIds.map((designationId) => (
-                              <button
-                                key={designationId}
-                                type="button"
-                                className="claims-tagChip"
-                                onClick={() => toggleDesignation(designationId)}
-                              >
-                                {designationNameById.get(designationId) ?? designationId}
-                                <span aria-hidden="true">×</span>
-                              </button>
-                            ))
-                          ) : (
-                            <span className="claims-tagInput__placeholder">
-                              No designations selected yet
-                            </span>
-                          )}
-                        </div>
+                    )}
+                    <div className="claims-toggleSurface">
+                      <div>
+                        <strong>Module Status</strong>
+                        <p>Enable or disable claims for the assigned designations.</p>
                       </div>
-                    </div>
-                  </div>
-                ) : null}
-              </section>
-
-              <section className={`claims-detailCard${expandedPanel === "window" ? " expanded" : ""}`}>
-                <button
-                  type="button"
-                  className="claims-detailCard__header"
-                  onClick={() => setExpandedPanel(expandedPanel === "window" ? "types" : "window")}
-                >
-                  <div className="claims-detailCard__icon claims-detailCard__icon--amber">
-                    <CalendarDays size={22} />
-                  </div>
-                  <div className="claims-detailCard__title">
-                    <h2>Claim Submission Time Window</h2>
-                    <p>Allowed window for past-date claims</p>
-                  </div>
-                  <ChevronDown className="claims-detailCard__chevron" size={20} />
-                </button>
-
-                {expandedPanel === "window" ? (
-                  <div className="claims-detailCard__body">
-                    <div className="claims-switchRow">
-                      <strong>Enable</strong>
                       <label className="toggle">
                         <input
                           type="checkbox"
-                          checked={activeTemplate.backdateEnabled}
-                          onChange={(e) => updateTemplate("backdateEnabled", e.target.checked)}
+                          checked={activeTemplate.isModuleEnabled}
+                          onChange={(e) => updateTemplate("isModuleEnabled", e.target.checked)}
                         />
                         <span className="toggle-track" />
                         <span className="toggle-thumb" />
                       </label>
                     </div>
-                    {activeTemplate.backdateEnabled ? (
-                      <div className="claims-detailPanel">
-                        <div className="claims-miniEyebrow">Time Window</div>
-                        <div className="claims-field">
-                          <span>Type</span>
-                          <div className="claims-pillGroup">
-                            <button
-                              type="button"
-                              className={`claims-pillBtn${timeWindowMode === "tminus" ? " active" : ""}`}
-                              onClick={() => setTimeWindowMode("tminus")}
-                            >
-                              T-X Days
-                            </button>
-                            <button
-                              type="button"
-                              className={`claims-pillBtn${timeWindowMode === "date-range" ? " active" : ""}`}
-                              onClick={() => setTimeWindowMode("date-range")}
-                            >
-                              Date Range
-                            </button>
-                          </div>
-                        </div>
-
-                        {timeWindowMode === "tminus" ? (
-                          <div className="claims-tminusRow">
-                            <strong>T-</strong>
-                            <input
-                              className="form-input claims-input claims-input--small"
-                              type="number"
-                              min={1}
-                              step={1}
-                              value={activeTemplate.backdateDays}
-                              onChange={(e) => updateTemplate("backdateDays", e.target.value)}
-                            />
-                            <span>days</span>
-                          </div>
-                        ) : (
-                          <div className="claims-dateRangeGrid">
-                            <label className="claims-field claims-field--compact">
-                              <span>From (prev month)</span>
-                              <input
-                                className="form-input claims-input claims-input--small"
-                                type="number"
-                                min={1}
-                                max={31}
-                                value={dateRangeStartDay}
-                                onChange={(e) => setDateRangeStartDay(e.target.value)}
-                              />
-                            </label>
-                            <label className="claims-field claims-field--compact">
-                              <span>To (current month)</span>
-                              <input
-                                className="form-input claims-input claims-input--small"
-                                type="number"
-                                min={1}
-                                max={31}
-                                value={dateRangeEndDay}
-                                onChange={(e) => setDateRangeEndDay(e.target.value)}
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
                   </div>
-                ) : null}
-              </section>
+                </section>
 
-              <section className={`claims-detailCard${expandedPanel === "types" ? " expanded" : ""}`}>
-                <button
-                  type="button"
-                  className="claims-detailCard__header"
-                  onClick={() => setExpandedPanel(expandedPanel === "types" ? "approval" : "types")}
-                >
-                  <div className="claims-detailCard__icon claims-detailCard__icon--blue">
-                    <BriefcaseBusiness size={22} />
-                  </div>
-                  <div className="claims-detailCard__title">
-                    <h2>Claim Types & Caps</h2>
-                    <p>Per-type caps with conditional sub-fields</p>
-                  </div>
-                  <ChevronDown className="claims-detailCard__chevron" size={20} />
-                </button>
-
-                {expandedPanel === "types" ? (
-                  <div className="claims-detailCard__body">
-                    <div className="claims-infoStrip claims-infoStrip--detail">
-                      <CircleAlert size={16} />
-                      <span>
-                        Each claim type can have a <strong>conditional sub-field</strong> with per-value caps.
-                        This sub-field auto-appears in the mobile form.
-                      </span>
+                <section className="claims-sectionCard">
+                  <div className="claims-sectionCard__head">
+                    <div>
+                      <p className="claims-sectionEyebrow">S1-B</p>
+                      <h2>Backdate Rules</h2>
                     </div>
+                  </div>
+                  <div className="claims-toggleSurface">
+                    <div>
+                      <strong>Allow Backdated Claims</strong>
+                      <p>Version 1 follows the T-N days model from the design notes.</p>
+                    </div>
+                    <label className="toggle">
+                      <input
+                        type="checkbox"
+                        checked={activeTemplate.backdateEnabled}
+                        onChange={(e) => updateTemplate("backdateEnabled", e.target.checked)}
+                      />
+                      <span className="toggle-track" />
+                      <span className="toggle-thumb" />
+                    </label>
+                  </div>
+                  {activeTemplate.backdateEnabled ? (
+                    <label className="claims-field claims-field--compact">
+                      <span>Allowed Days (T-N)</span>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={activeTemplate.backdateDays}
+                        onChange={(e) => updateTemplate("backdateDays", e.target.value)}
+                      />
+                    </label>
+                  ) : null}
+                </section>
 
-                    <div className="claims-typeRows">
-                      {activeTemplate.claimTypes.map((claimType, index) => (
+                <section className="claims-sectionCard">
+                  <div className="claims-sectionCard__head">
+                    <div>
+                      <p className="claims-sectionEyebrow">S1-C</p>
+                      <h2>{configType === 'template' ? 'Applicable Designations' : 'Target Designation'}</h2>
+                    </div>
+                  </div>
+                  {configType === 'template' ? (
+                    <div className="claims-designationChips">
+                      {designations.map((designation) => {
+                        const selected = activeTemplate.designationIds.includes(designation.id);
+                        return (
+                          <button
+                            key={designation.id}
+                            type="button"
+                            className={`claims-chipBtn${selected ? " selected" : ""}`}
+                            onClick={() =>
+                              updateTemplate(
+                                "designationIds",
+                                selected
+                                  ? activeTemplate.designationIds.filter((id) => id !== designation.id)
+                                  : [...activeTemplate.designationIds, designation.id],
+                              )
+                            }
+                          >
+                            {designation.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="claims-field">
+                      <label>
+                        <span>Select Designation <span style={{ color: '#ef4444' }}>*</span></span>
+                        <select
+                          className="form-input"
+                          value={activeTemplate.designationId || ''}
+                          onChange={(e) => updateTemplate("designationId", e.target.value)}
+                        >
+                          <option value="">Select designation...</option>
+                          {designations.map((designation) => (
+                            <option key={designation.id} value={designation.id}>
+                              {designation.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px' }}>
+                        This config applies to this designation only and takes priority over templates
+                      </p>
+                    </div>
+                  )}
+                </section>
+
+                <section className="claims-sectionCard">
+                  <div className="claims-sectionCard__head">
+                    <div>
+                      <p className="claims-sectionEyebrow">S1-D</p>
+                      <h2>Claim Types</h2>
+                    </div>
+                    <button
+                      className="claims-cardBtn"
+                      onClick={() =>
+                        updateTemplate("claimTypes", [
+                          ...activeTemplate.claimTypes,
+                          createEmptyClaimType(),
+                        ])
+                      }
+                    >
+                      <Plus size={12} /> Add Claim Type
+                    </button>
+                  </div>
+
+                  <div className="claims-infoStrip">
+                    Each claim type can have a fixed cap or a conditional sub-field with per-value caps.
+                  </div>
+
+                  <div className="claims-accordionList">
+                    {activeTemplate.claimTypes.map((claimType, index) => {
+                      const capLabel =
+                        claimType.capType === "conditional"
+                          ? `Conditional · ${claimType.conditions.length} condition${claimType.conditions.length !== 1 ? "s" : ""}`
+                          : claimType.capType === "no-cap"
+                            ? "No Cap"
+                            : `Fixed ₹${claimType.fixedCap || "0"}`;
+
+                      return (
                         <div
                           key={claimType.id}
-                          className={`claims-typeRow${claimType.expanded ? " claims-typeRow--expanded" : ""}`}
+                          className={`claims-accordion${claimType.expanded ? " expanded" : ""}`}
                         >
                           <button
                             type="button"
-                            className="claims-typeRow__main"
-                            onClick={() =>
-                              updateClaimType(claimType.id, { expanded: !claimType.expanded })
-                            }
+                            className="claims-accordion__head"
+                            onClick={() => updateClaimType(claimType.id, { expanded: !claimType.expanded })}
                           >
-                            <ChevronDown
-                              size={18}
-                              className={`claims-typeRow__chevron${claimType.expanded ? " expanded" : ""}`}
-                            />
-                            <div className="claims-typeRow__copy">
-                              <strong>{claimType.name || `Claim Type ${index + 1}`}</strong>
-                              <span>{formatClaimTypeSummary(claimType)}</span>
+                            <ChevronDown size={16} className="claims-accordion__chevron" />
+                            <div className="claims-accordion__titleWrap">
+                              <strong>{claimType.name || `Untitled Type ${index + 1}`}</strong>
+                              <span>{capLabel}</span>
                             </div>
-                          </button>
-                          <div className="claims-typeRow__status">
                             <span className={`claims-statusPill${claimType.active ? " active" : ""}`}>
                               {claimType.active ? "Active" : "Inactive"}
                             </span>
-                            <label className="toggle">
-                              <input
-                                type="checkbox"
-                                checked={claimType.active}
-                                onChange={(e) =>
-                                  updateClaimType(claimType.id, { active: e.target.checked })
-                                }
-                              />
-                              <span className="toggle-track" />
-                              <span className="toggle-thumb" />
-                            </label>
-                          </div>
+                          </button>
 
                           {claimType.expanded ? (
-                            <div className="claims-typeEditor">
-                              <label className="claims-field">
-                                <span>Claim Type Name</span>
-                                <input
-                                  className="form-input claims-input"
-                                  value={claimType.name}
-                                  onChange={(e) =>
-                                    updateClaimType(claimType.id, { name: e.target.value })
-                                  }
-                                  placeholder={`Claim Type ${index + 1}`}
-                                />
-                              </label>
+                            <div className="claims-accordion__body">
+                              <div className="claims-fieldGrid two">
+                                <label className="claims-field">
+                                  <span>Type Name</span>
+                                  <input
+                                    className="form-input"
+                                    value={claimType.name}
+                                    onChange={(e) => updateClaimType(claimType.id, { name: e.target.value })}
+                                    placeholder="Travel"
+                                  />
+                                </label>
+                                <label className="claims-field">
+                                  <span>Icon URL</span>
+                                  <input
+                                    className="form-input"
+                                    value={claimType.iconUrl}
+                                    onChange={(e) =>
+                                      updateClaimType(claimType.id, { iconUrl: e.target.value })
+                                    }
+                                    placeholder="https://..."
+                                  />
+                                </label>
+                              </div>
 
-                              <div className="claims-field">
-                                <span>Cap Type</span>
-                                <div className="claims-pillGroup">
-                                  <button
-                                    type="button"
-                                    className={`claims-pillBtn${claimType.capType === "fixed" ? " active" : ""}`}
-                                    onClick={() =>
-                                      updateClaimType(claimType.id, { capType: "fixed" })
-                                    }
-                                  >
-                                    Fixed
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`claims-pillBtn${claimType.capType === "conditional" ? " active" : ""}`}
-                                    onClick={() =>
-                                      updateClaimType(claimType.id, {
-                                        capType: "conditional",
-                                        conditions:
-                                          claimType.conditions.length > 0
-                                            ? claimType.conditions
-                                            : [createEmptyCondition(0)],
-                                      })
-                                    }
-                                  >
-                                    Conditional
-                                  </button>
+                              <div className="claims-inlineControls">
+                                <div className="radio-pill-group">
+                                  {["fixed", "conditional", "no-cap"].map((capType) => (
+                                    <label
+                                      key={capType}
+                                      className={`radio-pill${claimType.capType === capType ? " selected" : ""}`}
+                                    >
+                                      <input
+                                        type="radio"
+                                        checked={claimType.capType === capType}
+                                        onChange={() =>
+                                          updateClaimType(claimType.id, {
+                                            capType: capType as EditorClaimType["capType"],
+                                          })
+                                        }
+                                      />
+                                      {capType === "no-cap"
+                                        ? "No Cap"
+                                        : capType.charAt(0).toUpperCase() + capType.slice(1)}
+                                    </label>
+                                  ))}
                                 </div>
+                                <label className="toggle">
+                                  <input
+                                    type="checkbox"
+                                    checked={claimType.active}
+                                    onChange={(e) =>
+                                      updateClaimType(claimType.id, { active: e.target.checked })
+                                    }
+                                  />
+                                  <span className="toggle-track" />
+                                  <span className="toggle-thumb" />
+                                </label>
                               </div>
 
                               {claimType.capType === "fixed" ? (
                                 <label className="claims-field claims-field--compact">
-                                  <span>Cap (₹)</span>
+                                  <span>Fixed Cap Amount</span>
                                   <input
-                                    className="form-input claims-input"
+                                    className="form-input"
                                     type="number"
                                     min={1}
                                     step="0.01"
@@ -1114,80 +1267,199 @@ export function ClaimsConfigPage({
                               ) : null}
 
                               {claimType.capType === "conditional" ? (
-                                <div className="claims-conditionalEditor">
-                                  <label className="claims-field claims-field--compactWide">
-                                    <span>Condition Sub-field Name</span>
-                                    <input
-                                      className="form-input claims-input"
-                                      value={claimType.conditionalField}
-                                      onChange={(e) =>
-                                        updateClaimType(claimType.id, {
-                                          conditionalField: e.target.value,
-                                          conditions: claimType.conditions.map((condition) => ({
-                                            ...condition,
-                                            conditionField: e.target.value,
-                                          })),
-                                        })
-                                      }
-                                      placeholder="Type"
-                                    />
-                                  </label>
-                                  <p className="claims-inlineNote">
-                                    This becomes a dropdown on the mobile form when this claim type is selected
-                                  </p>
+                                <div className="claims-conditionalBox">
+                                  <div className="claims-fieldGrid two">
+                                    <label className="claims-field">
+                                      <span>Condition Sub-field Name</span>
+                                      <input
+                                        className="form-input"
+                                        value={claimType.conditionalField}
+                                        onChange={(e) =>
+                                          updateClaimType(claimType.id, {
+                                            conditionalField: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Mode, City, Type"
+                                      />
+                                    </label>
+                                    <label className="claims-field">
+                                      <span>Default Cap</span>
+                                      <input
+                                        className="form-input"
+                                        type="number"
+                                        min={1}
+                                        step="0.01"
+                                        value={claimType.conditionalDefaultCap}
+                                        onChange={(e) =>
+                                          updateClaimType(claimType.id, {
+                                            conditionalDefaultCap: e.target.value,
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                  </div>
 
-                                  <div className="claims-conditionMatrixHeader">
-                                    <span>{claimType.conditionalField || "Type"}</span>
+                                  <div className="claims-conditionHeader">
+                                    <span>{claimType.conditionalField || "Value"}</span>
                                     <span>Cap (₹)</span>
                                     <span />
                                   </div>
+                                  {claimType.conditions.map((condition) => (
+                                    <div key={condition.id} className="claims-conditionRow">
+                                      <input
+                                        className="form-input"
+                                        value={condition.conditionValue}
+                                        onChange={(e) =>
+                                          updateClaimType(claimType.id, {
+                                            conditions: claimType.conditions.map((item) =>
+                                              item.id === condition.id
+                                                ? { ...item, conditionValue: e.target.value }
+                                                : item,
+                                            ),
+                                          })
+                                        }
+                                        placeholder="Bus"
+                                      />
+                                      <input
+                                        className="form-input"
+                                        type="number"
+                                        min={1}
+                                        step="0.01"
+                                        value={condition.capAmount}
+                                        onChange={(e) =>
+                                          updateClaimType(claimType.id, {
+                                            conditions: claimType.conditions.map((item) =>
+                                              item.id === condition.id
+                                                ? { ...item, capAmount: e.target.value }
+                                                : item,
+                                            ),
+                                          })
+                                        }
+                                      />
+                                      <button
+                                        className="claims-cardBtn danger"
+                                        onClick={() =>
+                                          updateClaimType(claimType.id, {
+                                            conditions: claimType.conditions.filter(
+                                              (item) => item.id !== condition.id,
+                                            ),
+                                          })
+                                        }
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    className="claims-cardBtn"
+                                    onClick={() =>
+                                      updateClaimType(claimType.id, {
+                                        conditions: [
+                                          ...claimType.conditions,
+                                          createEmptyCondition(claimType.conditions.length),
+                                        ],
+                                      })
+                                    }
+                                  >
+                                    <Plus size={12} /> Add {claimType.conditionalField || "Condition"}
+                                  </button>
+                                </div>
+                              ) : null}
 
-                                  <div className="claims-conditionMatrix">
-                                    {claimType.conditions.map((condition) => (
-                                      <div key={condition.id} className="claims-conditionMatrixRow">
+                              {/* Approval Workflow Section - Per Claim Type */}
+                              <div className="claims-approvalSection" style={{ marginTop: "1.5rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                                <div className="claims-toggleSurface">
+                                  <div>
+                                    <strong>Approval Workflow for {claimType.name || "this type"}</strong>
+                                    <p>Configure approval levels specific to this claim type.</p>
+                                  </div>
+                                  <label className="toggle">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(claimType.approvalWorkflow?.levels.length)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          updateClaimType(claimType.id, {
+                                            approvalWorkflow: {
+                                              levels: [createEmptyApprovalLevel(0)],
+                                            },
+                                          });
+                                        } else {
+                                          updateClaimType(claimType.id, {
+                                            approvalWorkflow: undefined,
+                                          });
+                                        }
+                                      }}
+                                    />
+                                    <span className="toggle-track" />
+                                    <span className="toggle-thumb" />
+                                  </label>
+                                </div>
+
+                                {claimType.approvalWorkflow?.levels.length ? (
+                                  <div className="claims-approvalList" style={{ marginTop: "1rem" }}>
+                                    {claimType.approvalWorkflow.levels.map((level) => (
+                                      <div key={level.id} className="claims-approvalRow">
                                         <input
-                                          className="form-input claims-input"
-                                          value={condition.conditionValue}
-                                          onChange={(e) =>
-                                            updateClaimType(claimType.id, {
-                                              conditions: claimType.conditions.map((item) =>
-                                                item.id === condition.id
-                                                  ? {
-                                                      ...item,
-                                                      conditionField: claimType.conditionalField,
-                                                      conditionValue: e.target.value,
-                                                    }
-                                                  : item,
-                                              ),
-                                            })
-                                          }
-                                          placeholder="Handset"
-                                        />
-                                        <input
-                                          className="form-input claims-input"
+                                          className="form-input"
                                           type="number"
                                           min={1}
-                                          step="0.01"
-                                          value={condition.capAmount}
+                                          step={1}
+                                          value={level.order}
                                           onChange={(e) =>
                                             updateClaimType(claimType.id, {
-                                              conditions: claimType.conditions.map((item) =>
-                                                item.id === condition.id
-                                                  ? { ...item, capAmount: e.target.value }
-                                                  : item,
-                                              ),
+                                              approvalWorkflow: {
+                                                levels: claimType.approvalWorkflow!.levels.map((item) =>
+                                                  item.id === level.id ? { ...item, order: e.target.value } : item
+                                                ),
+                                              },
                                             })
                                           }
-                                          placeholder="500"
                                         />
+                                        <select
+                                          className="form-input"
+                                          value={level.designationId}
+                                          onChange={(e) =>
+                                            updateClaimType(claimType.id, {
+                                              approvalWorkflow: {
+                                                levels: claimType.approvalWorkflow!.levels.map((item) =>
+                                                  item.id === level.id ? { ...item, designationId: e.target.value } : item
+                                                ),
+                                              },
+                                            })
+                                          }
+                                        >
+                                          <option value="">Select designation</option>
+                                          {designations.map((designation) => (
+                                            <option key={designation.id} value={designation.id}>
+                                              {designation.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <select
+                                          className="form-input"
+                                          value={level.mode}
+                                          onChange={(e) =>
+                                            updateClaimType(claimType.id, {
+                                              approvalWorkflow: {
+                                                levels: claimType.approvalWorkflow!.levels.map((item) =>
+                                                  item.id === level.id ? { ...item, mode: e.target.value as ClaimApprovalMode } : item
+                                                ),
+                                              },
+                                            })
+                                          }
+                                        >
+                                          {["App", "Web", "Both"].map((mode) => (
+                                            <option key={mode} value={mode}>{mode}</option>
+                                          ))}
+                                        </select>
                                         <button
-                                          type="button"
-                                          className="claims-removeBtn"
+                                          className="claims-cardBtn danger"
                                           onClick={() =>
                                             updateClaimType(claimType.id, {
-                                              conditions: claimType.conditions.filter(
-                                                (item) => item.id !== condition.id,
-                                              ),
+                                              approvalWorkflow: {
+                                                levels: claimType.approvalWorkflow!.levels.filter((item) => item.id !== level.id),
+                                              },
                                             })
                                           }
                                         >
@@ -1195,147 +1467,68 @@ export function ClaimsConfigPage({
                                         </button>
                                       </div>
                                     ))}
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    className="claims-cardBtn claims-cardBtn--detailAdd"
-                                    onClick={() =>
-                                      updateClaimType(claimType.id, {
-                                        conditions: [
-                                          ...claimType.conditions,
-                                          {
-                                            ...createEmptyCondition(claimType.conditions.length),
-                                            conditionField: claimType.conditionalField,
+                                    <button
+                                      className="claims-cardBtn"
+                                      onClick={() =>
+                                        updateClaimType(claimType.id, {
+                                          approvalWorkflow: {
+                                            levels: [
+                                              ...claimType.approvalWorkflow!.levels,
+                                              createEmptyApprovalLevel(claimType.approvalWorkflow!.levels.length),
+                                            ],
                                           },
-                                        ],
-                                      })
-                                    }
-                                  >
-                                    <Plus size={14} /> Add Type
-                                  </button>
-                                </div>
-                              ) : null}
+                                        })
+                                      }
+                                    >
+                                      <Plus size={12} /> Add Approval Level
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div className="claims-rowEnd">
+                                <button
+                                  className="claims-cardBtn danger"
+                                  onClick={() =>
+                                    updateTemplate(
+                                      "claimTypes",
+                                      activeTemplate.claimTypes.filter((item) => item.id !== claimType.id),
+                                    )
+                                  }
+                                >
+                                  <Trash2 size={12} /> Remove Type
+                                </button>
+                              </div>
                             </div>
                           ) : null}
                         </div>
-                      ))}
-                    </div>
-
-                    <button
-                      className="claims-cardBtn claims-cardBtn--detailAdd"
-                      onClick={() =>
-                        updateTemplate("claimTypes", [
-                          ...activeTemplate.claimTypes,
-                          createEmptyClaimType(),
-                        ])
-                      }
-                    >
-                      <Plus size={14} /> Add Claim Type
-                    </button>
+                      );
+                    })}
                   </div>
-                ) : null}
-              </section>
-
-              <section className={`claims-detailCard${expandedPanel === "approval" ? " expanded" : ""}`}>
-                <button
-                  type="button"
-                  className="claims-detailCard__header"
-                  onClick={() => setExpandedPanel(expandedPanel === "approval" ? "settings" : "approval")}
-                >
-                  <div className="claims-detailCard__icon claims-detailCard__icon--slate">
-                    <UserRound size={22} />
-                  </div>
-                  <div className="claims-detailCard__title">
-                    <h2>Approval Workflow</h2>
-                    <p>Sequential approval chain</p>
-                  </div>
-                  <ChevronDown className="claims-detailCard__chevron" size={20} />
-                </button>
-
-                {expandedPanel === "approval" ? (
-                  <div className="claims-detailCard__body">
-                    <div className="claims-switchRow">
-                      <strong>Enable</strong>
-                      <label className="toggle">
-                        <input
-                          type="checkbox"
-                          checked={activeTemplate.approvalEnabled}
-                          onChange={(e) => updateTemplate("approvalEnabled", e.target.checked)}
-                        />
-                        <span className="toggle-track" />
-                        <span className="toggle-thumb" />
-                      </label>
-                    </div>
-
-                    {activeTemplate.approvalEnabled ? (
-                      <div className="claims-approvalFlow">
-                        {activeTemplate.approvalLevels.map((level, index) => (
-                          <div key={level.id} className="claims-approvalFlow__group">
-                            <div className="claims-approvalFlow__row">
-                              <div className="claims-approvalFlow__badge">{index + 1}</div>
-                              <select
-                                className="form-input claims-input claims-approvalFlow__input"
-                                value={level.designationId}
-                                onChange={(e) =>
-                                  updateTemplate(
-                                    "approvalLevels",
-                                    activeTemplate.approvalLevels.map((item) =>
-                                      item.id === level.id
-                                        ? { ...item, designationId: e.target.value }
-                                        : item,
-                                    ),
-                                  )
-                                }
-                              >
-                                <option value="">{`Manager ${index + 1}`}</option>
-                                {designations.map((designation) => (
-                                  <option key={designation.id} value={designation.id}>
-                                    {designation.name}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                className="claims-removeBtn"
-                                onClick={() =>
-                                  updateTemplate(
-                                    "approvalLevels",
-                                    activeTemplate.approvalLevels.filter((item) => item.id !== level.id),
-                                  )
-                                }
-                              >
-                                Remove
-                              </button>
-                            </div>
-                            {index < activeTemplate.approvalLevels.length - 1 ? (
-                              <div className="claims-approvalFlow__arrow">↓</div>
-                            ) : null}
-                          </div>
-                        ))}
-
-                        <button className="claims-cardBtn claims-cardBtn--detailAdd" onClick={addApprovalLevel}>
-                          <Plus size={14} /> Add Level
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </section>
-
-              <div className="claims-saveBar">
-                <div className="claims-saveBar__status">
-                  <BadgeCheck size={18} />
-                  <span>All changes saved</span>
-                </div>
-                <button
-                  className="claims-primaryBtn claims-primaryBtn--saveBar"
-                  onClick={() => void handleSaveTemplate()}
-                  disabled={saving}
-                >
-                  <Check size={16} />
-                  {saving ? "Saving…" : "Save & Proceed to Form Builder"}
-                </button>
+                </section>
               </div>
+
+              <aside className="claims-editorSide">
+                <section className="claims-sectionCard">
+                  <div className="claims-sectionCard__head">
+                    <div>
+                      <p className="claims-sectionEyebrow">Wizard Status</p>
+                      <h2>Project Completion</h2>
+                    </div>
+                  </div>
+                  <div className="claims-wizardItems compact">
+                    {claimsFlowItems.map((step) => (
+                      <div key={step.key} className="claims-wizardItem">
+                        <span className={`claims-wizardDot ${step.status === "COMPLETED" ? "done" : ""}`} />
+                        <div>
+                          <strong>{step.key.replaceAll("_", " ")}</strong>
+                          <p>{step.status}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </aside>
             </div>
           </div>
         ) : null}
@@ -1371,7 +1564,7 @@ export function ClaimsConfigPage({
             </div>
 
             {selectedClaimType ? (
-              <ClaimsFormBuilder
+              <ClaimsFormBuilderV2
                 projectId={projectId}
                 claimTypeName={selectedClaimType.name || "Claim"}
                 fields={selectedSchema}
@@ -1382,6 +1575,7 @@ export function ClaimsConfigPage({
                 validationErrors={schemaValidation[selectedClaimType.id] ?? []}
                 onChange={updateSchema}
                 onSave={() => void handleSaveSchema()}
+                onBack={() => setView("editor")}
               />
             ) : (
               <div className="claims-emptyState">
