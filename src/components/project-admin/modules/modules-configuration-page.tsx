@@ -104,7 +104,10 @@ export function ModulesConfigurationPage() {
 
       <div className="pa-mod-grid">
         {modules.map((mod) => {
-          const path = mod.definition.configPath;
+          const path =
+            mod.definition.id === "visits"
+              ? "modules/visit"
+              : mod.definition.configPath;
           const configHref =
             path && mod.enabled ? `${base}/${path}` : undefined;
           return (
