@@ -22,6 +22,8 @@ interface Props {
   onChange: (fields: UdfSchemaField[]) => void;
   onSave: () => void;
   onBack: () => void;
+  moduleLabel?: string;
+  showSystemFields?: boolean;
 }
 
 type FieldComponent = {
@@ -32,13 +34,15 @@ type FieldComponent = {
 
 const FIELD_COMPONENTS: FieldComponent[] = [
   { key: "DROPDOWN", label: "Dropdown", icon: "▼" },
+  { key: "SELECT", label: "Select", icon: "☷" },
+  { key: "CASCADING_SELECT", label: "Cascading Select", icon: "⇢" },
+  { key: "API_SELECT", label: "API Select", icon: "⌁" },
   { key: "STRING", label: "Short Text", icon: "T" },
   { key: "NUMBER", label: "Number", icon: "#" },
   { key: "DATE", label: "Date", icon: "📅" },
+  { key: "BOOLEAN", label: "Yes / No", icon: "◉" },
   { key: "IMAGE", label: "Image Upload", icon: "🖼" },
   { key: "FILE", label: "File Upload", icon: "📎" },
-  { key: "API_SELECT", label: "GPS Location", icon: "📍" },
-  { key: "BOOLEAN", label: "Paragraph", icon: "¶" },
 ];
 
 function createField(type: UdfFieldType, order: number): UdfSchemaField {
@@ -49,9 +53,9 @@ function createField(type: UdfFieldType, order: number): UdfSchemaField {
     DROPDOWN: "Select type",
     IMAGE: "Bills / Invoices Upload",
     FILE: "File Upload",
-    API_SELECT: "Location",
-    BOOLEAN: "Remarks",
-    SELECT: "Multi Select",
+    API_SELECT: "Select from API",
+    BOOLEAN: "Yes / No",
+    SELECT: "Select",
     CASCADING_SELECT: "Cascading Select",
   };
 
@@ -67,7 +71,13 @@ function createField(type: UdfFieldType, order: number): UdfSchemaField {
       type === "SELECT" || type === "DROPDOWN"
         ? { options: [] }
         : type === "API_SELECT"
-          ? { dataSource: "", labelField: "", valueField: "" }
+          ? { dataSource: "", sourceKey: "", labelField: "", valueField: "", multiple: false }
+          : type === "CASCADING_SELECT"
+            ? { dependsOn: "", options: [] }
+            : type === "IMAGE"
+              ? { source: "Both", multiple: false, maxCount: 1 }
+              : type === "FILE"
+                ? { multiple: false, maxCount: 1, accept: [] }
           : undefined,
   };
 }
@@ -88,6 +98,50 @@ function getFieldTypeLabel(type: UdfFieldType): string {
   return map[type] || type;
 }
 
+function MediaSettings({
+  field,
+  onChange,
+}: {
+  field: UdfSchemaField;
+  onChange: (patch: Record<string, unknown>) => void;
+}) {
+  const config = field.config as Record<string, unknown> | undefined;
+  const multiple = config?.multiple === true;
+  return (
+    <>
+      <div className="claims-fb-toggles">
+        <label>
+          <input
+            type="checkbox"
+            checked={multiple}
+            onChange={(event) =>
+              onChange({
+                multiple: event.target.checked,
+                maxCount: event.target.checked ? Number(config?.maxCount) || 5 : 1,
+              })
+            }
+          />
+          Allow multiple uploads
+        </label>
+      </div>
+      {multiple && (
+        <div className="claims-fb-formGroup">
+          <label>Maximum Files</label>
+          <input
+            type="number"
+            min={1}
+            className="form-input"
+            value={Number(config?.maxCount) || 5}
+            onChange={(event) =>
+              onChange({ maxCount: Math.max(1, Number(event.target.value) || 1) })
+            }
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ClaimsFormBuilderV2({
   projectId,
   claimTypeName,
@@ -100,9 +154,14 @@ export function ClaimsFormBuilderV2({
   onChange,
   onSave,
   onBack,
+  moduleLabel = "Claims Form",
+  showSystemFields = true,
 }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [sources, setSources] = useState<UdfDataSourceDefinition[]>([]);
+  const [sourcePreview, setSourcePreview] = useState<UdfSourcePreviewItem[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   // Local draft for the options textarea — avoids losing newlines on each keystroke
   const [optionsDraft, setOptionsDraft] = useState<string | null>(null);
 
@@ -181,14 +240,42 @@ export function ClaimsFormBuilderV2({
     onChange([...fields, newField]);
   }
 
-  function parseOptions(value: string): string[] {
-    return value.split("\n").map((v) => v.trim()).filter(Boolean);
-  }
-
   function optionsText(field: UdfSchemaField): string {
     const config = field.config as Record<string, unknown> | undefined;
     const options = Array.isArray(config?.options) ? config.options : [];
     return options.map(String).join("\n");
+  }
+
+  function cascadingOptionsText(field: UdfSchemaField): string {
+    const config = field.config as Record<string, unknown> | undefined;
+    const options = Array.isArray(config?.options) ? config.options : [];
+    return options
+      .map((item) => {
+        if (!item || typeof item !== "object") return "";
+        const option = item as Record<string, unknown>;
+        return `${String(option.parentValue ?? "")}:${String(option.value ?? "")}`;
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  async function previewApiSource() {
+    if (selectedIndex === null || !selectedField) return;
+    const config = selectedField.config as Record<string, unknown> | undefined;
+    const sourceKey = String(config?.dataSource ?? config?.sourceKey ?? "");
+    if (!sourceKey) return;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      setSourcePreview(
+        await udfConfigService.previewSource(sourceKey, { projectId }),
+      );
+    } catch (err) {
+      setPreviewError(formatApiError(err, "Failed to preview data source"));
+      setSourcePreview([]);
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   const selectedField = selectedIndex !== null && selectedIndex >= 0 && selectedIndex < fields.length 
@@ -204,7 +291,7 @@ export function ClaimsFormBuilderV2({
           Configuration
         </button>
         <div className="claims-fb-headerInfo">
-          <h1>Form Builder · Claims Form</h1>
+          <h1>Form Builder · {moduleLabel}</h1>
           <p>{claimTypeName} · {fields.length} fields · {dirty ? "Unsaved changes" : "All changes saved"}</p>
         </div>
         <div className="claims-fb-headerActions">
@@ -266,29 +353,29 @@ export function ClaimsFormBuilderV2({
         {/* Center - Form Preview */}
         <div className="claims-fb-canvas">
           <div className="claims-fb-canvasHeader">
-            <h2>Claims Submission Form</h2>
-            <p>11 fields · Claim Type & its sub-field are auto-added from config</p>
+            <h2>{moduleLabel}</h2>
+            <p>{showSystemFields ? "Claim Type and its sub-field are auto-added from config" : `${fields.length} configured fields`}</p>
           </div>
 
           <div className="claims-fb-formPreview">
             {/* Auto fields */}
-            <div className="claims-fb-field auto">
+            {showSystemFields && <div className="claims-fb-field auto">
               <div className="claims-fb-fieldBadge ai">AI</div>
               <div className="claims-fb-fieldBadge config">FROM CONFIG</div>
               <label>
                 Claim Type <span className="required">*</span>
               </label>
               <input type="text" placeholder="Select type" disabled />
-            </div>
+            </div>}
 
-            <div className="claims-fb-field auto">
+            {showSystemFields && <div className="claims-fb-field auto">
               <div className="claims-fb-fieldBadge ai">AI</div>
               <div className="claims-fb-fieldBadge conditional">CONDITIONAL</div>
               <label>
                 Sub-field (Mode / City / Type) <span className="required">*</span>
               </label>
               <input type="text" placeholder="Appears based on selected claim type" disabled />
-            </div>
+            </div>}
 
             {/* User-added fields */}
             {fields.map((field, index) => (
@@ -345,6 +432,16 @@ export function ClaimsFormBuilderV2({
                     <option>Select...</option>
                   </select>
                 )}
+                {field.type === "SELECT" && (
+                  <select disabled>
+                    <option>Select...</option>
+                  </select>
+                )}
+                {field.type === "CASCADING_SELECT" && (
+                  <select disabled>
+                    <option>Select parent value first...</option>
+                  </select>
+                )}
                 {field.type === "IMAGE" && (
                   <div className="claims-fb-upload">
                     <span>📤 Upload</span>
@@ -356,7 +453,9 @@ export function ClaimsFormBuilderV2({
                   </div>
                 )}
                 {field.type === "BOOLEAN" && (
-                  <textarea placeholder="Additional notes..." disabled rows={3} />
+                  <label className="claims-fb-booleanPreview">
+                    <input type="checkbox" disabled /> Yes
+                  </label>
                 )}
                 {field.type === "API_SELECT" && (
                   <input type="text" placeholder="Select from list..." disabled />
@@ -490,10 +589,17 @@ export function ClaimsFormBuilderV2({
                     <label>Data Source</label>
                     <select
                       className="form-input"
-                      value={
-                        String((selectedField.config as Record<string, unknown>)?.dataSource || "")
+                      value={String(
+                        (selectedField.config as Record<string, unknown>)?.dataSource ||
+                        (selectedField.config as Record<string, unknown>)?.sourceKey ||
+                        "",
+                      )}
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex!, {
+                          dataSource: e.target.value,
+                          sourceKey: e.target.value,
+                        })
                       }
-                      onChange={(e) => updateFieldConfig(selectedIndex!, { dataSource: e.target.value })}
                     >
                       <option value="">Select source...</option>
                       {sources.map((src) => (
@@ -525,7 +631,243 @@ export function ClaimsFormBuilderV2({
                       onChange={(e) => updateFieldConfig(selectedIndex!, { valueField: e.target.value })}
                     />
                   </div>
+                  <div className="claims-fb-toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (selectedField.config as Record<string, unknown>)?.multiple === true
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex!, { multiple: e.target.checked })
+                        }
+                      />
+                      Allow multiple selections
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={
+                      previewLoading ||
+                      !String(
+                        (selectedField.config as Record<string, unknown>)?.dataSource ||
+                        (selectedField.config as Record<string, unknown>)?.sourceKey ||
+                        "",
+                      )
+                    }
+                    onClick={() => void previewApiSource()}
+                  >
+                    {previewLoading ? "Loading preview..." : "Preview source"}
+                  </button>
+                  {previewError && <p className="claims-fb-propertiesHint">{previewError}</p>}
+                  {sourcePreview.length > 0 && (
+                    <pre className="claims-fb-sourcePreview">
+                      {JSON.stringify(sourcePreview.slice(0, 5), null, 2)}
+                    </pre>
+                  )}
                 </>
+              )}
+
+              {selectedField.type === "CASCADING_SELECT" && (
+                <>
+                  <div className="claims-fb-formGroup">
+                    <label>Parent Field</label>
+                    <select
+                      className="form-input"
+                      value={String(
+                        (selectedField.config as Record<string, unknown>)?.dependsOn ?? "",
+                      )}
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex!, { dependsOn: e.target.value })
+                      }
+                    >
+                      <option value="">Select parent field...</option>
+                      {fields
+                        .filter((_, index) => index !== selectedIndex)
+                        .map((field) => (
+                          <option key={field.fieldKey} value={field.fieldKey}>
+                            {field.label} ({field.fieldKey})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="claims-fb-formGroup">
+                    <label>Options (parent:value)</label>
+                    <textarea
+                      className="form-input"
+                      rows={6}
+                      defaultValue={cascadingOptionsText(selectedField)}
+                      onBlur={(e) => {
+                        const options = e.target.value
+                          .split("\n")
+                          .map((line) => {
+                            const separator = line.indexOf(":");
+                            if (separator < 1) return null;
+                            const parentValue = line.slice(0, separator).trim();
+                            const value = line.slice(separator + 1).trim();
+                            return parentValue && value ? { parentValue, value } : null;
+                          })
+                          .filter(
+                            (option): option is { parentValue: string; value: string } =>
+                              Boolean(option),
+                          );
+                        updateFieldConfig(selectedIndex!, { options });
+                      }}
+                      placeholder={"India:Delhi\nIndia:Mumbai\nUSA:New York"}
+                    />
+                  </div>
+                  <div className="claims-fb-formGroup">
+                    <label>Dynamic Source (optional)</label>
+                    <select
+                      className="form-input"
+                      value={String(
+                        (selectedField.config as Record<string, unknown>)?.sourceKey ?? "",
+                      )}
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex!, { sourceKey: e.target.value })
+                      }
+                    >
+                      <option value="">Use static options</option>
+                      {sources.map((source) => (
+                        <option key={source.key} value={source.key}>{source.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="claims-fb-formGroup">
+                    <label>Dynamic Value Field</label>
+                    <input
+                      className="form-input"
+                      value={String(
+                        (selectedField.config as Record<string, unknown>)?.valueField ?? "",
+                      )}
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex!, { valueField: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="claims-fb-formGroup">
+                    <label>Dynamic Parent Field</label>
+                    <input
+                      className="form-input"
+                      value={String(
+                        (selectedField.config as Record<string, unknown>)?.parentField ?? "",
+                      )}
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex!, { parentField: e.target.value })
+                      }
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedField.type === "IMAGE" && (
+                <>
+                  <div className="claims-fb-formGroup">
+                    <label>Image Source</label>
+                    <select
+                      className="form-input"
+                      value={String(
+                        (selectedField.config as Record<string, unknown>)?.source ?? "Both",
+                      )}
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex!, { source: e.target.value })
+                      }
+                    >
+                      <option value="Camera">Camera</option>
+                      <option value="Gallery">Gallery</option>
+                      <option value="Both">Camera or Gallery</option>
+                    </select>
+                  </div>
+                  <MediaSettings
+                    field={selectedField}
+                    onChange={(patch) => updateFieldConfig(selectedIndex!, patch)}
+                  />
+                </>
+              )}
+
+              {selectedField.type === "FILE" && (
+                <>
+                  <MediaSettings
+                    field={selectedField}
+                    onChange={(patch) => updateFieldConfig(selectedIndex!, patch)}
+                  />
+                  <div className="claims-fb-formGroup">
+                    <label>Accepted MIME Types</label>
+                    <input
+                      className="form-input"
+                      placeholder="application/pdf, image/*"
+                      value={
+                        Array.isArray(
+                          (selectedField.config as Record<string, unknown>)?.accept,
+                        )
+                          ? (
+                              (selectedField.config as Record<string, unknown>)
+                                .accept as unknown[]
+                            ).join(", ")
+                          : ""
+                      }
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex!, {
+                          accept: e.target.value
+                            .split(",")
+                            .map((value) => value.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="claims-fb-formGroup">
+                <label>Conditional Visibility (optional)</label>
+                <select
+                  className="form-input"
+                  value={selectedField.visibilityRules?.[0]?.dependsOnField ?? ""}
+                  onChange={(event) => {
+                    const dependsOnField = event.target.value;
+                    updateField(selectedIndex!, {
+                      visibilityRules: dependsOnField
+                        ? [{
+                            dependsOnField,
+                            showWhen: selectedField.visibilityRules?.[0]?.showWhen ?? [],
+                          }]
+                        : undefined,
+                    });
+                  }}
+                >
+                  <option value="">Always visible</option>
+                  {fields
+                    .filter((_, index) => index !== selectedIndex)
+                    .map((field) => (
+                      <option key={field.fieldKey} value={field.fieldKey}>
+                        Show based on {field.label}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              {selectedField.visibilityRules?.[0]?.dependsOnField && (
+                <div className="claims-fb-formGroup">
+                  <label>Show When Values</label>
+                  <input
+                    className="form-input"
+                    placeholder="Approved, Pending"
+                    value={selectedField.visibilityRules[0].showWhen.join(", ")}
+                    onChange={(event) =>
+                      updateField(selectedIndex!, {
+                        visibilityRules: [{
+                          dependsOnField:
+                            selectedField.visibilityRules![0].dependsOnField,
+                          showWhen: event.target.value
+                            .split(",")
+                            .map((value) => value.trim())
+                            .filter(Boolean),
+                        }],
+                      })
+                    }
+                  />
+                </div>
               )}
 
               <div className="claims-fb-formGroup">

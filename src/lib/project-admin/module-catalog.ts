@@ -44,6 +44,7 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     accent: "purple",
     defaultEnabled: true,
     comingSoon: false,
+    configPath: "modules/visit",
   },
   {
     id: "resources",

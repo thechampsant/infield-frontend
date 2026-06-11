@@ -82,6 +82,19 @@ export type {
   SaveClaimTypeInput,
   SaveClaimsConfigInput,
 } from "./claims-config-service";
+export { visitConfigService, normalizeVisitConfig } from "./visit-config-service";
+export type {
+  JourneyTabDocument,
+  LandingFieldSet,
+  StoreDetail,
+  StoreMappingMode,
+  StoresForTypeResponse,
+  UpsertVisitConfigInput,
+  VisitConfigDocument,
+  VisitConfigStatus,
+  VisitSessionConfig,
+  VisitType,
+} from "./visit-config-service";
 export {
   featureWizardService,
   getWizardFlow,
