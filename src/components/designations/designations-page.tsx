@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { designationService, type Designation } from "@/lib/api/designation-service";
 import { roleService, type BackendRole } from "@/lib/api/role-service";
@@ -38,6 +38,8 @@ export function DesignationsPage({ projectId, projectName }: Props) {
   const [deleting, setDeleting] = useState<Designation | null>(null);
   const [removing, setRemoving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const roleById = useMemo(
     () => new Map(roles.map((r) => [r.id, r] as const)),
@@ -49,7 +51,7 @@ export function DesignationsPage({ projectId, projectName }: Props) {
     setError(null);
     try {
       const [roleList, designationList] = await Promise.all([
-        roleService.listHierarchyByProject(projectId),
+        roleService.listByProject(projectId),
         designationService.listByProject(projectId),
       ]);
       setRoles(roleList);
@@ -80,12 +82,13 @@ export function DesignationsPage({ projectId, projectName }: Props) {
       const payload = items.map((item) => {
         const role = roleById.get(item.roleId);
         const roleName = role?.roleName ?? "";
+        const itemAccess = item.access as DesignationAccess | undefined;
         return {
           projectId,
           name: item.name,
           roleId: item.roleId,
           permissions: permissionsForRole(roleName),
-          access: accessForRole(roleName),
+          access: itemAccess || accessForRole(roleName),
         };
       });
       await designationService.create(payload);
@@ -113,7 +116,7 @@ export function DesignationsPage({ projectId, projectName }: Props) {
           name: data.name,
           roleId: data.roleId,
           permissions: permissionsForRole(roleName),
-          access: accessForRole(roleName),
+          access: (data.access as DesignationAccess) || accessForRole(roleName),
         },
       ]);
       setEditing(null);
@@ -141,6 +144,70 @@ export function DesignationsPage({ projectId, projectName }: Props) {
     }
   }, [deleting, load]);
 
+  const handleTemplate = useCallback(async () => {
+    try {
+      const blob = await designationService.downloadTemplate(projectId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Designation_Bulk_Template.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setToast({ message: formatApiError(err, "Template download failed"), type: "error" });
+    }
+  }, [projectId]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      const blob = await designationService.exportDesignations(projectId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Designations_Export.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setToast({ message: formatApiError(err, "Export failed"), type: "error" });
+    }
+  }, [projectId]);
+
+  const handleBulkUpload = useCallback(async (file: File) => {
+    setUploading(true);
+    try {
+      const result = await designationService.bulkUpload(projectId, file);
+      if (result.successCount > 0) {
+        setToast({
+          message: `Imported ${result.successCount} of ${result.total} designations.`,
+          type: "success",
+        });
+        await load();
+      }
+      if (result.invalidCount > 0) {
+        const errMsgs = result.errors.slice(0, 3).map(e => e.errors.join(", ")).join("; ");
+        setToast({
+          message: `${result.invalidCount} rows failed: ${errMsgs}`,
+          type: "error",
+        });
+      }
+    } catch (err) {
+      setToast({ message: formatApiError(err, "Bulk upload failed"), type: "error" });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [projectId, load]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      setToast({ message: "Please upload an Excel file (.xlsx or .xls)", type: "error" });
+      return;
+    }
+    handleBulkUpload(file);
+  }, [handleBulkUpload]);
+
   const countLabel = `${filtered.length} designation${filtered.length !== 1 ? "s" : ""}`;
   const footerLabel = loading
     ? "Loading…"
@@ -159,6 +226,36 @@ export function DesignationsPage({ projectId, projectName }: Props) {
           </div>
         </div>
         <div className="pg-actions">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleTemplate}
+          >
+            ↓ Template
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? "Uploading..." : "↑ Bulk Upload"}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+            aria-label="Upload Excel file for bulk designation import"
+          />
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+          >
+            ↓ Export
+          </button>
           <button
             type="button"
             className="btn btn-primary"

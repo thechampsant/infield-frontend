@@ -143,6 +143,35 @@ export const roleService = {
       throw err;
     }
   },
+
+  /** Create a single role for the project. */
+  async createRole(projectId: string, name: string, level: number): Promise<void> {
+    await apiClient.post(`${BASE}/createRoles`, {
+      roles: [{ projectId, roleName: name, level }],
+    });
+  },
+
+  /** Download the Excel template for bulk role import. */
+  async downloadTemplate(projectId: string): Promise<Blob> {
+    return apiClient.getBlob(
+      `${BASE}/bulk/template?projectId=${encodeURIComponent(projectId)}`,
+    );
+  },
+
+  /** Export all roles for the project as an Excel file. */
+  async exportRoles(projectId: string): Promise<Blob> {
+    return apiClient.getBlob(
+      `${BASE}/bulk/export?projectId=${encodeURIComponent(projectId)}`,
+    );
+  },
+
+  /** Bulk upload roles from an Excel file. */
+  async bulkUpload(projectId: string, file: File): Promise<BulkRoleResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("projectId", projectId);
+    return apiClient.postFormData<BulkRoleResult>(`${BASE}/bulk/excel`, formData);
+  },
 };
 
 /** Build dropdown options (sorted by hierarchy level) from backend roles. */
@@ -154,4 +183,12 @@ export function toRoleOptions(roles: BackendRole[]): RoleOption[] {
     level: r.level,
     access: accessForRole(r.roleName),
   }));
+}
+
+export interface BulkRoleResult {
+  total: number;
+  successCount: number;
+  invalidCount: number;
+  successes: { id: string; name: string }[];
+  errors: { row: number | string; data: unknown; errors: string[] }[];
 }

@@ -156,6 +156,41 @@ class ApiClient {
     }
     return response.blob();
   }
+
+  async postFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+    const headers: HeadersInit = {};
+    if (this.accessToken) {
+      (headers as Record<string, string>)["Authorization"] =
+        `Bearer ${this.accessToken}`;
+    }
+    // Do NOT set Content-Type — browser sets it with boundary for multipart
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+      method: "POST",
+      headers,
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const errorBody: ApiErrorResponse = await response.json().catch(() => ({
+        errorCode: "UNKNOWN_ERROR",
+        message: response.statusText,
+      }));
+      throw new ApiError(
+        response.status,
+        errorBody.errorCode || "UNKNOWN_ERROR",
+        errorBody.requestId,
+        getApiErrorMessage(errorBody, response.statusText),
+      );
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const body = await response.json();
+    return unwrapApiData<T>(body);
+  }
 }
 
 export const apiClient = new ApiClient();

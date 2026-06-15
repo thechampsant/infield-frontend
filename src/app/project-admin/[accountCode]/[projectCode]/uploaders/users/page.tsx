@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { designationService } from "@/lib/api/designation-service";
 import { projectUsersService } from "@/lib/api/project-users-service";
@@ -29,6 +29,14 @@ export default function UsersMasterPage() {
   const [designationCount, setDesignationCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<{
+    total: number;
+    successCount: number;
+    invalidCount: number;
+    errors: { row?: string | number; data?: unknown; errors: string[] }[];
+  } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -56,11 +64,12 @@ export default function UsersMasterPage() {
   }, [load]);
 
   const handleTemplate = async () => {
+    if (!projectId) return;
     try {
-      const blob = await projectUsersService.downloadTemplate();
-      downloadBlob(blob, "users-bulk-template.xlsx");
+      const blob = await projectUsersService.downloadTemplate(projectId);
+      downloadBlob(blob, "User_Bulk_Upload_Template.xlsx");
     } catch {
-      setError("Template download is not available yet.");
+      setError("Template download failed. Please try again.");
     }
   };
 
@@ -68,10 +77,51 @@ export default function UsersMasterPage() {
     if (!projectId) return;
     try {
       const blob = await projectUsersService.exportUsers(projectId);
-      downloadBlob(blob, "users-export.xlsx");
+      downloadBlob(blob, "Users_Export.xlsx");
     } catch {
-      setError("Export is not available yet.");
+      setError("Export failed. Please try again.");
     }
+  };
+
+  const handleBulkUpload = async (file: File) => {
+    if (!projectId) return;
+    setUploading(true);
+    setError(null);
+    setUploadResult(null);
+    try {
+      const result = await projectUsersService.bulkUpload(projectId, file);
+      setUploadResult(result);
+      if (result.successCount > 0) {
+        load(); // Refresh the user list
+      }
+      if (result.invalidCount > 0) {
+        setError(
+          `Upload completed: ${result.successCount} users added, ${result.invalidCount} rows had errors.`,
+        );
+      }
+    } catch (err) {
+      setError(formatApiError(err, "Bulk upload failed"));
+    } finally {
+      setUploading(false);
+      // Reset file input so same file can be re-uploaded if needed
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const validTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+    ];
+    if (!validTypes.includes(file.type) && !file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      setError("Please upload an Excel file (.xlsx or .xls)");
+      return;
+    }
+    handleBulkUpload(file);
   };
 
   return (
@@ -91,9 +141,21 @@ export default function UsersMasterPage() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => setError("Bulk upload UI coming soon.")}
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
           >
-            ↑ Bulk Upload
+            {uploading ? "Uploading..." : "↑ Bulk Upload"}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+            aria-label="Upload Excel file for bulk user import"
+          />
+          <button type="button" className="btn btn-secondary" onClick={handleExport}>
+            ↓ Export
           </button>
           <button type="button" className="btn btn-primary" onClick={() => setAddOpen(true)}>
             + Add User
@@ -119,6 +181,46 @@ export default function UsersMasterPage() {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {uploadResult && uploadResult.successCount > 0 && !error && (
+        <div
+          className="pa-info-banner"
+          style={{
+            color: "var(--green, #16a34a)",
+            background: "var(--green-light, #f0fdf4)",
+            borderColor: "var(--green-mid, #86efac)",
+            marginBottom: 16,
+          }}
+        >
+          Successfully imported {uploadResult.successCount} of {uploadResult.total} users.
+        </div>
+      )}
+
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <div
+          className="pa-info-banner"
+          style={{
+            color: "var(--orange, #d97706)",
+            background: "var(--orange-light, #fffbeb)",
+            borderColor: "var(--orange-mid, #fcd34d)",
+            marginBottom: 16,
+            maxHeight: 200,
+            overflow: "auto",
+          }}
+        >
+          <strong>Upload Errors ({uploadResult.errors.length} rows):</strong>
+          <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+            {uploadResult.errors.slice(0, 10).map((err, i) => (
+              <li key={i}>
+                Row {err.row ?? i + 1}: {err.errors.join(", ")}
+              </li>
+            ))}
+            {uploadResult.errors.length > 10 && (
+              <li>...and {uploadResult.errors.length - 10} more errors</li>
+            )}
+          </ul>
         </div>
       )}
 

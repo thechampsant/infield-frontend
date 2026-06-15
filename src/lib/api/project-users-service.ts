@@ -31,6 +31,14 @@ interface PaginatedUsers {
   meta?: { total?: number; page?: number; pageSize?: number };
 }
 
+interface BulkUploadResult {
+  total: number;
+  successCount: number;
+  invalidCount: number;
+  successes: { id: string; email: string; employeeId: string }[];
+  errors: { row?: string | number; data?: unknown; errors: string[] }[];
+}
+
 interface UserFormFieldsResponseData {
   projectId?: string;
   entityType?: string;
@@ -379,13 +387,22 @@ export const projectUsersService = {
     await apiClient.patch(`${BASE}/${encodeURIComponent(userId)}`, payload);
   },
 
-  async downloadTemplate(): Promise<Blob> {
-    return apiClient.getBlob(`${BASE}/bulk/template`);
+  async downloadTemplate(projectId: string): Promise<Blob> {
+    return apiClient.getBlob(
+      `${BASE}/bulk/template?projectId=${encodeURIComponent(projectId)}`,
+    );
+  },
+
+  async bulkUpload(projectId: string, file: File): Promise<BulkUploadResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("projectId", projectId);
+    return apiClient.postFormData<BulkUploadResult>(`${BASE}/bulk/excel`, formData);
   },
 
   async exportUsers(projectId: string): Promise<Blob> {
     return apiClient.getBlob(
-      `${BASE}/bulk/excel?projectId=${encodeURIComponent(projectId)}`,
+      `${BASE}/bulk/export?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 };
