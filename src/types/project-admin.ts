@@ -32,6 +32,22 @@ export interface UDFField {
   mandatory: boolean;
 }
 
+export interface UserStaticField {
+  fieldKey: string;
+  label: string;
+  type: string;
+  required: boolean;
+  sourceKey?: string;
+  labelKey?: string;
+  valueKey?: string;
+  multiple?: boolean;
+}
+
+export interface UserStaticFields {
+  create: UserStaticField[];
+  update: UserStaticField[];
+}
+
 export interface DesignationRow {
   id: string;
   name: string;
@@ -55,6 +71,7 @@ export interface User {
 
 export interface ProjectUser extends User {
   backendId: string;
+  reporteeIds: string[];
 }
 
 export interface Store {

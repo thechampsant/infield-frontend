@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { designationService } from "@/lib/api/designation-service";
-import { projectUsersService } from "@/lib/api/project-users-service";
-import type { UDFField, UDFValue, User } from "@/types/project-admin";
+import {
+  getRuntimeStaticField,
+  projectUsersService,
+} from "@/lib/api/project-users-service";
+import type {
+  UDFField,
+  UDFValue,
+  ProjectUser,
+  UserStaticField,
+} from "@/types/project-admin";
 
 export function EditUserModal({
   user,
@@ -13,14 +21,16 @@ export function EditUserModal({
   open,
   onClose,
   udfFields,
+  staticFields,
   projectId,
   onSuccess,
 }: {
-  user: User;
+  user: ProjectUser;
   backendUserId: string;
   open: boolean;
   onClose: () => void;
   udfFields: UDFField[];
+  staticFields: UserStaticField[];
   projectId: string;
   onSuccess: () => void;
 }) {
@@ -36,9 +46,14 @@ export function EditUserModal({
     { id: string; name: string }[]
   >([]);
   const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>(user.udfs);
+  const [reportees, setReportees] = useState<string[]>(user.reporteeIds);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const reporteesField = useMemo(
+    () => getRuntimeStaticField(staticFields, "reportees"),
+    [staticFields],
+  );
 
   useEffect(() => {
     if (!open || !projectId) return;
@@ -65,6 +80,7 @@ export function EditUserModal({
         designation: "",
       });
       setUdfValues(user.udfs);
+      setReportees(user.reporteeIds);
       setErrors([]);
       setSubmitError(null);
     }
@@ -76,6 +92,9 @@ export function EditUserModal({
     if (!form.lastName) errs.push("lastName");
     if (!form.mobile) errs.push("mobile");
     if (!form.email) errs.push("email");
+    if (reporteesField?.mandatory && reportees.length === 0) {
+      errs.push(String(reporteesField.id));
+    }
     if (errs.length) {
       setErrors(errs);
       return;
@@ -90,6 +109,7 @@ export function EditUserModal({
         email: form.email,
         phoneNumber: form.mobile,
         designationId: form.designation || undefined,
+        ...(reporteesField ? { reportees } : {}),
         udfs: udfValues,
       });
       onSuccess();
@@ -190,6 +210,24 @@ export function EditUserModal({
           </select>
         </div>
       </div>
+
+      {reporteesField && (
+        <UDFFormFields
+          fields={[reporteesField]}
+          values={{ reportees }}
+          onChange={(values) =>
+            setReportees(
+              Array.isArray(values.reportees)
+                ? values.reportees.map(String)
+                : [],
+            )
+          }
+          errors={errors}
+          projectId={projectId}
+          prefix=""
+          excludedOptionValues={[backendUserId]}
+        />
+      )}
 
       {udfFields.length > 0 && (
         <>

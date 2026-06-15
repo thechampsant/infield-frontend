@@ -9,7 +9,11 @@ import { DesignationsRequiredBanner } from "@/components/project-admin/uploaders
 import { UserTable } from "@/components/project-admin/uploaders/users/user-table";
 import { AddUserModal } from "@/components/project-admin/uploaders/users/add-user-modal";
 import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
-import type { ProjectUser, UDFField } from "@/types/project-admin";
+import type {
+  ProjectUser,
+  UDFField,
+  UserStaticFields,
+} from "@/types/project-admin";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -26,6 +30,10 @@ export default function UsersMasterPage() {
   const [udfOpen, setUdfOpen] = useState(false);
   const [users, setUsers] = useState<ProjectUser[]>([]);
   const [udfFields, setUdfFields] = useState<UDFField[]>([]);
+  const [staticFields, setStaticFields] = useState<UserStaticFields>({
+    create: [],
+    update: [],
+  });
   const [designationCount, setDesignationCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,13 +51,19 @@ export default function UsersMasterPage() {
     setLoading(true);
     setError(null);
     try {
-      const [userList, fields, designations] = await Promise.all([
+      const [userList, formConfig, designations] = await Promise.all([
         projectUsersService.listByProject(projectId),
-        projectUsersService.getFormFields(projectId),
+        projectUsersService.getFormFieldsConfig(projectId),
         designationService.listByProject(projectId).catch(() => []),
       ]);
       setUsers(userList);
-      setUdfFields(fields);
+      if (formConfig) {
+        setUdfFields(formConfig.runtimeUdfFields);
+        setStaticFields(formConfig.runtimeStaticFields);
+      } else {
+        setUdfFields(await projectUsersService.getFormFields(projectId));
+        setStaticFields({ create: [], update: [] });
+      }
       setDesignationCount(designations.length);
     } catch (err) {
       setError(formatApiError(err, "Failed to load users"));
@@ -227,6 +241,7 @@ export default function UsersMasterPage() {
       <UserTable
         users={users}
         udfFields={udfFields}
+        updateStaticFields={staticFields.update}
         loading={loading}
         projectId={projectId}
         onOpenUDFConfig={() => setUdfOpen(true)}
@@ -238,6 +253,7 @@ export default function UsersMasterPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         udfFields={udfFields}
+        staticFields={staticFields.create}
         projectId={projectId}
         onSuccess={() => {
           setAddOpen(false);
