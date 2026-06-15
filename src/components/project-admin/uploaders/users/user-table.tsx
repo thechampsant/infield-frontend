@@ -20,7 +20,7 @@ interface UserTableProps {
   onExport: () => void;
 }
 
-const GRID = "1fr 120px 120px 110px 80px 100px";
+const GRID = "1.5fr 140px 140px 120px 80px 100px";
 
 export function UserTable({
   users,
@@ -51,6 +51,12 @@ export function UserTable({
   const total = users.length;
   const activeCount = users.filter((u) => u.status === "active").length;
 
+  const cellTruncate: React.CSSProperties = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  };
+
   const rows = filtered.map((u, index) => {
     const rowKey = `${u.backendId || u.id}-${index}`;
     const initials = u.name
@@ -69,9 +75,10 @@ export function UserTable({
           borderBottom: "1px solid var(--border)",
           alignItems: "center",
           minHeight: 60,
+          minWidth: 720,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, overflow: "hidden" }}>
           <div
             style={{
               width: 36,
@@ -89,24 +96,24 @@ export function UserTable({
           >
             {initials || "?"}
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, overflow: "hidden" }}>
             <div
               style={{
                 fontSize: 13,
                 fontWeight: 700,
                 color: "var(--navy)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                ...cellTruncate,
               }}
             >
               {u.name}
             </div>
-            <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{u.email}</div>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", ...cellTruncate }}>
+              {u.email}
+            </div>
           </div>
         </div>
 
-        <div>
+        <div style={{ minWidth: 0, overflow: "hidden" }}>
           <span
             style={{
               fontFamily: "monospace",
@@ -118,20 +125,24 @@ export function UserTable({
               padding: "4px 8px",
               borderRadius: 6,
               display: "inline-block",
+              maxWidth: "100%",
+              ...cellTruncate,
             }}
           >
             {u.id}
           </span>
         </div>
 
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
+        <div style={{ minWidth: 0, overflow: "hidden" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", ...cellTruncate }}>
             {u.designation}
           </div>
-          <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{u.role}</div>
+          <div style={{ fontSize: 10, color: "var(--text-muted)", ...cellTruncate }}>{u.role}</div>
         </div>
 
-        <div style={{ fontSize: 12, color: "var(--text-mid)" }}>{u.mobile}</div>
+        <div style={{ fontSize: 12, color: "var(--text-mid)", minWidth: 0, ...cellTruncate }}>
+          {u.mobile}
+        </div>
 
         <div>
           <StatusPill status={u.status} />
@@ -187,10 +198,10 @@ export function UserTable({
 
       <DataTable
         columns={[
-          { key: "user", label: "User", width: "1fr" },
-          { key: "loginId", label: "Login ID", width: 120 },
-          { key: "designation", label: "Designation", width: 120 },
-          { key: "mobile", label: "Mobile", width: 110 },
+          { key: "user", label: "User", width: "1.5fr" },
+          { key: "loginId", label: "Login ID", width: 140 },
+          { key: "designation", label: "Designation", width: 140 },
+          { key: "mobile", label: "Mobile", width: 120 },
           { key: "status", label: "Status", width: 80 },
           { key: "actions", label: "Actions", align: "right", width: 100 },
         ]}

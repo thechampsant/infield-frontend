@@ -87,6 +87,14 @@ function normalizeDesignation(raw: RawDesignation): Designation {
   };
 }
 
+export interface BulkDesignationResult {
+  total: number;
+  successCount: number;
+  invalidCount: number;
+  successes: { id: string; name: string }[];
+  errors: { row?: string | number; data?: unknown; errors: string[] }[];
+}
+
 export const designationService = {
   async listByProject(projectId: string): Promise<Designation[]> {
     const res = await apiClient.get<RawDesignation[]>(
@@ -105,5 +113,24 @@ export const designationService = {
 
   async remove(ids: string[]): Promise<void> {
     await apiClient.post(`${BASE}/deleteDesignations`, { ids });
+  },
+
+  async downloadTemplate(projectId: string): Promise<Blob> {
+    return apiClient.getBlob(
+      `${BASE}/bulk/template?projectId=${encodeURIComponent(projectId)}`,
+    );
+  },
+
+  async exportDesignations(projectId: string): Promise<Blob> {
+    return apiClient.getBlob(
+      `${BASE}/bulk/export?projectId=${encodeURIComponent(projectId)}`,
+    );
+  },
+
+  async bulkUpload(projectId: string, file: File): Promise<BulkDesignationResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("projectId", projectId);
+    return apiClient.postFormData<BulkDesignationResult>(`${BASE}/bulk/excel`, formData);
   },
 };

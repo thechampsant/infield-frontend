@@ -132,61 +132,64 @@ export function DataTable({
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: gridCols,
-          gap: 12,
-          padding: "12px 20px",
-          background: "var(--surface2)",
-          borderBottom: "1px solid var(--border)",
-          alignItems: "center",
-        }}
-      >
-        {columns.map((col) => (
-          <span
-            key={col.key}
-            style={{
-              display: "block",
-              fontSize: 9,
-              fontWeight: 700,
-              letterSpacing: "1.5px",
-              textTransform: "uppercase",
-              color: "var(--text-muted)",
-              textAlign: col.align ?? "left",
-              whiteSpace: "nowrap",
-              wordBreak: "normal",
-              overflowWrap: "normal",
-              writingMode: "horizontal-tb",
-              textOrientation: "mixed",
-            }}
-          >
-            {col.label}
-          </span>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="pa-loading">Loading…</div>
-      ) : rows.length === 0 ? (
-        <div style={{ padding: "48px 24px", textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: "var(--text-muted)",
-              marginBottom: 4,
-            }}
-          >
-            {emptyMessage ?? `No ${entityLabel} found`}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            Adjust your search or filter.
-          </div>
+      <div style={{ overflowX: "auto" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: gridCols,
+            gap: 12,
+            padding: "12px 20px",
+            background: "var(--surface2)",
+            borderBottom: "1px solid var(--border)",
+            alignItems: "center",
+            minWidth: 720,
+          }}
+        >
+          {columns.map((col) => (
+            <span
+              key={col.key}
+              style={{
+                display: "block",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "1.5px",
+                textTransform: "uppercase",
+                color: "var(--text-muted)",
+                textAlign: col.align ?? "left",
+                whiteSpace: "nowrap",
+                wordBreak: "normal",
+                overflowWrap: "normal",
+                writingMode: "horizontal-tb",
+                textOrientation: "mixed",
+              }}
+            >
+              {col.label}
+            </span>
+          ))}
         </div>
-      ) : (
-        rows
-      )}
+
+        {loading ? (
+          <div className="pa-loading">Loading…</div>
+        ) : rows.length === 0 ? (
+          <div style={{ padding: "48px 24px", textAlign: "center" }}>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                marginBottom: 4,
+              }}
+            >
+              {emptyMessage ?? `No ${entityLabel} found`}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              Adjust your search or filter.
+            </div>
+          </div>
+        ) : (
+          rows
+        )}
+      </div>
 
       <div
         style={{

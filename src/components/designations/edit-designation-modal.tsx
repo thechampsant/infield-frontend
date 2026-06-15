@@ -10,6 +10,7 @@ import { HIERARCHY_ROLES_UNAVAILABLE_MODAL } from "@/lib/designations/backend-ro
 export interface EditDesignationValues {
   name: string;
   roleId: string;
+  access: string;
 }
 
 export function EditDesignationModal({
@@ -29,6 +30,7 @@ export function EditDesignationModal({
 
   const [name, setName] = useState("");
   const [roleId, setRoleId] = useState("");
+  const [access, setAccess] = useState("BOTH");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,6 +38,7 @@ export function EditDesignationModal({
     if (isOpen && designation) {
       setName(designation.name);
       setRoleId(designation.roleId);
+      setAccess(designation.access || "BOTH");
       setErrors({});
       setSubmitting(false);
     }
@@ -58,7 +61,7 @@ export function EditDesignationModal({
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await onSave({ name: name.trim(), roleId });
+      await onSave({ name: name.trim(), roleId, access });
     } catch (err) {
       setErrors({ form: formatApiError(err, "Failed to update designation") });
     } finally {
@@ -129,6 +132,22 @@ export function EditDesignationModal({
                 designation.
               </div>
             )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Access</label>
+            <select
+              className="form-input"
+              value={access}
+              onChange={(e) => setAccess(e.target.value)}
+            >
+              <option value="BOTH">App + Web</option>
+              <option value="MOBILE">Mobile Only</option>
+              <option value="WEB">Web Only</option>
+            </select>
+            <div className="form-hint">
+              Controls which platforms this designation can access.
+            </div>
           </div>
         </div>
 

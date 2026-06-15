@@ -13,16 +13,16 @@ function uploadersBase(accountCode: string, projectCode: string): string {
   return `/project-admin/${accountCode}/${projectCode}/uploaders`;
 }
 
-/** First screen when opening a project for setup (designations before users). */
+/** First screen when opening a project for setup (roles before designations). */
 export function projectAdminUploadersEntryPath(
   accountCode: string,
   projectCode: string,
 ): string {
-  return `${uploadersBase(accountCode, projectCode)}/designations`;
+  return `${uploadersBase(accountCode, projectCode)}/roles`;
 }
 
 export type UploadersSetupStep = {
-  id: "designations" | "users" | "stores" | "products" | "user-store-map";
+  id: "roles" | "designations" | "users" | "stores" | "products" | "user-store-map";
   label: string;
   href: string;
   description: string;
@@ -35,6 +35,12 @@ export function uploadersSetupSteps(
 ): UploadersSetupStep[] {
   const base = uploadersBase(accountCode, projectCode);
   return [
+    {
+      id: "roles",
+      label: "Roles",
+      href: `${base}/roles`,
+      description: "Define hierarchy roles",
+    },
     {
       id: "designations",
       label: "Designations",
@@ -69,6 +75,7 @@ export function uploadersSetupSteps(
 }
 
 export function uploadersStepIdFromPath(pathname: string): UploadersSetupStep["id"] | null {
+  if (pathname.includes("/uploaders/roles")) return "roles";
   if (pathname.includes("/uploaders/designations")) return "designations";
   if (pathname.includes("/uploaders/users")) return "users";
   if (pathname.includes("/uploaders/stores")) return "stores";

@@ -128,6 +128,7 @@ export function projectAdminDrawerNav(
 export function uploadersTabs(accountCode: string, projectCode: string) {
   const base = `${projectAdminBase(accountCode, projectCode)}/uploaders`;
   return [
+    { label: "Roles", href: `${base}/roles` },
     { label: "Designations", href: `${base}/designations` },
     { label: "Users", href: `${base}/users` },
     { label: "Stores", href: `${base}/stores` },

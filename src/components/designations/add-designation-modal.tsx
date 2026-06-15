@@ -13,6 +13,7 @@ import { HIERARCHY_ROLES_UNAVAILABLE_MODAL } from "@/lib/designations/backend-ro
 export interface NewDesignationInput {
   name: string;
   roleId: string;
+  access?: string;
 }
 
 const TEMPLATE_HREF = "/templates/designation-bulk-template.csv";
@@ -33,6 +34,7 @@ export function AddDesignationModal({
   const [tab, setTab] = useState<"individual" | "bulk">("individual");
   const [name, setName] = useState("");
   const [roleId, setRoleId] = useState("");
+  const [access, setAccess] = useState<string>("BOTH");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,6 +49,7 @@ export function AddDesignationModal({
       setTab("individual");
       setName("");
       setRoleId("");
+      setAccess("BOTH");
       setErrors({});
       setSubmitting(false);
       setFile(null);
@@ -90,7 +93,7 @@ export function AddDesignationModal({
 
     if (tab === "individual") {
       if (!validateIndividual()) return;
-      items = [{ name: name.trim(), roleId }];
+      items = [{ name: name.trim(), roleId, access }];
     } else {
       if (parsedRows.length === 0) {
         setErrors({ form: "Add a file with at least one valid designation." });
@@ -196,6 +199,22 @@ export function AddDesignationModal({
                     routing.
                   </div>
                 )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Access</label>
+                <select
+                  className="form-input"
+                  value={access}
+                  onChange={(e) => setAccess(e.target.value)}
+                >
+                  <option value="BOTH">App + Web</option>
+                  <option value="MOBILE">Mobile Only</option>
+                  <option value="WEB">Web Only</option>
+                </select>
+                <div className="form-hint">
+                  Controls which platforms this designation can access.
+                </div>
               </div>
             </div>
           ) : (
