@@ -1,16 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { designationService } from "@/lib/api/designation-service";
-import { projectUsersService } from "@/lib/api/project-users-service";
-import type { UDFField, UDFValue } from "@/types/project-admin";
+import {
+  getRuntimeStaticField,
+  projectUsersService,
+} from "@/lib/api/project-users-service";
+import type {
+  UDFField,
+  UDFValue,
+  UserStaticField,
+} from "@/types/project-admin";
 
 interface AddUserModalProps {
   open: boolean;
   onClose: () => void;
   udfFields: UDFField[];
+  staticFields: UserStaticField[];
   projectId: string;
   onSuccess: () => void;
 }
@@ -19,6 +27,7 @@ export function AddUserModal({
   open,
   onClose,
   udfFields,
+  staticFields,
   projectId,
   onSuccess,
 }: AddUserModalProps) {
@@ -35,9 +44,14 @@ export function AddUserModal({
     { id: string; name: string }[]
   >([]);
   const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>({});
+  const [reportees, setReportees] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const reporteesField = useMemo(
+    () => getRuntimeStaticField(staticFields, "reportees"),
+    [staticFields],
+  );
 
   useEffect(() => {
     if (!open || !projectId) return;
@@ -61,6 +75,7 @@ export function AddUserModal({
         doj: "",
       });
       setUdfValues({});
+      setReportees([]);
       setErrors([]);
       setSubmitError(null);
     }
@@ -74,6 +89,9 @@ export function AddUserModal({
     if (!form.mobile) errs.push("mobile");
     if (!form.email) errs.push("email");
     if (!form.designation) errs.push("designation");
+    if (reporteesField?.mandatory && reportees.length === 0) {
+      errs.push(String(reporteesField.id));
+    }
     udfFields.forEach((f) => {
       const value = udfValues[f.fieldKey];
       const missing =
@@ -98,6 +116,7 @@ export function AddUserModal({
         email: form.email,
         phoneNumber: form.mobile,
         designationId: form.designation,
+        ...(reporteesField ? { reportees } : {}),
         dateOfJoining: form.doj || undefined,
         udfs: udfValues,
       });
@@ -211,6 +230,23 @@ export function AddUserModal({
           <input type="date" {...field("doj")} />
         </div>
       </div>
+
+      {reporteesField && (
+        <UDFFormFields
+          fields={[reporteesField]}
+          values={{ reportees }}
+          onChange={(values) =>
+            setReportees(
+              Array.isArray(values.reportees)
+                ? values.reportees.map(String)
+                : [],
+            )
+          }
+          errors={errors}
+          projectId={projectId}
+          prefix=""
+        />
+      )}
 
       {udfFields.length > 0 && (
         <>

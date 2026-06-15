@@ -8,11 +8,17 @@ import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
 import { EditUserModal } from "./edit-user-modal";
 import { AuditHistoryModal } from "@/components/project-admin/shared/audit-history-modal";
-import type { ProjectUser, UDFField, Status } from "@/types/project-admin";
+import type {
+  ProjectUser,
+  UDFField,
+  Status,
+  UserStaticField,
+} from "@/types/project-admin";
 
 interface UserTableProps {
   users: ProjectUser[];
   udfFields: UDFField[];
+  updateStaticFields: UserStaticField[];
   loading: boolean;
   projectId: string;
   onOpenUDFConfig: () => void;
@@ -25,6 +31,7 @@ const GRID = "1.5fr 140px 140px 120px 80px 100px";
 export function UserTable({
   users,
   udfFields,
+  updateStaticFields,
   loading,
   projectId,
   onOpenUDFConfig,
@@ -235,6 +242,7 @@ export function UserTable({
           open={!!editId}
           onClose={() => setEditId(null)}
           udfFields={udfFields}
+          staticFields={updateStaticFields}
           projectId={projectId}
           onSuccess={() => {
             setEditId(null);

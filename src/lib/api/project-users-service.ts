@@ -4,7 +4,13 @@
 
 import { apiClient } from "./api-client";
 import { udfConfigService } from "./udf-config-service";
-import type { UDFField, ProjectUser, UDFValue } from "@/types/project-admin";
+import type {
+  UDFField,
+  ProjectUser,
+  UDFValue,
+  UserStaticField,
+  UserStaticFields,
+} from "@/types/project-admin";
 import type { UdfSchemaField } from "./udf-config-service";
 
 const BASE = "/api/v1/users";
@@ -24,6 +30,7 @@ interface RawUser {
   createdAt?: string;
   dateOfJoining?: string;
   dateOfExit?: string;
+  reportees?: unknown[];
 }
 
 interface PaginatedUsers {
@@ -79,7 +86,23 @@ function normalizeUser(raw: RawUser): ProjectUser {
     doe: raw.dateOfExit ?? "",
     status: normalizeStatus(raw),
     udfs: normalizeUdfData(raw.udfData),
+    reporteeIds: normalizeReferenceIds(raw.reportees),
   };
+}
+
+function normalizeReferenceIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (typeof item === "string" || typeof item === "number") {
+        return String(item);
+      }
+      if (!item || typeof item !== "object" || Array.isArray(item)) return "";
+      const reference = item as Record<string, unknown>;
+      return String(reference._id ?? reference.id ?? reference.userId ?? "");
+    })
+    .filter(Boolean);
 }
 
 function normalizeUdfData(value: unknown): Record<string, UDFValue> {
@@ -217,6 +240,60 @@ function normalizeUdfSchemaFields(payload: unknown): UdfSchemaField[] {
   });
 }
 
+function normalizeStaticField(rawValue: unknown, index: number): UserStaticField {
+  const field = (rawValue ?? {}) as Record<string, unknown>;
+  const config =
+    field.config && typeof field.config === "object" && !Array.isArray(field.config)
+      ? (field.config as Record<string, unknown>)
+      : {};
+
+  return {
+    fieldKey: String(field.fieldKey ?? `field_${index + 1}`),
+    label: String(field.label ?? field.fieldKey ?? `Field ${index + 1}`),
+    type: String(field.type ?? "STRING").toUpperCase(),
+    required: Boolean(field.required),
+    sourceKey:
+      String(config.sourceKey ?? config.dataSource ?? "").trim() || undefined,
+    labelKey:
+      String(config.labelKey ?? config.labelField ?? "").trim() || undefined,
+    valueKey:
+      String(config.valueKey ?? config.valueField ?? "").trim() || undefined,
+    multiple: Boolean(config.multiple),
+  };
+}
+
+function normalizeStaticFields(payload: unknown): UserStaticFields {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { create: [], update: [] };
+  }
+
+  const fields = payload as Record<string, unknown>;
+  const create = Array.isArray(fields.create) ? fields.create : [];
+  const update = Array.isArray(fields.update) ? fields.update : [];
+  return {
+    create: create.map(normalizeStaticField),
+    update: update.map(normalizeStaticField),
+  };
+}
+
+function staticFieldToRuntimeField(
+  field: UserStaticField,
+  index: number,
+): UDFField {
+  return {
+    id: 100000 + index,
+    fieldKey: field.fieldKey,
+    name: field.label,
+    type: "dropdown",
+    values: [],
+    sourceKey: field.sourceKey,
+    labelKey: field.labelKey,
+    valueKey: field.valueKey,
+    multiple: field.multiple,
+    mandatory: field.required,
+  };
+}
+
 export interface CreateProjectUserInput {
   projectId: string;
   employeeId: string;
@@ -225,6 +302,7 @@ export interface CreateProjectUserInput {
   email: string;
   phoneNumber: string;
   designationId: string;
+  reportees?: string[];
   dateOfJoining?: string;
   udfs?: Record<string, UDFValue>;
 }
@@ -235,6 +313,7 @@ export interface UpdateProjectUserInput {
   email?: string;
   phoneNumber?: string;
   designationId?: string;
+  reportees?: string[];
   udfs?: Record<string, UDFValue>;
 }
 
@@ -329,7 +408,9 @@ export const projectUsersService = {
     projectId: string;
     entityType: string;
     udfFields: UdfSchemaField[];
+    runtimeUdfFields: UDFField[];
     staticFields: unknown;
+    runtimeStaticFields: UserStaticFields;
   } | null> {
     try {
       const res = await apiClient.get<{ data?: UserFormFieldsResponseData } | UserFormFieldsResponseData>(
@@ -340,11 +421,15 @@ export const projectUsersService = {
         : res) as UserFormFieldsResponseData | undefined;
       if (!payload || typeof payload !== "object") return null;
 
+      const staticFields = normalizeStaticFields(payload.staticFields);
+      const udfFields = normalizeUdfSchemaFields(payload.udfFields);
       return {
         projectId: String(payload.projectId ?? projectId),
         entityType: String(payload.entityType ?? "USER"),
-        udfFields: normalizeUdfSchemaFields(payload.udfFields),
+        udfFields,
+        runtimeUdfFields: schemaFieldsToRuntimeFields(payload.udfFields),
         staticFields: payload.staticFields ?? null,
+        runtimeStaticFields: staticFields,
       };
     } catch {
       return null;
@@ -369,6 +454,7 @@ export const projectUsersService = {
       designation: input.designationId,
       ...(input.dateOfJoining ? { dateOfJoining: input.dateOfJoining } : {}),
       ...(input.udfs ?? {}),
+      ...(input.reportees !== undefined ? { reportees: input.reportees } : {}),
     };
     await apiClient.post(BASE, payload);
   },
@@ -383,6 +469,7 @@ export const projectUsersService = {
         ? { designation: input.designationId }
         : {}),
       ...(input.udfs ?? {}),
+      ...(input.reportees !== undefined ? { reportees: input.reportees } : {}),
     };
     await apiClient.patch(`${BASE}/${encodeURIComponent(userId)}`, payload);
   },
@@ -406,3 +493,11 @@ export const projectUsersService = {
     );
   },
 };
+
+export function getRuntimeStaticField(
+  fields: UserStaticField[],
+  fieldKey: string,
+): UDFField | undefined {
+  const index = fields.findIndex((field) => field.fieldKey === fieldKey);
+  return index >= 0 ? staticFieldToRuntimeField(fields[index], index) : undefined;
+}
