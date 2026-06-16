@@ -172,9 +172,9 @@ export function VisitConfigPage({
       schemaFieldsByKey[allStoresSchemaKey]?.length,
   );
   const showLandingForms =
-    Boolean(activeDesignationId) &&
+    editor.designationIds.length > 0 &&
     editor.visitType === "store" &&
-    editor.storeMappingMode === "pjp";
+    (editor.storeMappingMode === "pjp" || hasPjpLandingForm || hasAllStoresLandingForm);
   const schemaKeys = useMemo(
     () =>
       [
@@ -549,12 +549,15 @@ export function VisitConfigPage({
     fieldSet: "pjp_only" | "all_mapped",
     config = activeConfig,
   ) {
-    if (!config) return;
-    const schemaKey =
-      config.landingPageConfig.fieldSets[fieldSet]?.udfSchemaKey ||
+    // For new configs that haven't been saved yet, use editor state
+    const designationId = config?.designationId || activeDesignationId || editor.designationIds[0];
+    if (!designationId) return;
+
+    const schemaKey = config?.landingPageConfig.fieldSets[fieldSet]?.udfSchemaKey ||
+      editor.landingPageConfig.fieldSets[fieldSet]?.udfSchemaKey ||
       (fieldSet === "pjp_only"
-        ? `${projectId}_${config.designationId}_landing_page_pjp`
-        : `${projectId}_${config.designationId}_landing_page_all_mapped`);
+        ? `${projectId}_${designationId}_landing_page_pjp`
+        : `${projectId}_${designationId}_landing_page_all_mapped`);
     setBuilderTarget({ kind: "landing", fieldSet });
     setBuilderLoading(true);
     setBuilderError(null);
@@ -569,7 +572,8 @@ export function VisitConfigPage({
       setBuilderFields(fields);
       setSavedBuilderFields(fields);
     } catch (error) {
-      setBuilderError(formatApiError(error, "Failed to load landing-page form"));
+      // If schema doesn't exist yet (404), start with empty form
+      setBuilderError(null);
       setBuilderFields([]);
       setSavedBuilderFields([]);
     } finally {
@@ -599,7 +603,9 @@ export function VisitConfigPage({
   }
 
   async function saveBuilder() {
-    if (!builderTarget || !activeDesignationId) return;
+    if (!builderTarget) return;
+    const designationId = activeDesignationId || editor.designationIds[0];
+    if (!designationId) return;
     setSaving(true);
     setBuilderError(null);
     try {
@@ -607,46 +613,55 @@ export function VisitConfigPage({
         await visitConfigService.publishTab(
           builderTarget.tab.tabId,
           projectId,
-          activeDesignationId,
+          designationId,
           builderFields,
         );
       } else {
-        const current = await visitConfigService.getConfig(projectId, activeDesignationId);
-        if (!current) throw new Error("Visit configuration not found");
+        // For new configs that don't exist yet, just save as draft with inline fields
         await visitConfigService.save({
-          ...buildPayload(activeDesignationId, "draft"),
+          ...buildPayload(designationId, "draft"),
           landingPageConfig: {
-            ...current.landingPageConfig,
+            ...editor.landingPageConfig,
             storeTypeToggle: {
               ...editor.landingPageConfig.storeTypeToggle,
-              enabled: editor.allowAllMappedStores,
+              enabled: editor.storeMappingMode === "pjp",
             },
             fieldSets: {
               pjp_only:
                 builderTarget.fieldSet === "pjp_only"
                   ? { fields: builderFields }
-                  : current.landingPageConfig.fieldSets.pjp_only,
+                  : editor.landingPageConfig.fieldSets.pjp_only,
               all_mapped:
                 builderTarget.fieldSet === "all_mapped"
                   ? { fields: builderFields }
-                  : current.landingPageConfig.fieldSets.all_mapped,
+                  : editor.landingPageConfig.fieldSets.all_mapped,
             },
           },
         }, true);
       }
       setSavedBuilderFields(builderFields);
-      const schemaKey =
-        builderTarget.kind === "tab"
-          ? builderTarget.tab.udfSchemaKey
-          : (await visitConfigService.getConfig(projectId, activeDesignationId))
-              ?.landingPageConfig.fieldSets[builderTarget.fieldSet]?.udfSchemaKey;
-      if (schemaKey) {
-        setSchemaFieldsByKey((current) => ({
-          ...current,
-          [schemaKey]: builderFields,
-        }));
+      // Update activeDesignationId if this was a first save
+      if (!activeDesignationId) {
+        setActiveDesignationId(designationId);
       }
-      await refreshActiveConfig();
+      const refreshed = await visitConfigService.getConfig(projectId, designationId);
+      if (refreshed) {
+        setEditor(toEditor(refreshed));
+        setConfigs((current) => [
+          ...current.filter((item) => item.designationId !== refreshed.designationId),
+          refreshed,
+        ]);
+        const schemaKey =
+          builderTarget.kind === "tab"
+            ? builderTarget.tab.udfSchemaKey
+            : refreshed.landingPageConfig.fieldSets[builderTarget.fieldSet]?.udfSchemaKey;
+        if (schemaKey) {
+          setSchemaFieldsByKey((current) => ({
+            ...current,
+            [schemaKey]: builderFields,
+          }));
+        }
+      }
       setToast({ type: "success", message: "Form saved and published." });
     } catch (error) {
       setBuilderError(formatApiError(error, "Failed to publish form"));

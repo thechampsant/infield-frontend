@@ -487,7 +487,7 @@ export function UDFConfigModal({
           <div style={{ display: "grid", gap: 16 }}>
             {schema.fields.map((field, index) => (
               <div
-                key={`${field.fieldKey}-${index}`}
+                key={index}
                 style={{
                   border: "1px solid var(--border)",
                   borderRadius: 12,
