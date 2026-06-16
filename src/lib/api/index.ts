@@ -108,6 +108,13 @@ export type {
 } from "./feature-wizard-service";
 export { featureConfigService } from "./feature-config-service";
 export type { FeatureConfigDto, FeatureModuleStatus, ProjectModuleState } from "./feature-config-service";
+export { storeService } from "./store-service";
+export type {
+  StoreRecord,
+  BulkStoreResult,
+  CreateStoreInput,
+  UpdateStoreInput,
+} from "./store-service";
 
 // Re-export types
 export type { AdminApi } from "./admin";
