@@ -727,23 +727,58 @@ function RegularizationSettings({
             </>
           )}
 
-          <div className="section-divider">Auto-reject</div>
+          <div className="section-divider">Auto approval</div>
           <SettingRow
-            label="Enable auto-reject"
+            label="Enable auto approval"
+            checked={form.autoApprovalEnabled}
+            onChange={(v) => onChange("autoApprovalEnabled", v)}
+          />
+          {form.autoApprovalEnabled && (
+            <>
+              <div className="wh-row">
+                <span className="wh-label">Approve after</span>
+                <input
+                  type="number"
+                  className="wh-input"
+                  min={0}
+                  max={90}
+                  value={form.autoApprovalAfterDays}
+                  onChange={(e) => onChange("autoApprovalAfterDays", numberValue(e.target.value))}
+                />
+                <span className="wh-unit">days</span>
+              </div>
+              <FieldError message={errors.autoApprovalAfterDays} />
+              <SettingRow
+                label="Approve all remaining levels"
+                checked={form.autoApprovalAllLevels}
+                onChange={(v) => onChange("autoApprovalAllLevels", v)}
+              />
+            </>
+          )}
+
+          <div className="section-divider">Auto reject</div>
+          <SettingRow
+            label="Enable auto reject"
             checked={form.autoRejectEnabled}
             onChange={(v) => onChange("autoRejectEnabled", v)}
           />
           {form.autoRejectEnabled && (
-            <FormGroup label="Rule">
-              <input
-                className="form-input"
-                value={form.autoRejectRules}
-                placeholder="e.g. Auto reject if no action in 3 days"
-                onChange={(e) => onChange("autoRejectRules", e.target.value)}
-              />
-            </FormGroup>
+            <>
+              <div className="wh-row">
+                <span className="wh-label">Reject after</span>
+                <input
+                  type="number"
+                  className="wh-input"
+                  min={0}
+                  max={90}
+                  value={form.autoRejectAfterDays}
+                  onChange={(e) => onChange("autoRejectAfterDays", numberValue(e.target.value))}
+                />
+                <span className="wh-unit">days</span>
+              </div>
+            </>
           )}
-          <FieldError message={errors.autoRejectRules} />
+          <FieldError message={errors.autoRejectAfterDays} />
         </>
       )}
     </div>

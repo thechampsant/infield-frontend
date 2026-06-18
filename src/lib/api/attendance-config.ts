@@ -86,6 +86,17 @@ export interface WorkingHoursConfigDto {
 
 export type RegWindowType = "Days" | "Date Range";
 
+export interface AutoRejectRulesDto {
+  isEnabled: boolean;
+  afterDays: number;
+}
+
+export interface AutoApprovalRulesDto {
+  isEnabled: boolean;
+  afterDays: number;
+  approveAllLevels?: boolean;
+}
+
 export interface RegularizationConfigDto {
   isEnabled: boolean;
   windowType: RegWindowType;
@@ -96,7 +107,8 @@ export interface RegularizationConfigDto {
   maxRequestsLimit?: number;
   isApprovalFlowEnabled: boolean;
   approvalHierarchy: string[];
-  autoRejectRules: string;
+  autoRejectRules?: string | AutoRejectRulesDto;
+  autoApprovalRules?: AutoApprovalRulesDto;
 }
 
 export interface LeaveModuleConfigDto {
@@ -194,8 +206,11 @@ export interface AttendanceConfigForm {
   regMaxRequestCount: number;
   regApprovalEnabled: boolean;
   approvalLevels: ApprovalLevelForm[];
+  autoApprovalEnabled: boolean;
+  autoApprovalAfterDays: number;
+  autoApprovalAllLevels: boolean;
   autoRejectEnabled: boolean;
-  autoRejectRules: string;
+  autoRejectAfterDays: number;
 
   autoWeekOffEnabled: boolean;
 }
@@ -266,11 +281,35 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   regMaxRequestCount: 5,
   regApprovalEnabled: true,
   approvalLevels: [{ role: "Manager 1" }, { role: "Manager 2" }],
+  autoApprovalEnabled: false,
+  autoApprovalAfterDays: 3,
+  autoApprovalAllLevels: false,
   autoRejectEnabled: false,
-  autoRejectRules: "",
+  autoRejectAfterDays: 3,
 
   autoWeekOffEnabled: false,
 };
+
+function parseLegacyRuleDays(rule: unknown, fallback: number): number {
+  if (rule && typeof rule === "object" && "afterDays" in rule) {
+    const days = Number((rule as { afterDays?: unknown }).afterDays);
+    return Number.isFinite(days) ? days : fallback;
+  }
+
+  if (typeof rule === "string") {
+    const match = rule.match(/\d+/);
+    if (match) {
+      const days = Number(match[0]);
+      return Number.isFinite(days) ? days : fallback;
+    }
+  }
+
+  return fallback;
+}
+
+function isStructuredRuleEnabled(rule: unknown): boolean {
+  return Boolean(rule && typeof rule === "object" && (rule as { isEnabled?: unknown }).isEnabled === true);
+}
 
 // ─────────────────────────────────────────────────────────────
 // Mappers: backend doc → UI form
@@ -344,8 +383,11 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
       Array.isArray(reg?.approvalHierarchy) && reg.approvalHierarchy.length
         ? reg.approvalHierarchy.map((role) => ({ role }))
         : DEFAULT_CONFIG_FORM.approvalLevels.map((a) => ({ ...a })),
-    autoRejectEnabled: Boolean(reg?.autoRejectRules),
-    autoRejectRules: reg?.autoRejectRules ?? "",
+    autoApprovalEnabled: Boolean(reg?.autoApprovalRules?.isEnabled),
+    autoApprovalAfterDays: reg?.autoApprovalRules?.afterDays ?? DEFAULT_CONFIG_FORM.autoApprovalAfterDays,
+    autoApprovalAllLevels: Boolean(reg?.autoApprovalRules?.approveAllLevels),
+    autoRejectEnabled: isStructuredRuleEnabled(reg?.autoRejectRules),
+    autoRejectAfterDays: parseLegacyRuleDays(reg?.autoRejectRules, DEFAULT_CONFIG_FORM.autoRejectAfterDays),
 
     autoWeekOffEnabled: Boolean(doc.leaveModule?.autoWeekOff),
   };
@@ -415,7 +457,15 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       approvalHierarchy: form.approvalLevels
         .map((a) => a.role.trim())
         .filter(Boolean),
-      autoRejectRules: form.autoRejectEnabled ? form.autoRejectRules.trim() : "",
+      autoApprovalRules: {
+        isEnabled: form.autoApprovalEnabled,
+        afterDays: form.autoApprovalAfterDays,
+        approveAllLevels: form.autoApprovalAllLevels,
+      },
+      autoRejectRules: {
+        isEnabled: form.autoRejectEnabled,
+        afterDays: form.autoRejectAfterDays,
+      },
     },
     leaveModule: { autoWeekOff: form.autoWeekOffEnabled },
   };
