@@ -71,6 +71,15 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     comingSoon: false,
   },
   {
+    id: "form-builder",
+    name: "Form Builder",
+    description: "Create and manage custom forms for field data collection.",
+    accent: "purple",
+    defaultEnabled: true,
+    comingSoon: false,
+    configPath: "form-builder",
+  },
+  {
     id: "sales",
     name: "Sales",
     description: "Capture sales data and performance metrics.",
