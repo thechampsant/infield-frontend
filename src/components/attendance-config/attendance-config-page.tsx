@@ -635,8 +635,18 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
       errors.approvalLevels = "Add at least one approval level.";
     }
 
-    if (form.autoRejectEnabled && !form.autoRejectRules.trim()) {
-      errors.autoRejectRules = "Describe the auto-reject rule.";
+    if (
+      form.autoApprovalEnabled &&
+      (form.autoApprovalAfterDays < 0 || form.autoApprovalAfterDays > 90)
+    ) {
+      errors.autoApprovalAfterDays = "Auto approval days must be between 0 and 90.";
+    }
+
+    if (
+      form.autoRejectEnabled &&
+      (form.autoRejectAfterDays < 0 || form.autoRejectAfterDays > 90)
+    ) {
+      errors.autoRejectAfterDays = "Auto reject days must be between 0 and 90.";
     }
   }
 
