@@ -14,6 +14,8 @@ import { useProjectContext } from "@/lib/project-admin/project-context";
 export function ModulesConfigurationPage() {
   const { projectId, accountCode, projectCode, loading: ctxLoading } =
     useProjectContext();
+
+    
   const base = projectAdminBase(accountCode, projectCode);
 
   const [modules, setModules] = useState<ProjectModuleState[]>([]);

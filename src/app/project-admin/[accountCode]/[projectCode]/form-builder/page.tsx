@@ -1,11 +1,5 @@
-import { PaPlaceholder } from "@/components/project-admin/pa-placeholder";
+import { FormConfigListPage } from "@/components/project-admin/form-builder/configurations/form-config-list-page";
 
 export default function FormBuilderPage() {
-  return (
-    <PaPlaceholder
-      eyebrow="Setup"
-      title="Form Builder"
-      description="Build and manage dynamic forms for field data capture."
-    />
-  );
+  return <FormConfigListPage />;
 }
