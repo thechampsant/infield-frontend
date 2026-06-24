@@ -29,6 +29,16 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     configPath: "modules/attendance",
   },
   {
+    id: "leave",
+    name: "Leave",
+    description:
+      "Manage leave policies, balances, approval workflows, and holidays.",
+    accent: "teal",
+    defaultEnabled: false,
+    comingSoon: false,
+    configPath: "modules/leave",
+  },
+  {
     id: "claims",
     name: "Claims",
     description: "Manage expense claims and approval workflows.",

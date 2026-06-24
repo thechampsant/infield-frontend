@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Bell,
+  CalendarDays,
   Clock,
   FolderOpen,
   LayoutGrid,
@@ -17,6 +18,7 @@ import type { ProjectModuleState } from "@/lib/api/feature-config-service";
 
 const ICONS: Record<string, LucideIcon> = {
   attendance: Clock,
+  leave: CalendarDays,
   claims: Wallet,
   visits: MapPin,
   resources: FolderOpen,
@@ -38,6 +40,7 @@ interface ModuleCardProps {
   configHref?: string;
   onToggle?: (enabled: boolean) => void;
   onConfigUnavailable?: () => void;
+  alwaysShowConfig?: boolean;
 }
 
 export function ModuleCard({
@@ -45,6 +48,7 @@ export function ModuleCard({
   configHref,
   onToggle,
   onConfigUnavailable,
+  alwaysShowConfig = false,
 }: ModuleCardProps) {
   const Icon = ICONS[definition.id] ?? LayoutGrid;
   const planned = definition.comingSoon;
@@ -82,7 +86,7 @@ export function ModuleCard({
           <span className="pa-mod-toggle-label">{toggleLabel}</span>
         </label>
 
-        {!planned && enabled && (
+        {!planned && (enabled || alwaysShowConfig) && (
           configHref ? (
             <Link href={configHref} className="pa-mod-config-btn">
               Go to Configuration
