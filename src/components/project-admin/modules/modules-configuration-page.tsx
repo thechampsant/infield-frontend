@@ -8,6 +8,7 @@ import {
   featureConfigService,
   type ProjectModuleState,
 } from "@/lib/api/feature-config-service";
+import { leaveConfigService } from "@/lib/api/leave-config-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 
@@ -22,6 +23,7 @@ export function ModulesConfigurationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [savingModuleId, setSavingModuleId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -42,8 +44,9 @@ export function ModulesConfigurationPage() {
     load();
   }, [ctxLoading, projectId, load]);
 
-  function handleToggle(moduleId: string, enabled: boolean) {
+  async function handleToggle(moduleId: string, enabled: boolean) {
     let moduleName = "Module";
+    const previous = modules.find((m) => m.definition.id === moduleId)?.enabled;
     setModules((prev) =>
       prev.map((m) => {
         if (m.definition.id === moduleId) {
@@ -53,13 +56,45 @@ export function ModulesConfigurationPage() {
         return m;
       }),
     );
-    const name = moduleName;
-    setToast({
-      type: "success",
-      message: enabled
-        ? `${name} enabled. Changes take effect immediately.`
-        : `${name} disabled. Changes take effect immediately.`,
-    });
+
+    try {
+      if (moduleId === "leave") {
+        if (!projectId) throw new Error("Project not found");
+        setSavingModuleId(moduleId);
+        if (enabled) {
+          await leaveConfigService.activate(projectId);
+        } else {
+          await leaveConfigService.deactivate(projectId);
+        }
+      }
+
+      const name = moduleName;
+      setToast({
+        type: "success",
+        message: enabled
+          ? `${name} enabled. Changes take effect immediately.`
+          : `${name} disabled. Changes take effect immediately.`,
+      });
+    } catch (err) {
+      if (typeof previous === "boolean") {
+        setModules((prev) =>
+          prev.map((m) =>
+            m.definition.id === moduleId ? { ...m, enabled: previous } : m,
+          ),
+        );
+      }
+      setToast({
+        type: "error",
+        message: formatApiError(
+          err,
+          enabled
+            ? "Leave could not be activated. Complete configuration first."
+            : "Leave could not be deactivated.",
+        ),
+      });
+    } finally {
+      if (moduleId === "leave") setSavingModuleId(null);
+    }
   }
 
   function handleConfigUnavailable(name: string) {
@@ -111,12 +146,15 @@ export function ModulesConfigurationPage() {
               ? "modules/visit"
               : mod.definition.configPath;
           const configHref =
-            path && mod.enabled ? `${base}/${path}` : undefined;
+            path && (mod.enabled || mod.definition.id === "leave")
+              ? `${base}/${path}`
+              : undefined;
           return (
             <ModuleCard
               key={mod.definition.id}
               module={mod}
               configHref={configHref}
+              alwaysShowConfig={mod.definition.id === "leave"}
               onToggle={(enabled) =>
                 handleToggle(mod.definition.id, enabled)
               }
@@ -127,6 +165,12 @@ export function ModulesConfigurationPage() {
           );
         })}
       </div>
+
+      {savingModuleId && (
+        <div className="pa-info-banner" style={{ marginTop: 14 }}>
+          Updating module status…
+        </div>
+      )}
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </>

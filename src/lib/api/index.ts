@@ -95,6 +95,23 @@ export type {
   VisitSessionConfig,
   VisitType,
 } from "./visit-config-service";
+export { leaveConfigService } from "./leave-config-service";
+export type {
+  HolidayUploadResponse,
+  HolidayUploadSummary,
+  LeaveApprovalLevel,
+  LeaveAutoAction,
+  LeaveConfigDocument,
+  LeaveConfigResponse,
+  LeaveCreditRuleType,
+  LeaveEntitlementType,
+  LeaveHoliday,
+  LeaveHolidayType,
+  LeavePolicy,
+  LeaveTypeConfig,
+  LeaveVisibility,
+  LeaveYear,
+} from "./leave-config-service";
 export {
   featureWizardService,
   getWizardFlow,
