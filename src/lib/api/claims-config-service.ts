@@ -65,6 +65,7 @@ export interface ClaimsTemplateDocument {
   projectId: string;
   isTemplate: boolean;
   templateName: string;
+  designationId?: string;
   applicableDesignations: string[];
   isModuleEnabled: boolean;
   backdateConfig?: ClaimsBackdateConfig;
@@ -308,21 +309,29 @@ function normalizeClaimsTemplate(
   const data = unwrapApiData(payload) as RawRecord | undefined;
   const raw = asRecord(data ?? payload);
   const claimTypesRaw = Array.isArray(raw.claimTypes) ? raw.claimTypes : [];
+  const isTemplate = booleanValue(raw.isTemplate, true);
+  const designationId = stringValue(raw.designationId);
   const applicableDesignations = Array.isArray(raw.applicableDesignations)
     ? raw.applicableDesignations.map((item) => stringValue(item)).filter(Boolean)
-    : [];
+    : designationId
+      ? [designationId]
+      : [];
   const id = stringValue(raw._id) || stringValue(raw.id) || `template_${fallback.projectId}`;
+  const ownerId = isTemplate ? id : designationId || id;
 
   return {
     id,
     projectId: stringValue(raw.projectId) || fallback.projectId,
-    isTemplate: booleanValue(raw.isTemplate, true),
-    templateName: stringValue(raw.templateName) || "Untitled Claims Template",
+    isTemplate,
+    templateName:
+      stringValue(raw.templateName) ||
+      (isTemplate ? "Untitled Claims Template" : `Direct - ${designationId || "Designation"}`),
+    designationId: designationId || undefined,
     applicableDesignations,
     isModuleEnabled: booleanValue(raw.isModuleEnabled),
     backdateConfig: normalizeBackdateConfig(raw.backdateConfig),
     claimTypes: claimTypesRaw.map((item) =>
-      normalizeClaimType(item, fallback.projectId, id),
+      normalizeClaimType(item, fallback.projectId, ownerId),
     ),
     createdAt: stringValue(raw.createdAt) || undefined,
     updatedAt: stringValue(raw.updatedAt) || undefined,

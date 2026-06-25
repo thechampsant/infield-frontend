@@ -1,11 +1,16 @@
-import { PaPlaceholder } from "@/components/project-admin/pa-placeholder";
+"use client";
 
-export default function ReportsPage() {
+import { use } from "react";
+import { ReportListingPage } from "@/components/reports/report-listing/report-listing-page";
+
+export default function ReportsPage({
+  params,
+}: {
+  params: Promise<{ accountCode: string; projectCode: string }>;
+}) {
+  const { accountCode, projectCode } = use(params);
+
   return (
-    <PaPlaceholder
-      eyebrow="Setup"
-      title="Reports"
-      description="Project-level reports and analytics will appear here."
-    />
+    <ReportListingPage accountCode={accountCode} projectCode={projectCode} />
   );
 }

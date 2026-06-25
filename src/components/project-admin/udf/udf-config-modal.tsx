@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { formatApiError, udfConfigService } from "@/lib/api";
 import { projectUsersService } from "@/lib/api/project-users-service";
+import { storeService } from "@/lib/api/store-service";
 import type {
   UdfConfigScope,
   UdfDataSourceDefinition,
@@ -174,11 +175,22 @@ export function UDFConfigModal({
                     }
                   : null,
               )
-            : udfConfigService.getSchema({
-                projectId,
-                entityType,
-                schemaKey: DEFAULT_SCHEMA_KEY,
-              }),
+            : scope === "store"
+              ? storeService.getFormFieldsConfig(projectId).then((config) =>
+                  config
+                    ? {
+                        projectId: config.projectId,
+                        entityType: config.entityType,
+                        schemaKey: DEFAULT_SCHEMA_KEY,
+                        fields: config.udfFields,
+                      }
+                    : null,
+                )
+              : udfConfigService.getSchema({
+                  projectId,
+                  entityType,
+                  schemaKey: DEFAULT_SCHEMA_KEY,
+                }),
           udfConfigService.getFieldTypes(),
           udfConfigService.getSources(),
         ]);
@@ -387,6 +399,11 @@ export function UDFConfigModal({
     try {
       if (scope === "user") {
         await projectUsersService.saveUserSchema({
+          projectId,
+          fields: normalizedFields,
+        });
+      } else if (scope === "store") {
+        await storeService.saveStoreSchema({
           projectId,
           fields: normalizedFields,
         });
