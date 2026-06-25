@@ -132,6 +132,24 @@ export type {
   CreateStoreInput,
   UpdateStoreInput,
 } from "./store-service";
+export { reportConfigService } from "./report-config-service";
+export type {
+  ReportDataSource,
+  ReportFieldMetadata,
+  ReportSelectedColumn,
+  ReportCalculatedField,
+  ReportFilter,
+  ReportOutputSettings,
+  ReportJoinConfig,
+  ReportDataScope,
+  ReportConfigDocument,
+  CreateReportConfigInput,
+  UpdateReportConfigInput,
+  ExecuteReportParams,
+  ExecuteReportResponse,
+  ExportReportParams,
+  PreviewReportParams,
+} from "./report-config-service";
 
 // Re-export types
 export type { AdminApi } from "./admin";

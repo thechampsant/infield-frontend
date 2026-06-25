@@ -80,6 +80,7 @@ function extractUdfs(raw: RawStore): Record<string, string | string[]> {
 
 function normalizeStore(raw: RawStore): StoreRecord {
   const backendId = raw._id ?? raw.id ?? "";
+  const projectRef = raw.projectId;
   return {
     backendId: String(backendId),
     storeCode: raw.storeCode ?? "",
@@ -88,7 +89,9 @@ function normalizeStore(raw: RawStore): StoreRecord {
     longitude: raw.longitude ?? 0,
     projectId: typeof raw.projectId === "string"
       ? raw.projectId
-      : (raw.projectId as any)?._id ?? "",
+      : projectRef && typeof projectRef === "object"
+        ? String(projectRef._id ?? "")
+        : "",
     storeType: raw.store_type,
     isActive: raw.isActive !== false,
     udfs: extractUdfs(raw),
@@ -187,6 +190,30 @@ export interface UpdateStoreInput {
   udfs?: Record<string, string | string[]>;
 }
 
+export interface SaveStoreSchemaInput {
+  projectId: string;
+  fields: UdfSchemaField[];
+}
+
+function normalizeStoreSchemaFieldForSave(
+  field: UdfSchemaField,
+  index: number,
+): Record<string, unknown> {
+  return {
+    fieldKey: field.fieldKey,
+    label: field.label,
+    type: field.type,
+    ...(field.required !== undefined ? { required: field.required } : {}),
+    order: field.order ?? index + 1,
+    ...(field.status !== undefined ? { status: field.status } : {}),
+    ...(field.summaryKey !== undefined ? { summaryKey: field.summaryKey } : {}),
+    ...(field.visibilityRules ? { visibilityRules: field.visibilityRules } : {}),
+    ...(field.config && typeof field.config === "object" && !Array.isArray(field.config)
+      ? { config: field.config }
+      : {}),
+  };
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export const storeService = {
@@ -260,6 +287,13 @@ export const storeService = {
     } catch {
       return null;
     }
+  },
+
+  async saveStoreSchema(input: SaveStoreSchemaInput): Promise<void> {
+    await apiClient.post(`${BASE}/schema`, {
+      projectId: input.projectId,
+      fields: input.fields.map(normalizeStoreSchemaFieldForSave),
+    });
   },
 
   /** Create a single store. */

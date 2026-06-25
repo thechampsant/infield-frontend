@@ -133,12 +133,14 @@ function createEmptyTemplate(): EditorTemplate {
 
 function toEditorTemplate(template: ClaimsTemplateDocument | null): EditorTemplate {
   if (!template) return createEmptyTemplate();
+  const configType: ConfigType = template.isTemplate ? "template" : "direct";
+  const directDesignationId = template.designationId ?? template.applicableDesignations[0] ?? "";
   return {
     id: template.id,
-    configType: "template",
+    configType,
     templateName: template.templateName,
-    designationIds: template.applicableDesignations,
-    designationId: "",
+    designationIds: template.isTemplate ? template.applicableDesignations : [],
+    designationId: directDesignationId,
     isModuleEnabled: template.isModuleEnabled,
     backdateEnabled: template.backdateConfig?.isEnabled ?? false,
     backdateDays:
@@ -394,6 +396,18 @@ export function ClaimsConfigPage({
     () => new Map(designations.map((designation) => [designation.id, designation.name] as const)),
     [designations],
   );
+
+  function getConfigDisplayName(template: ClaimsTemplateDocument): string {
+    if (template.isTemplate) return template.templateName;
+    const designationId = template.designationId ?? template.applicableDesignations[0] ?? "";
+    const designationName = designationNameById.get(designationId);
+    return designationName ? `Direct - ${designationName}` : template.templateName;
+  }
+
+  const activeConfigurationLabel =
+    configType === "direct" && activeTemplate.designationId
+      ? `Direct - ${designationNameById.get(activeTemplate.designationId) ?? activeTemplate.designationId}`
+      : activeTemplate.templateName.trim() || "New Configuration";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -893,7 +907,7 @@ export function ClaimsConfigPage({
                     <div className="claims-configCard__index">{index + 1}</div>
                     <div className="claims-configCard__body">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <strong>{template.templateName}</strong>
+                        <strong>{getConfigDisplayName(template)}</strong>
                         <span className={`claims-statusPill ${template.isTemplate ? '' : 'active'}`} style={{ fontSize: '9px' }}>
                           {template.isTemplate ? 'TEMPLATE' : 'DIRECT'}
                         </span>
@@ -947,7 +961,7 @@ export function ClaimsConfigPage({
                 <div>
                   <div className="claims-titleSm">
                     Claims Setup ·{" "}
-                    <span>{activeTemplate.templateName.trim() || "New Configuration"}</span>
+                    <span>{activeConfigurationLabel}</span>
                   </div>
                   <div className="claims-subtitleSm">Step 1 of 2 · Configuration Editor</div>
                 </div>
