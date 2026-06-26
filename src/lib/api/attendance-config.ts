@@ -157,7 +157,10 @@ export interface AttendanceTypeForm {
 }
 
 export interface ApprovalLevelForm {
-  role: string;
+  /** Designation ObjectId — sent to the backend */
+  designationId: string;
+  /** Human-readable designation name — display only */
+  designationName: string;
 }
 
 export interface AttendanceConfigForm {
@@ -280,7 +283,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   regMaxRequestsEnabled: false,
   regMaxRequestCount: 5,
   regApprovalEnabled: true,
-  approvalLevels: [{ role: "Manager 1" }, { role: "Manager 2" }],
+  approvalLevels: [],
   autoApprovalEnabled: false,
   autoApprovalAfterDays: 3,
   autoApprovalAllLevels: false,
@@ -381,8 +384,8 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     regApprovalEnabled: reg?.isApprovalFlowEnabled ?? DEFAULT_CONFIG_FORM.regApprovalEnabled,
     approvalLevels:
       Array.isArray(reg?.approvalHierarchy) && reg.approvalHierarchy.length
-        ? reg.approvalHierarchy.map((role) => ({ role }))
-        : DEFAULT_CONFIG_FORM.approvalLevels.map((a) => ({ ...a })),
+        ? reg.approvalHierarchy.map((id) => ({ designationId: id, designationName: '' }))
+        : [],
     autoApprovalEnabled: Boolean(reg?.autoApprovalRules?.isEnabled),
     autoApprovalAfterDays: reg?.autoApprovalRules?.afterDays ?? DEFAULT_CONFIG_FORM.autoApprovalAfterDays,
     autoApprovalAllLevels: Boolean(reg?.autoApprovalRules?.approveAllLevels),
@@ -455,7 +458,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       maxRequestsLimit: form.regMaxRequestCount,
       isApprovalFlowEnabled: form.regApprovalEnabled,
       approvalHierarchy: form.approvalLevels
-        .map((a) => a.role.trim())
+        .map((a) => a.designationId.trim())
         .filter(Boolean),
       autoApprovalRules: {
         isEnabled: form.autoApprovalEnabled,

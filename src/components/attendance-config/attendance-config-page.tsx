@@ -332,6 +332,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
           {step === "configuration" ? (
             <div className="att-setup-panel">
               <AttendanceConfigEdit
+                projectId={projectId}
                 projectName={projectName}
                 form={form}
                 errors={errors}
@@ -630,9 +631,17 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
 
     if (
       form.regApprovalEnabled &&
-      form.approvalLevels.filter((level) => level.role.trim()).length === 0
+      form.approvalLevels.filter((level) => level.designationId.trim()).length === 0
     ) {
       errors.approvalLevels = "Add at least one approval level.";
+    }
+
+    // Also flag any levels where no designation was selected
+    if (
+      form.regApprovalEnabled &&
+      form.approvalLevels.some((level) => !level.designationId.trim())
+    ) {
+      errors.approvalLevels = "All approval levels must have a designation selected.";
     }
 
     if (
