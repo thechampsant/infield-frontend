@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   AttendanceConfigForm,
   AttendanceTypeForm,
@@ -8,6 +8,7 @@ import type {
   PhotoSource,
   RegWindowType,
 } from "@/lib/api/attendance-config";
+import { designationService, type Designation } from "@/lib/api/designation-service";
 
 type ChangeFn = <K extends keyof AttendanceConfigForm>(
   key: K,
@@ -15,6 +16,7 @@ type ChangeFn = <K extends keyof AttendanceConfigForm>(
 ) => void;
 
 interface Props {
+  projectId: string;
   projectName: string;
   form: AttendanceConfigForm;
   errors: Record<string, string>;
@@ -26,6 +28,7 @@ interface Props {
 }
 
 export function AttendanceConfigEdit({
+  projectId,
   projectName,
   form,
   errors,
@@ -39,6 +42,11 @@ export function AttendanceConfigEdit({
     basic: true,
   });
   const [addTypeModal, setAddTypeModal] = useState(false);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+
+  useEffect(() => {
+    designationService.listByProject(projectId).then(setDesignations).catch(() => {});
+  }, [projectId]);
 
   const toggleSection = (id: string) =>
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -485,7 +493,7 @@ export function AttendanceConfigEdit({
         open={openSections.reg}
         onToggle={() => toggleSection("reg")}
       >
-        <RegularizationSettings form={form} errors={errors} onChange={onChange} />
+        <RegularizationSettings form={form} errors={errors} designations={designations} onChange={onChange} />
       </Section>
 
       <Section
@@ -583,10 +591,12 @@ function updateType(
 function RegularizationSettings({
   form,
   errors,
+  designations,
   onChange,
 }: {
   form: AttendanceConfigForm;
   errors: Record<string, string>;
+  designations: Designation[];
   onChange: ChangeFn;
 }) {
   return (
@@ -684,41 +694,71 @@ function RegularizationSettings({
           />
           {form.regApprovalEnabled && (
             <>
-              {form.approvalLevels.map((a, i) => (
-                <div key={i} className="approval-step">
-                  <div className="approval-num">{i + 1}</div>
-                  <div className="approval-info">
-                    <input
-                      className="form-input form-input-inline"
-                      value={a.role}
-                      onChange={(e) => {
-                        const next = form.approvalLevels.map((lvl, x) =>
-                          x === i ? { ...lvl, role: e.target.value } : lvl,
-                        );
-                        onChange("approvalLevels", next);
-                      }}
-                    />
-                  </div>
-                  <button
-                    className="btn btn-sm btn-danger-ghost"
-                    onClick={() =>
-                      onChange(
-                        "approvalLevels",
-                        form.approvalLevels.filter((_, x) => x !== i),
-                      )
-                    }
-                  >
-                    Remove
-                  </button>
+              {designations.length === 0 && (
+                <div className="flat-mode-note" style={{ color: "var(--amber-700, #b45309)" }}>
+                  No designations found for this project. Create designations first before configuring approval levels.
                 </div>
-              ))}
+              )}
+              {form.approvalLevels.map((level, i) => {
+                const resolvedName =
+                  level.designationName ||
+                  designations.find((d) => d.id === level.designationId)?.name ||
+                  level.designationId;
+
+                return (
+                  <div key={i} className="approval-step">
+                    <div className="approval-num">{i + 1}</div>
+                    <div className="approval-info">
+                      <select
+                        className="form-input form-input-inline"
+                        value={level.designationId}
+                        onChange={(e) => {
+                          const selected = designations.find((d) => d.id === e.target.value);
+                          const next = form.approvalLevels.map((lvl, x) =>
+                            x === i
+                              ? {
+                                  designationId: selected?.id ?? '',
+                                  designationName: selected?.name ?? '',
+                                }
+                              : lvl,
+                          );
+                          onChange("approvalLevels", next);
+                        }}
+                      >
+                        <option value="">— Select designation —</option>
+                        {designations.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                        {level.designationId &&
+                          !designations.find((d) => d.id === level.designationId) && (
+                          <option value={level.designationId}>{resolvedName}</option>
+                        )}
+                      </select>
+                    </div>
+                    <button
+                      className="btn btn-sm btn-danger-ghost"
+                      onClick={() =>
+                        onChange(
+                          "approvalLevels",
+                          form.approvalLevels.filter((_, x) => x !== i),
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                );
+              })}
               <FieldError message={errors.approvalLevels} />
               <button
                 className="btn btn-secondary btn-sm"
+                disabled={designations.length === 0}
                 onClick={() =>
                   onChange("approvalLevels", [
                     ...form.approvalLevels,
-                    { role: `Manager ${form.approvalLevels.length + 1}` },
+                    { designationId: '', designationName: '' },
                   ])
                 }
               >
