@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Download, Filter, Loader2, Play } from "lucide-react";
 import { reportConfigService } from "@/lib/api/report-config-service";
 import type {
   ReportConfigDocument,
+  ReportCalculatedField,
   ReportFilter,
   ReportSelectedColumn,
-  ExecuteReportResponse,
 } from "@/lib/api/report-config-service";
 import { ReportDataTable } from "./report-data-table";
 
@@ -59,7 +59,20 @@ export function ReportViewPage({
         const cfg = await reportConfigService.getConfig(reportId);
         if (!mounted) return;
         setConfig(cfg);
-        setColumns(cfg.selectedColumns || []);
+
+        // Build full column list: selected source columns + calculated fields
+        const calcColumns = (cfg.calculatedFields || []).map((cf: ReportCalculatedField) => ({
+          fieldKey: cf.fieldName,
+          sourceKey: 'calculated',
+          headerName: cf.fieldName,
+          order: (cfg.selectedColumns?.length || 0) + cf.order,
+          fieldType:
+            cf.dataType === 'number' ? 'NUM'
+            : cf.dataType === 'date' ? 'DATE'
+            : cf.dataType === 'boolean' ? 'BOOL'
+            : 'TXT',
+        }));
+        setColumns([...(cfg.selectedColumns || []), ...calcColumns]);
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : "Failed to load report");
@@ -96,7 +109,8 @@ export function ReportViewPage({
         });
         clearTimeout(timeout);
         setData(result.data || []);
-        setTotalCount((result as any).meta?.totalCount ?? result.totalCount ?? 0);
+        const meta = "meta" in result ? result.meta : undefined;
+        setTotalCount(meta?.totalCount ?? result.totalCount ?? 0);
         setPage(requestedPage);
         setDataLoaded(true);
       } catch (err) {
@@ -170,7 +184,7 @@ export function ReportViewPage({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     );
@@ -178,12 +192,12 @@ export function ReportViewPage({
 
   if (error || !config) {
     return (
-      <div className="max-w-2xl mx-auto py-12 text-center">
-        <p className="text-red-600 mb-4">{error || "Report not found"}</p>
+      <div className="mx-auto max-w-2xl rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-8 text-center">
+        <p className="mb-4 text-sm font-medium text-[#e8382d]">{error || "Report not found"}</p>
         <button
           type="button"
           onClick={() => router.push(baseUrl)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="rounded-lg bg-[#1e5fa8] px-4 py-2 text-sm font-bold text-white hover:bg-[#174d88]"
         >
           Back to Reports
         </button>
@@ -195,62 +209,66 @@ export function ReportViewPage({
   const exportDisabled = !isDirectExport && !dataLoaded;
 
   return (
-    <div>
-      {/* Header */}
+    <div className="mx-auto max-w-7xl">
       <div className="mb-6">
         <button
           type="button"
           onClick={() => router.push(baseUrl)}
-          className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-2"
+          className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#3a5272] hover:text-[#1e5fa8]"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Reports
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">{config.reportName}</h1>
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1e5fa8]">Report Viewer</p>
+        <h1 className="mt-1 text-2xl font-bold text-[#0c1929]">{config.reportName}</h1>
         {config.description && (
-          <p className="text-sm text-gray-500 mt-1">{config.description}</p>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[#3a5272]">{config.description}</p>
         )}
       </div>
 
-      {/* Global Date Range — always visible */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Date Range</h3>
-        <div className="flex items-center gap-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">From Date</label>
+      <section className="mb-4 rounded-lg border border-[#dde6f0] bg-white p-4 shadow-[0_2px_8px_rgba(30,95,168,0.08)]">
+        <div className="mb-3 flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-[#1e5fa8]" />
+          <h3 className="text-sm font-bold text-[#0c1929]">Date Range</h3>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[180px]">
+            <label className="mb-1 block text-xs font-semibold text-[#3a5272]">From Date</label>
             <input
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-[#c8d8eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
             />
           </div>
-          <span className="text-gray-400 mt-4">→</span>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">To Date</label>
+          <div className="min-w-[180px]">
+            <label className="mb-1 block text-xs font-semibold text-[#3a5272]">To Date</label>
             <input
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-[#c8d8eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
             />
           </div>
           {(fromDate || toDate) && (
             <button
               type="button"
               onClick={() => { setFromDate(""); setToDate(""); }}
-              className="mt-4 text-xs text-gray-400 hover:text-gray-600"
+              className="rounded-md px-3 py-2 text-xs font-bold text-[#7a95b5] hover:bg-[#f7fafd] hover:text-[#3a5272]"
             >
               Clear
             </button>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Filters */}
       {config.filters && config.filters.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Filters</h3>
+        <section className="mb-6 rounded-lg border border-[#dde6f0] bg-white p-4 shadow-[0_2px_8px_rgba(30,95,168,0.08)]">
+          <div className="mb-3 flex items-center gap-2">
+            <Filter className="h-4 w-4 text-[#1e5fa8]" />
+            <h3 className="text-sm font-bold text-[#0c1929]">Filters</h3>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {config.filters.map((filter) => (
               <FilterControl
@@ -261,19 +279,19 @@ export function ReportViewPage({
               />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         {!isDirectExport && (
           <button
             type="button"
             onClick={() => handleLoadData(1)}
             disabled={loadingData}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#1e5fa8] px-4 py-2 text-sm font-bold text-white hover:bg-[#174d88] disabled:opacity-50"
           >
-            {loadingData && <Loader2 className="h-4 w-4 animate-spin" />}
+            {loadingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             {loadingData ? "Loading..." : "Load"}
           </button>
         )}
@@ -281,7 +299,7 @@ export function ReportViewPage({
           type="button"
           onClick={handleExport}
           disabled={exporting || exportDisabled}
-          className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg border border-[#c8d8eb] bg-white px-4 py-2 text-sm font-bold text-[#3a5272] hover:bg-[#f7fafd] disabled:opacity-50"
         >
           {exporting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -294,7 +312,7 @@ export function ReportViewPage({
 
       {/* Error */}
       {loadError && (
-        <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-3 text-sm font-medium text-[#e8382d]">
           {loadError}
         </div>
       )}
@@ -329,7 +347,7 @@ function FilterControl({
     case "date-range":
       return (
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
             {filter.fieldKey}
           </label>
           <div className="grid grid-cols-2 gap-2">
@@ -339,7 +357,7 @@ function FilterControl({
               onChange={(e) =>
                 onChange({ ...(value as Record<string, string>), start: e.target.value })
               }
-              className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
             />
             <input
               type="date"
@@ -347,7 +365,7 @@ function FilterControl({
               onChange={(e) =>
                 onChange({ ...(value as Record<string, string>), end: e.target.value })
               }
-              className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
             />
           </div>
         </div>
@@ -356,7 +374,7 @@ function FilterControl({
     case "numeric-range":
       return (
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
             {filter.fieldKey}
           </label>
           <div className="grid grid-cols-2 gap-2">
@@ -370,7 +388,7 @@ function FilterControl({
                   min: e.target.value ? Number(e.target.value) : undefined,
                 })
               }
-              className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
             />
             <input
               type="number"
@@ -382,7 +400,7 @@ function FilterControl({
                   max: e.target.value ? Number(e.target.value) : undefined,
                 })
               }
-              className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
             />
           </div>
         </div>
@@ -391,7 +409,7 @@ function FilterControl({
     case "toggle":
       return (
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
             {filter.fieldKey}
           </label>
           <select
@@ -400,7 +418,7 @@ function FilterControl({
               if (e.target.value === "all") onChange(undefined);
               else onChange(e.target.value === "true");
             }}
-            className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
           >
             <option value="all">All</option>
             <option value="true">Yes</option>
@@ -412,7 +430,7 @@ function FilterControl({
     case "text-search":
       return (
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
             {filter.fieldKey}
           </label>
           <input
@@ -420,7 +438,7 @@ function FilterControl({
             placeholder="Search..."
             value={(value as string) || ""}
             onChange={(e) => onChange(e.target.value || undefined)}
-            className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
           />
         </div>
       );
@@ -429,7 +447,7 @@ function FilterControl({
     default:
       return (
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
             {filter.fieldKey}
           </label>
           <input
@@ -444,7 +462,7 @@ function FilterControl({
                 onChange(val.split(",").map((v) => v.trim()).filter(Boolean));
               }
             }}
-            className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
           />
         </div>
       );

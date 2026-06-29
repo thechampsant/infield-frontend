@@ -16,7 +16,7 @@ interface ReportDataTableProps {
 function formatCellValue(value: unknown, fieldType: string): React.ReactNode {
   // Null/missing → dash
   if (value === null || value === undefined || value === "") {
-    return <span className="text-gray-400">-</span>;
+    return <span className="text-[#7a95b5]">-</span>;
   }
 
   // Numeric → 2 decimal places
@@ -31,14 +31,14 @@ function formatCellValue(value: unknown, fieldType: string): React.ReactNode {
         <img
           src={value}
           alt=""
-          className="w-12 h-12 object-cover rounded"
+          className="h-12 w-12 rounded-md object-cover"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.style.display = "none";
             target.parentElement!.querySelector(".fallback-icon")?.classList.remove("hidden");
           }}
         />
-        <ImageIcon className="fallback-icon hidden h-12 w-12 text-gray-300 p-2 border rounded" />
+        <ImageIcon className="fallback-icon hidden h-12 w-12 rounded-md border border-[#dde6f0] p-2 text-[#7a95b5]" />
       </a>
     );
   }
@@ -50,7 +50,7 @@ function formatCellValue(value: unknown, fieldType: string): React.ReactNode {
         href={`https://maps.google.com/?q=${encodeURIComponent(value)}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
+        className="inline-flex items-center gap-1 font-semibold text-[#1e5fa8] hover:text-[#174d88]"
       >
         <MapPin className="h-3.5 w-3.5" />
         <span className="text-sm">View Map</span>
@@ -154,43 +154,47 @@ export function ReportDataTable({
 
   if (data.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">No data available for the selected filters.</p>
+      <div className="rounded-lg border border-dashed border-[#c8d8eb] bg-white py-12 text-center">
+        <p className="text-sm text-[#3a5272]">No data available for the selected filters.</p>
       </div>
     );
   }
 
   return (
-    <div>
-      {/* Total count */}
+    <section className="rounded-lg border border-[#dde6f0] bg-white p-4 shadow-[0_2px_8px_rgba(30,95,168,0.08)]">
       <div className="mb-3">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm font-semibold text-[#3a5272]">
           {totalCount.toLocaleString()} total record{totalCount !== 1 ? "s" : ""}
         </p>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-x-auto rounded-lg border border-[#dde6f0]">
+        <table className="min-w-full divide-y divide-[#dde6f0]">
+          <thead className="bg-[#f7fafd]">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.fieldKey}
-                  className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap"
+                  className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.08em] text-[#3a5272]"
                 >
                   {col.headerName}
+                  {col.sourceKey === 'calculated' && (
+                    <span className="ml-1 font-normal normal-case text-[#7c3aed]" title="Calculated field">
+                      ƒ
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
+          <tbody className="divide-y divide-[#dde6f0] bg-white">
             {data.map((row, rowIndex) => (
-              <tr key={rowIndex} className="hover:bg-gray-50">
+              <tr key={rowIndex} className="hover:bg-[#f7fafd]">
                 {columns.map((col) => (
                   <td
                     key={col.fieldKey}
-                    className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap"
+                    className="whitespace-nowrap px-4 py-3 text-sm text-[#3a5272]"
                   >
                     {formatCellValue(row[col.headerName], col.fieldType)}
                   </td>
@@ -203,8 +207,8 @@ export function ReportDataTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-gray-500">
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-[#7a95b5]">
             Showing {(page - 1) * pageSize + 1} to{" "}
             {Math.min(page * pageSize, totalCount)} of {totalCount}
           </p>
@@ -213,7 +217,7 @@ export function ReportDataTable({
               type="button"
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md p-2 text-[#3a5272] hover:bg-[#f7fafd] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -222,10 +226,10 @@ export function ReportDataTable({
                 key={num}
                 type="button"
                 onClick={() => onPageChange(num)}
-                className={`w-8 h-8 text-sm rounded ${
+                className={`h-8 w-8 rounded-md text-sm font-bold ${
                   num === page
-                    ? "bg-blue-600 text-white"
-                    : "hover:bg-gray-100 text-gray-700"
+                    ? "bg-[#1e5fa8] text-white"
+                    : "text-[#3a5272] hover:bg-[#f7fafd]"
                 }`}
               >
                 {num}
@@ -235,13 +239,13 @@ export function ReportDataTable({
               type="button"
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md p-2 text-[#3a5272] hover:bg-[#f7fafd] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

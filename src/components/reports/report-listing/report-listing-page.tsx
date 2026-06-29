@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, MoreVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { BarChart3, Eye, FileText, MoreVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { reportConfigService } from "@/lib/api/report-config-service";
 import type { ReportConfigDocument } from "@/lib/api/report-config-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
@@ -50,30 +50,33 @@ function ReportCard({
   }, [isMenuOpen, onMenuClose]);
 
   return (
-    <div
-      className="bg-white rounded-lg border border-gray-200 p-5 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
+    <article
+      className="group flex cursor-pointer items-center gap-4 rounded-lg border border-[#dde6f0] bg-white p-4 shadow-[0_2px_8px_rgba(30,95,168,0.08)] transition hover:border-[#c8d8eb] hover:shadow-[0_4px_20px_rgba(30,95,168,0.13)]"
       onClick={() => onClick(reportId)}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
+      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#f0f6ff] text-[#1e5fa8]">
+        <FileText className="h-5 w-5" />
+      </div>
+      <div className="flex min-w-0 flex-1 items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-base font-semibold text-gray-900 truncate">
+            <h3 className="truncate text-sm font-bold text-[#0c1929]">
               {report.reportName}
             </h3>
             {report.status === "draft" && (
-              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-700">
+              <span className="rounded-full border border-[#f59e0b]/25 bg-[#fef3c7] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#92400e]">
                 Draft
               </span>
             )}
           </div>
           {report.description && (
-            <p className="text-sm text-gray-500 mb-2 line-clamp-2">
+            <p className="mb-2 line-clamp-2 text-xs leading-5 text-[#3a5272]">
               {report.description.length > 200
                 ? `${report.description.slice(0, 200)}...`
                 : report.description}
             </p>
           )}
-          <div className="flex items-center gap-4 text-xs text-gray-400">
+          <div className="flex items-center gap-4 text-[11px] font-medium text-[#7a95b5]">
             {report.createdAt && (
               <span>
                 {new Date(report.createdAt).toLocaleDateString("en-US", {
@@ -87,14 +90,15 @@ function ReportCard({
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+        <div className="ml-2 flex flex-shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onFavoriteToggle(reportId);
             }}
-            className="p-1 hover:bg-gray-100 rounded"
+            className="rounded-md p-2 text-[#7a95b5] hover:bg-[#f7fafd]"
+            aria-label={isFavorite ? "Remove favorite" : "Mark favorite"}
           >
             <Star
               className={`h-5 w-5 ${
@@ -117,14 +121,14 @@ function ReportCard({
                   onMenuOpen(reportId);
                 }
               }}
-              className="p-1 hover:bg-gray-100 rounded"
+              className="rounded-md p-2 text-[#7a95b5] hover:bg-[#f7fafd]"
               aria-label="More actions"
             >
               <MoreVertical className="h-5 w-5 text-gray-400" />
             </button>
 
             {isMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+              <div className="absolute right-0 top-full z-10 mt-1 w-40 rounded-lg border border-[#dde6f0] bg-white shadow-[0_8px_40px_rgba(30,95,168,0.18)]">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -132,7 +136,7 @@ function ReportCard({
                     onMenuClose();
                     onClick(reportId);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
+                  className="flex w-full items-center gap-2 rounded-t-lg px-3 py-2 text-sm text-[#3a5272] hover:bg-[#f7fafd]"
                 >
                   <Eye className="h-4 w-4 text-gray-400" />
                   View
@@ -144,7 +148,7 @@ function ReportCard({
                     onMenuClose();
                     onEdit(reportId);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[#3a5272] hover:bg-[#f7fafd]"
                 >
                   <Pencil className="h-4 w-4 text-gray-400" />
                   Edit
@@ -156,7 +160,7 @@ function ReportCard({
                     onMenuClose();
                     onDelete(reportId);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
+                  className="flex w-full items-center gap-2 rounded-b-lg px-3 py-2 text-sm text-[#e8382d] hover:bg-[#fff0ef]"
                 >
                   <Trash2 className="h-4 w-4 text-red-400" />
                   Delete
@@ -166,7 +170,7 @@ function ReportCard({
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -267,19 +271,21 @@ export function ReportListingPage({
   }, [router, baseUrl]);
 
   return (
-    <div>
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">
-            Reports
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1e5fa8]">
+            Reports Module
           </p>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">All Reports</h1>
+          <h1 className="mt-1 text-2xl font-bold text-[#0c1929]">Report Configurations</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-[#3a5272]">
+            Build, publish, and export project reports from configured data sources.
+          </p>
         </div>
         <button
           type="button"
           onClick={handleNewReport}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#1e5fa8] px-4 py-2 text-sm font-bold text-white shadow-[0_2px_8px_rgba(30,95,168,0.18)] hover:bg-[#174d88]"
         >
           <Plus className="h-4 w-4" />
           New Report
@@ -287,14 +293,14 @@ export function ReportListingPage({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6">
+      <div className="mb-6 flex rounded-lg border border-[#dde6f0] bg-white p-1 shadow-[0_2px_8px_rgba(30,95,168,0.08)]">
         <button
           type="button"
           onClick={() => setActiveTab("all")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`rounded-md px-4 py-2 text-sm font-bold transition-colors ${
             activeTab === "all"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "bg-[#f0f6ff] text-[#1e5fa8]"
+              : "text-[#7a95b5] hover:bg-[#f7fafd] hover:text-[#3a5272]"
           }`}
         >
           All Reports
@@ -302,10 +308,10 @@ export function ReportListingPage({
         <button
           type="button"
           onClick={() => setActiveTab("favorites")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`rounded-md px-4 py-2 text-sm font-bold transition-colors ${
             activeTab === "favorites"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "bg-[#f0f6ff] text-[#1e5fa8]"
+              : "text-[#7a95b5] hover:bg-[#f7fafd] hover:text-[#3a5272]"
           }`}
         >
           Favorites
@@ -314,16 +320,17 @@ export function ReportListingPage({
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center rounded-lg border border-[#dde6f0] bg-white py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : error ? (
-        <div className="text-center py-12">
+        <div className="rounded-lg border border-[#ffd5d3] bg-[#fff0ef] py-12 text-center">
           <p className="text-red-600">{error}</p>
         </div>
       ) : filteredReports.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">
+        <div className="rounded-lg border border-dashed border-[#c8d8eb] bg-white py-12 text-center">
+          <BarChart3 className="mx-auto mb-3 h-8 w-8 text-[#7a95b5]" />
+          <p className="text-sm text-[#3a5272]">
             {activeTab === "favorites"
               ? "No favorite reports yet."
               : "No reports found. Create your first report to get started."}

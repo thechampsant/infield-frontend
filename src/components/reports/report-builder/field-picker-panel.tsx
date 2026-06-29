@@ -209,7 +209,15 @@ export function FieldPickerPanel({
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         <div className="p-3 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-medium text-gray-700">{availableTitle}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-medium text-gray-700">{availableTitle}</h4>
+              <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-200 text-gray-600 rounded-full">
+                {filteredAvailable.length}
+                {search.trim() && allAvailable.length !== filteredAvailable.length
+                  ? ` / ${allAvailable.length}`
+                  : ''}
+              </span>
+            </div>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -238,7 +246,7 @@ export function FieldPickerPanel({
             />
           </div>
         </div>
-        <div className="max-h-80 overflow-y-auto p-2">
+        <div className="h-[480px] overflow-y-auto p-2">
           {filteredAvailable.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">No fields found</p>
           ) : (
@@ -271,9 +279,27 @@ export function FieldPickerPanel({
       {/* Right Panel: Selected Fields */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         <div className="p-3 bg-gray-50 border-b border-gray-200">
-          <h4 className="text-sm font-medium text-gray-700">{selectedTitle}</h4>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-medium text-gray-700">{selectedTitle}</h4>
+              {selectedFields.length > 0 && (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                  {selectedFields.length}
+                </span>
+              )}
+            </div>
+            {selectedFields.length > 0 && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs text-gray-400 hover:text-red-500"
+              >
+                Remove all
+              </button>
+            )}
+          </div>
         </div>
-        <div className="max-h-80 overflow-y-auto p-2">
+        <div className="h-[480px] overflow-y-auto p-2">
           {selectedFields.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">
               No fields selected
