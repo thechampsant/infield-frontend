@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { reportConfigService } from "@/lib/api/report-config-service";
 import { designationService } from "@/lib/api/designation-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
@@ -50,20 +50,20 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <section className="rounded-lg border border-[#dde6f0] bg-white p-5 shadow-[0_2px_8px_rgba(30,95,168,0.08)]">
       <div className="flex items-start gap-4">
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-          <span className="text-sm font-semibold text-white">{number}</span>
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#f0f6ff] text-[#1e5fa8]">
+          <span className="text-sm font-bold">{number}</span>
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+          <h3 className="text-base font-bold text-[#0c1929]">{title}</h3>
           {subtitle && (
-            <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
+            <p className="mt-0.5 text-sm leading-6 text-[#3a5272]">{subtitle}</p>
           )}
           <div className="mt-4">{children}</div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -114,6 +114,11 @@ export function ReportBuilderPage({
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("saved");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [previewData, setPreviewData] = useState<{
+    columns: { key: string; type: string }[];
+    data: Record<string, unknown>[];
+  } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // ─── Load initial data ────────────────────────────────────────────────────
   useEffect(() => {
@@ -425,28 +430,47 @@ export function ReportBuilderPage({
 
   const handlePreview = useCallback(async () => {
     if (selectedColumns.length === 0) {
-      setErrors({ selectedColumns: "At least one column must be selected before previewing." });
+      setErrors({ selectedColumns: "Select at least one column before previewing." });
       return;
     }
-    // Preview would typically open a modal with sample data
-    // For now, we just trigger the API
+
     setIsPreviewing(true);
+    setErrors({});
     try {
-      if (reportId) {
-        await reportConfigService.previewReport({ reportId });
+      let activeReportId = reportId;
+
+      // For new unsaved reports: silently save as draft first to get an ID
+      if (!activeReportId) {
+        const payload = buildPayload('draft');
+        const saved = await reportConfigService.createConfig(payload);
+        activeReportId = saved._id;
       }
-    } catch {
-      // Preview is best-effort
+
+      if (!activeReportId) return;
+
+      const result = await reportConfigService.previewReport({
+        reportId: activeReportId,
+      });
+
+      setPreviewData({
+        columns: result.columns || [],
+        data: result.data || [],
+      });
+      setPreviewOpen(true);
+    } catch (err) {
+      setErrors({
+        _save: 'Preview failed: ' + (err instanceof Error ? err.message : 'Unknown error'),
+      });
     } finally {
       setIsPreviewing(false);
     }
-  }, [selectedColumns, reportId]);
+  }, [selectedColumns, reportId, buildPayload]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     );
@@ -454,12 +478,12 @@ export function ReportBuilderPage({
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto py-12 text-center">
-        <p className="text-red-600 mb-4">{error}</p>
+      <div className="mx-auto max-w-2xl rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-8 text-center">
+        <p className="mb-4 text-sm font-medium text-[#e8382d]">{error}</p>
         <button
           type="button"
           onClick={() => router.push(baseUrl)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="rounded-lg bg-[#1e5fa8] px-4 py-2 text-sm font-bold text-white hover:bg-[#174d88]"
         >
           Back to Reports
         </button>
@@ -476,28 +500,32 @@ export function ReportBuilderPage({
     : "New Report";
 
   return (
-    <div className="pb-20">
-      {/* Page Header */}
+    <div className="mx-auto max-w-6xl pb-20">
       <div className="mb-6">
         <button
           type="button"
           onClick={() => router.push(baseUrl)}
-          className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-2"
+          className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#3a5272] hover:text-[#1e5fa8]"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </button>
-        <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1e5fa8]">
           Report Builder
         </p>
-        <div className="flex items-center justify-between mt-1">
-          <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
-          <div className="flex items-center gap-2">
+        <div className="mt-1 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-[#0c1929]">{pageTitle}</h1>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#3a5272]">
+              Configure the dataset, columns, filters, and export behavior for this project report.
+            </p>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={handleSaveDraft}
               disabled={isSaving}
-              className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-lg border border-[#c8d8eb] bg-white px-4 py-2 text-sm font-bold text-[#3a5272] hover:bg-[#f7fafd] disabled:opacity-50"
             >
               Save as Draft
             </button>
@@ -505,8 +533,9 @@ export function ReportBuilderPage({
               type="button"
               onClick={handleSaveReport}
               disabled={isSaving}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1e5fa8] px-4 py-2 text-sm font-bold text-white hover:bg-[#174d88] disabled:opacity-50"
             >
+              <CheckCircle2 className="h-4 w-4" />
               Save Report
             </button>
           </div>
@@ -515,7 +544,7 @@ export function ReportBuilderPage({
 
       {/* Save error */}
       {errors._save && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-3 text-sm font-medium text-[#e8382d]">
           {errors._save}
         </div>
       )}
@@ -576,6 +605,10 @@ export function ReportBuilderPage({
             calculatedFields={calculatedFields}
             onToggle={setCalculatedFieldsEnabled}
             onFieldsChange={setCalculatedFields}
+            availableFieldKeys={[
+              ...primaryFields.map((f) => ({ fieldKey: f.fieldKey, displayName: f.displayName, fieldType: f.fieldType, sourceKey: primarySourceKey })),
+              ...secondaryFields.map((f) => ({ fieldKey: f.fieldKey, displayName: f.displayName, fieldType: f.fieldType, sourceKey: secondarySourceKey })),
+            ]}
           />
         </SectionCard>
 
@@ -624,6 +657,87 @@ export function ReportBuilderPage({
         isSaving={isSaving}
         isPreviewing={isPreviewing}
       />
+
+      {/* Preview slide-over */}
+      {previewOpen && previewData && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className="flex-1 bg-black/30"
+            onClick={() => setPreviewOpen(false)}
+          />
+          <div className="flex w-[80vw] flex-col overflow-hidden bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#dde6f0] px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#0c1929]">Report Preview</h2>
+                <p className="mt-0.5 text-sm text-[#3a5272]">
+                  Showing up to 20 rows · {previewData.data.length} rows returned
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(false)}
+                className="rounded-md p-2 text-[#7a95b5] hover:bg-[#f7fafd]"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-6">
+              {previewData.data.length === 0 ? (
+                <div className="py-12 text-center text-sm text-[#3a5272]">
+                  No data available for preview. Check your data source and filters.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-[#dde6f0]">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-[#f7fafd]">
+                      <tr>
+                        {previewData.columns.map((col) => (
+                          <th
+                            key={col.key}
+                            className="whitespace-nowrap px-3 py-2 text-left text-xs font-bold uppercase text-[#3a5272]"
+                          >
+                            {col.key}
+                            {col.type === 'NUM' && (
+                              <span className="ml-1 text-teal-500 font-normal normal-case">#</span>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#dde6f0] bg-white">
+                      {previewData.data.map((row, i) => (
+                        <tr key={i} className="hover:bg-[#f7fafd]">
+                          {previewData.columns.map((col) => {
+                            const val = row[col.key];
+                            let display: string;
+                            if (val === null || val === undefined || val === '') {
+                              display = '-';
+                            } else if (typeof val === 'object' && val !== null) {
+                              const obj = val as Record<string, unknown>;
+                              if (typeof obj.full_iso === 'string') display = obj.full_iso.split('T')[0];
+                              else if (typeof obj.datejs === 'string') display = obj.datejs.split('T')[0];
+                              else display = JSON.stringify(val).slice(0, 50);
+                            } else if (typeof val === 'number' && col.type === 'NUM') {
+                              display = (Math.round(val * 100) / 100).toString();
+                            } else {
+                              display = String(val);
+                            }
+                            return (
+                              <td key={col.key} className="max-w-[200px] truncate whitespace-nowrap px-3 py-2 text-[#3a5272]">
+                                {display || '-'}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
