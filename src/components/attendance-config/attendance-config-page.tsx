@@ -110,7 +110,6 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
   );
 
   const configComplete = exists && !dirty && Object.keys(errors).length === 0;
-  const photoFieldRequired = Boolean(form?.types.some((item) => item.photoRequired));
   const remarksRequired = Boolean(form?.remarksEnabled);
   const checkInComplete = savedSchemas["check-in"].length > 0;
   const checkOutRequired = form?.checkOutEnabled ?? true;
@@ -210,7 +209,6 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
     const fields = schemas[formType];
     const validation = validateAttendanceSchema(fields, {
       remarksRequired,
-      photoFieldRequired,
     });
     if (validation.length > 0) {
       setFormValidation((prev) => ({ ...prev, [formType]: validation }));
@@ -391,7 +389,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
                 savedFields={savedSchemas["check-in"]}
                 loading={false}
                 saving={Boolean(formSaving["check-in"])}
-                requirements={{ remarksRequired, photoFieldRequired }}
+                requirements={{ remarksRequired }}
                 error={formErrors["check-in"] ?? null}
                 validationErrors={formValidation["check-in"] ?? []}
                 onChange={(fields) => handleSchemaChange("check-in", fields)}
@@ -407,7 +405,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
                   savedFields={savedSchemas["check-out"]}
                   loading={false}
                   saving={Boolean(formSaving["check-out"])}
-                  requirements={{ remarksRequired, photoFieldRequired }}
+                  requirements={{ remarksRequired }}
                   error={formErrors["check-out"] ?? null}
                   validationErrors={formValidation["check-out"] ?? []}
                   onChange={(fields) => handleSchemaChange("check-out", fields)}
@@ -425,7 +423,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
 
               <div className="att-setup-panel__footer">
                 <div className="att-setup-panel__footerCopy">
-                  Each form schema must satisfy the attendance rules for remarks and photo capture.
+                  Each form schema must satisfy the attendance rules for remarks.
                 </div>
                 <button
                   className="btn btn-primary"
@@ -457,7 +455,6 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
                   details={[
                     `${form.types.length} attendance types configured`,
                     remarksRequired ? "Remarks enabled" : "Remarks disabled",
-                    photoFieldRequired ? "Photo-backed types present" : "Photo optional",
                     form.types.some((type) => type.geoFenced)
                       ? storeFlowComplete
                         ? "Store flow complete for geo-fencing"
@@ -472,9 +469,6 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
                   details={[
                     `${savedSchemas["check-in"].length} fields saved`,
                     remarksRequired ? 'Requires "remarks"' : "No mandatory remarks field",
-                    photoFieldRequired
-                      ? 'Requires "pictures" or "photos"'
-                      : "No mandatory photo field",
                   ]}
                 />
                 <ReviewCard
@@ -490,11 +484,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
                       : remarksRequired
                         ? 'Requires "remarks"'
                         : "No mandatory remarks field",
-                    !checkOutRequired
-                      ? "Wizard auto-completes this step"
-                      : photoFieldRequired
-                        ? 'Requires "pictures" or "photos"'
-                        : "No mandatory photo field",
+                    !checkOutRequired ? "Wizard auto-completes this step" : "Photo fields optional",
                   ]}
                 />
               </div>
@@ -664,7 +654,7 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
 
 function validateAttendanceSchema(
   fields: UdfSchemaField[],
-  rules: { remarksRequired: boolean; photoFieldRequired: boolean },
+  rules: { remarksRequired: boolean },
 ): string[] {
   const errors: string[] = [];
   const keys = new Set<string>();
@@ -718,10 +708,6 @@ function validateAttendanceSchema(
 
   if (rules.remarksRequired && !keys.has("remarks")) {
     errors.push('This form must include a field with fieldKey "remarks".');
-  }
-
-  if (rules.photoFieldRequired && !(keys.has("pictures") || keys.has("photos"))) {
-    errors.push('This form must include a field with fieldKey "pictures" or "photos".');
   }
 
   return errors;

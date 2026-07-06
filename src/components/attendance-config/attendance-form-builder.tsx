@@ -12,7 +12,6 @@ import type {
 
 interface AttendanceFormRequirements {
   remarksRequired: boolean;
-  photoFieldRequired: boolean;
 }
 
 interface Props {
@@ -256,11 +255,6 @@ export function AttendanceFormBuilder({
       <div className="att-form-builder__requirements">
         <span className={`att-form-builder__requirement${requirements.remarksRequired ? " on" : ""}`}>
           {requirements.remarksRequired ? 'Include fieldKey "remarks"' : "Remarks field optional"}
-        </span>
-        <span className={`att-form-builder__requirement${requirements.photoFieldRequired ? " on" : ""}`}>
-          {requirements.photoFieldRequired
-            ? 'Include fieldKey "pictures" or "photos"'
-            : "Photo field optional"}
         </span>
       </div>
 
