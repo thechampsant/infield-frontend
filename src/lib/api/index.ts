@@ -103,6 +103,8 @@ export type {
   LeaveAutoAction,
   LeaveConfigDocument,
   LeaveConfigResponse,
+  LeaveCreditReconcileRequest,
+  LeaveCreditReconcileResponse,
   LeaveCreditRuleType,
   LeaveEntitlementType,
   LeaveHoliday,

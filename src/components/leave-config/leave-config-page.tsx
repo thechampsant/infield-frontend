@@ -12,13 +12,16 @@ import {
   FileUp,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   Settings2,
   Trash2,
   X,
 } from "lucide-react";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Modal, ModalFooter } from "@/components/ui/modal";
 import {
   designationService,
   featureConfigService,
@@ -130,6 +133,11 @@ function defaultHoliday(): LeaveHoliday {
     name: "",
     type: "National",
   };
+}
+
+function localDateInputValue(date = new Date()): string {
+  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - timezoneOffsetMs).toISOString().slice(0, 10);
 }
 
 function validateConfig(config: LeaveConfigDocument): string[] {
@@ -259,6 +267,10 @@ export function LeaveConfigPage({
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [deletePolicyIndex, setDeletePolicyIndex] = useState<number | null>(null);
+  const [reconcilePolicyIndex, setReconcilePolicyIndex] = useState<number | null>(null);
+  const [reconcileDate, setReconcileDate] = useState(localDateInputValue);
+  const [reconciling, setReconciling] = useState(false);
+  const reconcileDateInputRef = useRef<HTMLInputElement | null>(null);
 
   const dirty = useMemo(() => {
     if (!config || !savedConfig) return false;
@@ -459,6 +471,38 @@ export function LeaveConfigPage({
     }
   }
 
+  function openReconcileDialog(policyIndex: number) {
+    setReconcilePolicyIndex(policyIndex);
+    setReconcileDate(localDateInputValue());
+  }
+
+  async function confirmReconcileCredits() {
+    if (!config || reconcilePolicyIndex === null) return;
+    const policy = config.policies[reconcilePolicyIndex];
+    if (!policy?._id) {
+      setToast({ type: "error", message: "Save this leave policy before reconciling credits." });
+      return;
+    }
+
+    setReconciling(true);
+    try {
+      const result = await leaveConfigService.reconcileCredits({
+        projectId,
+        policyId: policy._id,
+        date: reconcileDate || undefined,
+      });
+      setReconcilePolicyIndex(null);
+      setToast({
+        type: "success",
+        message: `Leave credit reconciliation completed. Posted: ${result.posted}, Existing: ${result.existing}, Skipped: ${result.skipped}, Failed: ${result.failed}.`,
+      });
+    } catch (err) {
+      setToast({ type: "error", message: formatApiError(err, "Leave credit reconciliation failed") });
+    } finally {
+      setReconciling(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="leave-config-page">
@@ -492,6 +536,8 @@ export function LeaveConfigPage({
     view.mode === "type" && currentPolicy
       ? currentPolicy.leaveTypes[view.typeIndex]
       : null;
+  const reconcilePolicy =
+    reconcilePolicyIndex !== null ? config.policies[reconcilePolicyIndex] : null;
 
   return (
     <div className="leave-config-page">
@@ -597,6 +643,7 @@ export function LeaveConfigPage({
           onOpenType={(typeIndex) =>
             setView({ mode: "type", policyIndex: view.policyIndex, typeIndex })
           }
+          onOpenReconcile={isActive ? () => openReconcileDialog(view.policyIndex) : undefined}
           onUpload={(file) => handleUploadHolidays(view.policyIndex, file)}
           onChange={(nextPolicy) =>
             updateConfig((current) => ({
@@ -672,6 +719,80 @@ export function LeaveConfigPage({
         variant="danger"
         isLoading={saving}
       />
+
+      <Modal
+        isOpen={reconcilePolicyIndex !== null}
+        onClose={() => {
+          if (!reconciling) setReconcilePolicyIndex(null);
+        }}
+        title="Reconcile Leave Credits"
+        size="md"
+        showCloseButton={!reconciling}
+      >
+        <div className="leave-setting-list">
+          <p className="text-sm text-[var(--orca-text-3)]">
+            Run leave credit reconciliation using the current leave policy configuration.
+            This will apply only due credits and will not duplicate credits that were
+            already posted.
+          </p>
+          {reconcilePolicy && (
+            <label className="leave-field">
+              <span>Policy</span>
+              <input value={reconcilePolicy.name || "Leave Policy"} disabled />
+            </label>
+          )}
+          <label className="leave-field">
+            <span>Processing Date</span>
+            <div className="leave-date-picker">
+              <input
+                ref={reconcileDateInputRef}
+                type="date"
+                value={reconcileDate}
+                onChange={(event) => setReconcileDate(event.target.value)}
+                disabled={reconciling}
+              />
+              <button
+                type="button"
+                className="leave-icon-btn"
+                onClick={() => {
+                  const input = reconcileDateInputRef.current;
+                  if (!input) return;
+                  input.showPicker?.();
+                  input.focus();
+                }}
+                disabled={reconciling}
+                aria-label="Open reconciliation date calendar"
+              >
+                <CalendarDays size={16} />
+              </button>
+            </div>
+          </label>
+        </div>
+        <ModalFooter>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setReconcilePolicyIndex(null)}
+            disabled={reconciling}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={confirmReconcileCredits}
+            disabled={reconciling || !reconcilePolicy?._id || !reconcileDate}
+          >
+            {reconciling ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Processing...
+              </>
+            ) : (
+              "Run Reconciliation"
+            )}
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
@@ -788,6 +909,7 @@ function PolicyEditor({
   policies,
   onBack,
   onOpenType,
+  onOpenReconcile,
   onChange,
   onUpload,
 }: {
@@ -797,6 +919,7 @@ function PolicyEditor({
   policies: LeavePolicy[];
   onBack: () => void;
   onOpenType: (typeIndex: number) => void;
+  onOpenReconcile?: () => void;
   onChange: (policy: LeavePolicy) => void;
   onUpload: (file: File) => void;
 }) {
@@ -839,6 +962,28 @@ function PolicyEditor({
       <button type="button" className="leave-inline-back" onClick={onBack}>
         <ArrowLeft size={15} /> All Policies
       </button>
+
+      {onOpenReconcile && (
+        <section className="leave-section">
+          <SectionHeader
+            icon={<RefreshCw size={18} />}
+            title="Credit Reconciliation"
+            description="Manually process due leave credits for this policy."
+            action={
+              <button
+                type="button"
+                className="leave-primary-btn"
+                onClick={onOpenReconcile}
+                disabled={!policy._id}
+                title={!policy._id ? "Save this policy before reconciling credits." : undefined}
+              >
+                <RefreshCw size={16} />
+                Reconcile Leave Credits
+              </button>
+            }
+          />
+        </section>
+      )}
 
       <CollapsibleSection
         icon={<Settings2 size={18} />}

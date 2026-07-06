@@ -601,6 +601,16 @@
   gap: 8px;
 }
 
+.leave-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leave-date-picker input {
+  flex: 1;
+}
+
 .leave-type-color__picker {
   width: 38px;
   min-width: 38px;

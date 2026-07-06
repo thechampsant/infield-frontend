@@ -120,6 +120,21 @@ export interface HolidayUploadResponse extends LeaveConfigResponse {
   uploadSummary?: HolidayUploadSummary;
 }
 
+export interface LeaveCreditReconcileRequest {
+  projectId: string;
+  userId?: string;
+  policyId?: string;
+  leaveTypeId?: string;
+  date?: string;
+}
+
+export interface LeaveCreditReconcileResponse {
+  posted: number;
+  existing: number;
+  skipped: number;
+  failed: number;
+}
+
 type RawRecord = Record<string, unknown>;
 
 const mockConfigs = new Map<string, LeaveConfigDocument>();
@@ -457,6 +472,16 @@ function normalizeUploadResponse(value: unknown, projectId: string): HolidayUplo
   };
 }
 
+function normalizeReconcileResponse(value: unknown): LeaveCreditReconcileResponse {
+  const raw = record(value);
+  return {
+    posted: num(raw.posted),
+    existing: num(raw.existing),
+    skipped: num(raw.skipped),
+    failed: num(raw.failed),
+  };
+}
+
 function withMockWarnings(config: LeaveConfigDocument): LeaveConfigResponse {
   const warnings = config.policies.flatMap((policy) =>
     policy.leaveTypes.flatMap((leaveType) => {
@@ -697,6 +722,22 @@ export const leaveConfigService = {
       formData,
     );
     return normalizeUploadResponse(raw, projectId);
+  },
+
+  async reconcileCredits(
+    input: LeaveCreditReconcileRequest,
+  ): Promise<LeaveCreditReconcileResponse> {
+    if (USE_MOCK_API) {
+      await delay();
+      return {
+        posted: 1,
+        existing: 0,
+        skipped: 2,
+        failed: 0,
+      };
+    }
+    const raw = await apiClient.post<unknown>("/api/v1/leave-balances/credit-reconcile", input);
+    return normalizeReconcileResponse(raw);
   },
 
   async activate(projectId: string): Promise<void> {
