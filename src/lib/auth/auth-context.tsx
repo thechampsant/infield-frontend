@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { authService } from "@/lib/api";
-import { apiClient } from "@/lib/api/api-client";
+import { apiClient, onSessionExpired } from "@/lib/api/api-client";
 import type { BackendUser, LoginDto } from "@/lib/api/types";
 
 // ─────────────────────────────────────────────────────────────
@@ -81,6 +81,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } else {
       setState({ user: null, isAuthenticated: false, isLoading: false });
     }
+  }, []);
+
+  // Auto-logout when the backend returns 401 (session token expired)
+  useEffect(() => {
+    const unsubscribe = onSessionExpired(() => {
+      localStorage.removeItem(STORAGE_KEY_USER);
+      localStorage.removeItem(STORAGE_KEY_TOKEN);
+      setState({ user: null, isAuthenticated: false, isLoading: false });
+      window.location.href = "/login";
+    });
+    return unsubscribe;
   }, []);
 
   const login = useCallback(async (credentials: LoginDto) => {
