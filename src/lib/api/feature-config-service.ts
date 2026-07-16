@@ -83,4 +83,30 @@ export const featureConfigService = {
     const config = await this.getRawByProject(projectId);
     return mergeCatalogWithConfig(config);
   },
+
+  async updateModuleStatus(
+    projectId: string,
+    moduleKey: string,
+    isActive: boolean,
+  ): Promise<FeatureConfigDto> {
+    if (USE_MOCK_API) {
+      const config = buildDefaultConfig(projectId);
+      return {
+        ...config,
+        modules: config.modules.map((module) =>
+          module.key === moduleKey ? { ...module, isActive } : module,
+        ),
+      };
+    }
+
+    const raw = await apiClient.put<unknown>(
+      `${BASE}/${projectId}/module/${encodeURIComponent(moduleKey)}`,
+      { isActive },
+    );
+    const data = unwrapApiData(raw) as FeatureConfigDto;
+    return {
+      projectId: data.projectId ?? projectId,
+      modules: Array.isArray(data.modules) ? data.modules : [],
+    };
+  },
 };

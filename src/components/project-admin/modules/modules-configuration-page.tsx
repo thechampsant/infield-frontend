@@ -9,6 +9,7 @@ import {
   type ProjectModuleState,
 } from "@/lib/api/feature-config-service";
 import { leaveConfigService } from "@/lib/api/leave-config-service";
+import { salesConfigService } from "@/lib/api/sales-config-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 
@@ -68,6 +69,16 @@ export function ModulesConfigurationPage() {
         }
       }
 
+      if (moduleId === "sales") {
+        if (!projectId) throw new Error("Project not found");
+        setSavingModuleId(moduleId);
+        if (enabled) {
+          await salesConfigService.activate(projectId);
+        } else {
+          await salesConfigService.deactivate(projectId);
+        }
+      }
+
       const name = moduleName;
       setToast({
         type: "success",
@@ -88,12 +99,12 @@ export function ModulesConfigurationPage() {
         message: formatApiError(
           err,
           enabled
-            ? "Leave could not be activated. Complete configuration first."
-            : "Leave could not be deactivated.",
+            ? `${moduleName} could not be activated. Complete configuration first.`
+            : `${moduleName} could not be deactivated.`,
         ),
       });
     } finally {
-      if (moduleId === "leave") setSavingModuleId(null);
+      if (moduleId === "leave" || moduleId === "sales") setSavingModuleId(null);
     }
   }
 
@@ -145,8 +156,10 @@ export function ModulesConfigurationPage() {
             mod.definition.id === "visits"
               ? "modules/visit"
               : mod.definition.configPath;
+          const alwaysShowConfig =
+            mod.definition.id === "leave" || mod.definition.id === "sales";
           const configHref =
-            path && (mod.enabled || mod.definition.id === "leave")
+            path && (mod.enabled || alwaysShowConfig)
               ? `${base}/${path}`
               : undefined;
           return (
@@ -154,7 +167,7 @@ export function ModulesConfigurationPage() {
               key={mod.definition.id}
               module={mod}
               configHref={configHref}
-              alwaysShowConfig={mod.definition.id === "leave"}
+              alwaysShowConfig={alwaysShowConfig}
               onToggle={(enabled) =>
                 handleToggle(mod.definition.id, enabled)
               }

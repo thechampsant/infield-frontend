@@ -95,7 +95,8 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     description: "Capture sales data and performance metrics.",
     accent: "teal",
     defaultEnabled: false,
-    comingSoon: true,
+    comingSoon: false,
+    configPath: "modules/sales",
   },
   {
     id: "target-vs-achievement",

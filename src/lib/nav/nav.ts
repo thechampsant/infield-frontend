@@ -89,6 +89,7 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
         { label: "Stores", href: `${base}/master-data/stores`, icon: "store" },
         { label: "Products", href: `${base}/master-data/products`, icon: "package" },
         { label: "User-Store Map", href: `${base}/master-data/user-store-map`, icon: "listChecks" },
+        { label: "Product-Store Map", href: `${base}/master-data/product-store-map`, icon: "listChecks" },
       ],
     },
     {
@@ -134,5 +135,6 @@ export function uploadersTabs(accountCode: string, projectCode: string) {
     { label: "Stores", href: `${base}/stores` },
     { label: "Products", href: `${base}/products` },
     { label: "User-Store Map", href: `${base}/user-store-map` },
+    { label: "Product-Store Map", href: `${base}/product-store-map` },
   ];
 }
