@@ -9,6 +9,7 @@ import "@/styles/infield-1956.css";
 import "@/styles/infield-claims.css";
 import "@/styles/infield-visit.css";
 import "@/styles/infield-leave.css";
+import "@/styles/infield-sales.css";
 import "@/styles/infield-project-admin.css";
 import "@/styles/infield-brand.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";

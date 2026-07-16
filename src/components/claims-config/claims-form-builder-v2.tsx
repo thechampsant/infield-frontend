@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatApiError, udfConfigService } from "@/lib/api";
 import type {
   UdfDataSourceDefinition,
+  UdfDatasourceFilterParamSchema,
+  UdfDatasourceFilterModesResponse,
   UdfFieldType,
   UdfSchemaField,
   UdfSourcePreviewItem,
 } from "@/lib/api";
-import { ChevronLeft, Trash2, Copy } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, Copy, Info, Trash2 } from "lucide-react";
 
 interface Props {
   projectId: string;
@@ -24,6 +26,7 @@ interface Props {
   onBack: () => void;
   moduleLabel?: string;
   showSystemFields?: boolean;
+  enableDatasourceFilters?: boolean;
 }
 
 type FieldComponent = {
@@ -142,6 +145,57 @@ function MediaSettings({
   );
 }
 
+function configRecord(field: UdfSchemaField | null): Record<string, unknown> {
+  return field?.config && typeof field.config === "object"
+    ? (field.config as Record<string, unknown>)
+    : {};
+}
+
+function fieldSourceKey(field: UdfSchemaField | null): string {
+  const config = configRecord(field);
+  return String(config.dataSource ?? config.sourceKey ?? "").trim();
+}
+
+function filterConfig(config: Record<string, unknown>): {
+  mode: string;
+  params: Record<string, unknown>;
+} {
+  const raw = config.filters;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { mode: "", params: {} };
+  }
+  const filters = raw as Record<string, unknown>;
+  const params =
+    filters.params && typeof filters.params === "object" && !Array.isArray(filters.params)
+      ? (filters.params as Record<string, unknown>)
+      : {};
+  return {
+    mode: String(filters.mode ?? "").trim(),
+    params,
+  };
+}
+
+function fieldDataSource(field: UdfSchemaField): string {
+  const config = configRecord(field);
+  return String(config.dataSource ?? config.sourceKey ?? "").trim();
+}
+
+function isAllowedFieldReference(
+  field: UdfSchemaField,
+  schema: UdfDatasourceFilterParamSchema,
+): boolean {
+  const allowedFieldTypes = schema.allowedFieldTypes?.map((type) => String(type).toUpperCase());
+  if (allowedFieldTypes?.length && !allowedFieldTypes.includes(field.type)) {
+    return false;
+  }
+
+  const allowedDataSources = schema.allowedDataSources?.map((source) => source.toUpperCase());
+  if (!allowedDataSources?.length) return true;
+
+  const sourceKey = fieldDataSource(field).toUpperCase();
+  return Boolean(sourceKey && allowedDataSources.includes(sourceKey));
+}
+
 export function ClaimsFormBuilderV2({
   projectId,
   claimTypeName,
@@ -156,12 +210,19 @@ export function ClaimsFormBuilderV2({
   onBack,
   moduleLabel = "Claims Form",
   showSystemFields = true,
+  enableDatasourceFilters = false,
 }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [sources, setSources] = useState<UdfDataSourceDefinition[]>([]);
+  const [filterModesBySource, setFilterModesBySource] = useState<
+    Record<string, UdfDatasourceFilterModesResponse>
+  >({});
+  const [filterModesLoading, setFilterModesLoading] = useState<Record<string, boolean>>({});
   const [sourcePreview, setSourcePreview] = useState<UdfSourcePreviewItem[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [datasourceError, setDatasourceError] = useState<string | null>(null);
+  const [helperOpen, setHelperOpen] = useState<string | null>(null);
   // Local draft for the options textarea — avoids losing newlines on each keystroke
   const [optionsDraft, setOptionsDraft] = useState<string | null>(null);
 
@@ -220,6 +281,23 @@ export function ClaimsFormBuilderV2({
     );
   }
 
+  function replaceFieldConfig(
+    index: number,
+    updater: (config: Record<string, unknown>) => Record<string, unknown>,
+  ) {
+    if (index < 0 || index >= fields.length) return;
+    onChange(
+      fields.map((field, i) => {
+        if (i !== index) return field;
+        const next = updater(configRecord(field));
+        return {
+          ...field,
+          config: Object.keys(next).length > 0 ? next : undefined,
+        };
+      }),
+    );
+  }
+
   function removeField(index: number) {
     const updated = fields.filter((_, i) => i !== index);
     onChange(updated);
@@ -238,6 +316,21 @@ export function ClaimsFormBuilderV2({
     const maxOrder = Math.max(...fields.map(f => f.order ?? 0));
     const newField = { ...field, fieldKey: `${field.fieldKey}_copy`, order: maxOrder + 1 };
     onChange([...fields, newField]);
+  }
+
+  function moveField(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= fields.length) return;
+    const updated = [...fields];
+    const current = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = current;
+    onChange(updated.map((field, orderIndex) => ({ ...field, order: orderIndex + 1 })));
+    if (selectedIndex === index) {
+      setSelectedIndex(targetIndex);
+    } else if (selectedIndex === targetIndex) {
+      setSelectedIndex(index);
+    }
   }
 
   function optionsText(field: UdfSchemaField): string {
@@ -278,9 +371,182 @@ export function ClaimsFormBuilderV2({
     }
   }
 
+  const loadFilterModes = useCallback(async (sourceKey: string) => {
+    if (!enableDatasourceFilters || !sourceKey || filterModesBySource[sourceKey]) return;
+    setFilterModesLoading((current) => ({ ...current, [sourceKey]: true }));
+    setDatasourceError(null);
+    try {
+      const modes = await udfConfigService.getSourceFilterModes(sourceKey);
+      setFilterModesBySource((current) => ({ ...current, [sourceKey]: modes }));
+    } catch (err) {
+      setDatasourceError(formatApiError(err, "Failed to load datasource filter modes"));
+    } finally {
+      setFilterModesLoading((current) => ({ ...current, [sourceKey]: false }));
+    }
+  }, [enableDatasourceFilters, filterModesBySource]);
+
+  function updateDatasourceFilter(index: number, mode: string) {
+    replaceFieldConfig(index, (current) => {
+      const next = { ...current };
+      if (!mode) {
+        delete next.filters;
+        return next;
+      }
+      next.filters = { mode, params: {} };
+      return next;
+    });
+  }
+
+  function updateDatasourceFilterParam(index: number, key: string, value: string) {
+    replaceFieldConfig(index, (current) => {
+      const currentFilter = filterConfig(current);
+      if (!currentFilter.mode) return current;
+      const params = { ...currentFilter.params };
+      if (value) {
+        params[key] = value;
+      } else {
+        delete params[key];
+      }
+      return {
+        ...current,
+        filters: {
+          mode: currentFilter.mode,
+          ...(Object.keys(params).length > 0 ? { params } : {}),
+        },
+      };
+    });
+  }
+
   const selectedField = selectedIndex !== null && selectedIndex >= 0 && selectedIndex < fields.length 
     ? fields[selectedIndex] 
     : null;
+  const selectedSourceKey = enableDatasourceFilters ? fieldSourceKey(selectedField) : "";
+
+  useEffect(() => {
+    if (!selectedSourceKey) return;
+    void loadFilterModes(selectedSourceKey);
+  }, [loadFilterModes, selectedSourceKey]);
+
+  function renderHelperButton(id: string, label: string, body: string) {
+    const open = helperOpen === id;
+    return (
+      <div className="claims-fb-helpWrap">
+        <button
+          type="button"
+          className="claims-fb-helpBtn"
+          aria-label={`What is ${label}?`}
+          aria-expanded={open}
+          onClick={() => setHelperOpen(open ? null : id)}
+        >
+          <Info size={13} />
+        </button>
+        {open && (
+          <div className="claims-fb-helpPop" role="status">
+            <strong>{label}</strong>
+            <p>{body}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderDatasourceFilterControls(kind: "api" | "cascade") {
+    if (!enableDatasourceFilters || selectedIndex === null || !selectedField) return null;
+    const sourceKey = fieldSourceKey(selectedField);
+    const config = configRecord(selectedField);
+    const activeFilter = filterConfig(config);
+    const response = sourceKey ? filterModesBySource[sourceKey] : undefined;
+    const selectedMode = response?.modes.find((mode) => mode.key === activeFilter.mode);
+    const fieldReferenceParams = Object.entries(selectedMode?.paramsSchema ?? {})
+      .filter(([, schema]) => schema.type === "field_reference");
+    const helperId = `${selectedIndex}-${kind}-filter-mode`;
+
+    if (!sourceKey) {
+      return (
+        <p className="claims-fb-propertiesHint">
+          Select a datasource to configure filter modes.
+        </p>
+      );
+    }
+
+    return (
+      <>
+        <div className="claims-fb-formGroup">
+          <div className="claims-fb-labelRow">
+            <label>Filter Mode</label>
+            {renderHelperButton(
+              helperId,
+              "Filter mode",
+              "Filter modes tell the backend which slice of the datasource to use. Some modes need another form field as context, such as a selected store for mapped product options.",
+            )}
+          </div>
+          <select
+            className="form-input"
+            disabled={filterModesLoading[sourceKey]}
+            value={activeFilter.mode}
+            onChange={(event) => updateDatasourceFilter(selectedIndex, event.target.value)}
+          >
+            <option value="">
+              {filterModesLoading[sourceKey]
+                ? "Loading filter modes..."
+                : `Use datasource default${response?.defaultMode ? ` (${response.defaultMode})` : ""}`}
+            </option>
+            {response?.modes.map((mode) => (
+              <option key={mode.key} value={mode.key}>
+                {mode.label}
+              </option>
+            ))}
+          </select>
+          {selectedMode?.description ? (
+            <p className="hint">{selectedMode.description}</p>
+          ) : null}
+        </div>
+
+        {fieldReferenceParams.map(([paramKey, schema]) => {
+          const paramLabel = schema.label || "Context Field";
+          const allowedFields = fields.filter((field, index) =>
+            index !== selectedIndex && isAllowedFieldReference(field, schema),
+          );
+          return (
+            <div className="claims-fb-formGroup" key={paramKey}>
+              <div className="claims-fb-labelRow">
+                <label>{paramLabel}</label>
+                {renderHelperButton(
+                  `${selectedIndex}-${kind}-${paramKey}`,
+                  paramLabel,
+                  schema.description ||
+                    "Select the form field whose current value provides context for this datasource filter.",
+                )}
+              </div>
+              <select
+                className="form-input"
+                value={String(activeFilter.params[paramKey] ?? "")}
+                onChange={(event) =>
+                  updateDatasourceFilterParam(
+                    selectedIndex,
+                    paramKey,
+                    event.target.value,
+                  )
+                }
+              >
+                <option value="">Select field...</option>
+                {allowedFields.map((field) => (
+                  <option key={field.fieldKey} value={field.fieldKey}>
+                    {field.label} ({field.fieldKey})
+                  </option>
+                ))}
+              </select>
+              {schema.description ? <p className="hint">{schema.description}</p> : null}
+            </div>
+          );
+        })}
+
+        {datasourceError ? (
+          <p className="claims-fb-propertiesHint">{datasourceError}</p>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <div className="claims-form-builder-v2">
@@ -389,6 +655,30 @@ export function ClaimsFormBuilderV2({
                   <div className="claims-fb-fieldBadge fieldType">{getFieldTypeLabel(field.type)}</div>
                   {field.required && <div className="claims-fb-fieldBadge required">REQUIRED</div>}
                   <div className="claims-fb-fieldActions">
+                    <button
+                      type="button"
+                      className="claims-fb-iconBtn"
+                      disabled={index === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveField(index, -1);
+                      }}
+                      title="Move up"
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="claims-fb-iconBtn"
+                      disabled={index === fields.length - 1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveField(index, 1);
+                      }}
+                      title="Move down"
+                    >
+                      <ArrowDown size={14} />
+                    </button>
                     <button
                       type="button"
                       className="claims-fb-iconBtn"
@@ -595,20 +885,26 @@ export function ClaimsFormBuilderV2({
                         "",
                       )}
                       onChange={(e) =>
-                        updateFieldConfig(selectedIndex!, {
-                          dataSource: e.target.value,
-                          sourceKey: e.target.value,
+                        replaceFieldConfig(selectedIndex!, (current) => {
+                          const next: Record<string, unknown> = {
+                            ...current,
+                            dataSource: e.target.value,
+                            sourceKey: e.target.value,
+                          };
+                          delete next.filters;
+                          return next;
                         })
                       }
                     >
                       <option value="">Select source...</option>
                       {sources.map((src) => (
                         <option key={src.key} value={src.key}>
-                          {src.name}
+                          {src.label || src.name}
                         </option>
                       ))}
                     </select>
                   </div>
+                  {renderDatasourceFilterControls("api")}
                   <div className="claims-fb-formGroup">
                     <label>Label Field</label>
                     <input
@@ -725,15 +1021,20 @@ export function ClaimsFormBuilderV2({
                         (selectedField.config as Record<string, unknown>)?.sourceKey ?? "",
                       )}
                       onChange={(e) =>
-                        updateFieldConfig(selectedIndex!, { sourceKey: e.target.value })
+                        replaceFieldConfig(selectedIndex!, (current) => {
+                          const next: Record<string, unknown> = { ...current, sourceKey: e.target.value };
+                          delete next.filters;
+                          return next;
+                        })
                       }
                     >
                       <option value="">Use static options</option>
                       {sources.map((source) => (
-                        <option key={source.key} value={source.key}>{source.name}</option>
+                        <option key={source.key} value={source.key}>{source.label || source.name}</option>
                       ))}
                     </select>
                   </div>
+                  {renderDatasourceFilterControls("cascade")}
                   <div className="claims-fb-formGroup">
                     <label>Dynamic Value Field</label>
                     <input

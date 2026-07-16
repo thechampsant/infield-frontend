@@ -59,6 +59,7 @@ export interface UdfApiSelectConfig {
   labelKey: string;
   valueKey: string;
   storeFilterMode?: string;
+  filters?: UdfDatasourceFilterConfig;
 }
 
 export interface UdfCascadingSelectConfig {
@@ -67,6 +68,12 @@ export interface UdfCascadingSelectConfig {
   sourceKey?: string;
   valueField?: string;
   parentField?: string;
+  filters?: UdfDatasourceFilterConfig;
+}
+
+export interface UdfDatasourceFilterConfig {
+  mode: string;
+  params?: Record<string, unknown>;
 }
 
 export interface UdfMediaConfig {
@@ -121,6 +128,32 @@ export interface UdfFieldTypeOption {
 export interface UdfDataSourceDefinition {
   key: string;
   name: string;
+  label?: string;
+}
+
+export interface UdfDatasourceFilterMode {
+  key: string;
+  label: string;
+  description?: string;
+  isDefault?: boolean;
+  requires?: string[];
+  paramsSchema?: Record<string, UdfDatasourceFilterParamSchema>;
+}
+
+export interface UdfDatasourceFilterParamSchema {
+  type?: string;
+  label?: string;
+  required?: boolean;
+  description?: string;
+  allowedFieldTypes?: UdfFieldType[] | string[];
+  allowedDataSources?: string[];
+}
+
+export interface UdfDatasourceFilterModesResponse {
+  key: string;
+  label: string;
+  defaultMode?: string;
+  modes: UdfDatasourceFilterMode[];
 }
 
 export interface UdfSourcePreviewQuery {
@@ -129,6 +162,28 @@ export interface UdfSourcePreviewQuery {
 }
 
 export type UdfSourcePreviewItem = Record<string, unknown>;
+
+export interface UdfOptionsRequest {
+  entityType: UdfEntityType;
+  projectId: string;
+  schemaKey: string;
+  fieldKey: string;
+  currentValues: Record<string, unknown>;
+  search?: string;
+}
+
+export interface UdfOptionItem {
+  label: string;
+  value: string;
+  parentValue?: string;
+}
+
+export interface UdfOptionsResponse {
+  fieldKey: string;
+  dataSource?: string;
+  filterMode?: string;
+  options: UdfOptionItem[];
+}
 
 function normalizeSourcePreviewItem(item: unknown, index: number): UdfSourcePreviewItem | null {
   if (item && typeof item === "object" && !Array.isArray(item)) {
@@ -145,6 +200,47 @@ function normalizeSourcePreviewItem(item: unknown, index: number): UdfSourcePrev
   }
 
   return null;
+}
+
+function normalizeFilterMode(value: unknown): UdfDatasourceFilterMode | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const key = String(raw.key ?? "").trim();
+  if (!key) return null;
+  const paramsSchema =
+    raw.paramsSchema && typeof raw.paramsSchema === "object" && !Array.isArray(raw.paramsSchema)
+      ? (raw.paramsSchema as Record<string, UdfDatasourceFilterParamSchema>)
+      : undefined;
+  return {
+    key,
+    label: String(raw.label ?? key).trim(),
+    description: String(raw.description ?? "").trim() || undefined,
+    isDefault: typeof raw.isDefault === "boolean" ? raw.isDefault : undefined,
+    requires: Array.isArray(raw.requires)
+      ? raw.requires.map((item) => String(item)).filter(Boolean)
+      : undefined,
+    paramsSchema,
+  };
+}
+
+function normalizeFilterModesResponse(
+  payload: unknown,
+  fallbackKey: string,
+): UdfDatasourceFilterModesResponse {
+  const data = unwrapApiData(payload);
+  const raw = data && typeof data === "object" && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : {};
+  const key = String(raw.key ?? fallbackKey).trim();
+  const modes = Array.isArray(raw.modes)
+    ? raw.modes.map(normalizeFilterMode).filter((mode): mode is UdfDatasourceFilterMode => Boolean(mode))
+    : [];
+  return {
+    key,
+    label: String(raw.label ?? key).trim(),
+    defaultMode: String(raw.defaultMode ?? "").trim() || undefined,
+    modes,
+  };
 }
 
 function normalizeFieldType(value: unknown): UdfFieldType | null {
@@ -274,12 +370,20 @@ export const udfConfigService = {
         }
         const source = item as Record<string, unknown>;
         const key = String(source.key ?? "").trim();
-        const name = String(source.name ?? key).trim();
-        return key ? { key, name } : null;
+        const name = String(source.name ?? source.label ?? key).trim();
+        const label = String(source.label ?? name).trim();
+        return key ? { key, name, label } : null;
       })
       .filter(
         (item): item is UdfDataSourceDefinition => Boolean(item),
       );
+  },
+
+  async getSourceFilterModes(sourceKey: string): Promise<UdfDatasourceFilterModesResponse> {
+    const raw = await apiClient.get<unknown>(
+      `${BASE}/sources/${encodeURIComponent(sourceKey)}/filter-modes`,
+    );
+    return normalizeFilterModesResponse(raw, sourceKey);
   },
 
   async previewSource(
@@ -332,5 +436,35 @@ export const udfConfigService = {
       entityType: input.entityType,
       schemaKey: input.schemaKey || DEFAULT_SCHEMA_KEY,
     });
+  },
+
+  async getOptions(input: UdfOptionsRequest): Promise<UdfOptionsResponse> {
+    const raw = await apiClient.post<unknown>(`${BASE}/options`, input);
+    const data = unwrapApiData(raw);
+    const result = data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+    const options: UdfOptionItem[] = Array.isArray(result.options)
+      ? result.options
+          .map((item): UdfOptionItem | null => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+            const option = item as Record<string, unknown>;
+            const normalized: UdfOptionItem = {
+              label: String(option.label ?? option.value ?? ""),
+              value: String(option.value ?? ""),
+            };
+            if (option.parentValue !== undefined) {
+              normalized.parentValue = String(option.parentValue);
+            }
+            return normalized;
+          })
+          .filter((item): item is UdfOptionItem => Boolean(item?.label && item.value))
+      : [];
+    return {
+      fieldKey: String(result.fieldKey ?? input.fieldKey),
+      dataSource: String(result.dataSource ?? "").trim() || undefined,
+      filterMode: String(result.filterMode ?? "").trim() || undefined,
+      options,
+    };
   },
 };

@@ -4,14 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import {
   productService,
-  type BulkProductResult,
   type ProductRecord,
+  type BulkProductStoreMappingResult,
+  type ProductStoreMapping,
 } from "@/lib/api/product-service";
+import { storeService, type StoreRecord } from "@/lib/api/store-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
-import { ProductTable } from "@/components/project-admin/uploaders/products/product-table";
-import { AddProductModal } from "@/components/project-admin/uploaders/products/add-product-modal";
-import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
-import type { UDFField } from "@/types/project-admin";
+import { ProductStoreMapTable } from "@/components/project-admin/uploaders/product-store-map/product-store-map-table";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -22,17 +21,16 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function ProductsMasterPage() {
+export default function ProductStoreMapPage() {
   const { projectId } = useProjectContext();
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [udfOpen, setUdfOpen] = useState(false);
+  const [mappings, setMappings] = useState<ProductStoreMapping[]>([]);
+  const [stores, setStores] = useState<StoreRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
-  const [udfFields, setUdfFields] = useState<UDFField[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<BulkProductResult | null>(null);
+  const [uploadResult, setUploadResult] = useState<BulkProductStoreMappingResult | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,15 +39,19 @@ export default function ProductsMasterPage() {
     setLoading(true);
     setError(null);
     try {
-      const [productList, fields] = await Promise.all([
-        productService.listByProject(projectId),
-        productService.getFormFields(projectId),
+      const [storeRows, productRows, mappingRows] = await Promise.all([
+        storeService.listByProject(projectId),
+        productService.listAllByProject(projectId),
+        productService.listStoreMappings(projectId),
       ]);
-      setProducts(productList.data);
-      setUdfFields(fields);
+      setStores(storeRows);
+      setProducts(productRows);
+      setMappings(mappingRows);
     } catch (err) {
-      setError(formatApiError(err, "Failed to load products"));
+      setError(formatApiError(err, "Failed to load product-store mappings"));
+      setStores([]);
       setProducts([]);
+      setMappings([]);
     } finally {
       setLoading(false);
     }
@@ -62,20 +64,20 @@ export default function ProductsMasterPage() {
   const handleTemplate = async () => {
     if (!projectId) return;
     try {
-      const blob = await productService.downloadTemplate(projectId);
-      downloadBlob(blob, "Product_Bulk_Upload_Template.xlsx");
+      const blob = await productService.downloadStoreMappingTemplate(projectId);
+      downloadBlob(blob, "Product_Store_Mapping_Template.xlsx");
     } catch (err) {
-      setError(formatApiError(err, "Template download failed. Please try again."));
+      setError(formatApiError(err, "Template download failed"));
     }
   };
 
   const handleExport = async () => {
     if (!projectId) return;
     try {
-      const blob = await productService.exportProducts(projectId);
-      downloadBlob(blob, "Products_Export.xlsx");
+      const blob = await productService.exportStoreMappings(projectId);
+      downloadBlob(blob, "Product_Store_Mapping_Export.xlsx");
     } catch (err) {
-      setError(formatApiError(err, "Export failed. Please try again."));
+      setError(formatApiError(err, "Export failed"));
     }
   };
 
@@ -85,23 +87,21 @@ export default function ProductsMasterPage() {
     setError(null);
     setUploadResult(null);
     try {
-      const result = await productService.bulkUpload(projectId, file);
+      const result = await productService.bulkUploadStoreMapping(projectId, file);
       setUploadResult(result);
       if (result.successCount > 0) {
         load();
       }
       if (result.invalidCount > 0) {
         setError(
-          `Upload completed: ${result.successCount} products added, ${result.invalidCount} rows had errors.`,
+          `Upload completed: ${result.successCount} mappings added, ${result.invalidCount} rows had errors.`,
         );
       }
     } catch (err) {
       setError(formatApiError(err, "Bulk upload failed"));
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -119,9 +119,9 @@ export default function ProductsMasterPage() {
     <>
       <div className="pa-page-header">
         <div>
-          <div className="pa-page-title">Products Master</div>
+          <div className="pa-page-title">Product–Store Mapping</div>
           <div className="pa-page-desc">
-            Manage product codes, categories, focus flags, and product-level UDF fields for this project
+            Map active products to active stores for modules that enable product-store filtering
           </div>
         </div>
         <div className="pa-actions">
@@ -142,15 +142,17 @@ export default function ProductsMasterPage() {
             accept=".xlsx,.xls"
             style={{ display: "none" }}
             onChange={handleFileChange}
-            aria-label="Upload Excel file for bulk product import"
+            aria-label="Upload Excel file for bulk product-store mapping"
           />
           <button type="button" className="btn btn-secondary" onClick={handleExport}>
             ↓ Export
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => setAddOpen(true)}>
-            + Add Product
-          </button>
         </div>
+      </div>
+
+      <div className="pa-info-banner" style={{ marginBottom: 16 }}>
+        <strong>How it works:</strong> Select a store, then assign one or more active products.
+        Bulk upload still accepts one row per <em>storeCode + productCode</em> pair.
       </div>
 
       {error && (
@@ -161,7 +163,7 @@ export default function ProductsMasterPage() {
 
       {uploadResult && uploadResult.successCount > 0 && !error && (
         <div className="pa-info-banner" style={{ color: "var(--green, #16a34a)", background: "var(--green-light, #f0fdf4)", borderColor: "var(--green-mid, #86efac)", marginBottom: 16 }}>
-          Successfully imported {uploadResult.successCount} of {uploadResult.total} products.
+          Successfully imported {uploadResult.successCount} of {uploadResult.total} mappings.
         </div>
       )}
 
@@ -172,7 +174,10 @@ export default function ProductsMasterPage() {
             {uploadResult.errors.slice(0, 10).map((err, i) => (
               <li key={i}>
                 Row {err.row ?? i + 1}
-                {err.productCode ? ` (${err.productCode})` : ""}: {err.errors.join(", ")}
+                {err.storeCode || err.productCode
+                  ? ` (${[err.storeCode, err.productCode].filter(Boolean).join(" / ")})`
+                  : ""}
+                : {err.errors.join(", ")}
               </li>
             ))}
             {uploadResult.errors.length > 10 && (
@@ -182,33 +187,25 @@ export default function ProductsMasterPage() {
         </div>
       )}
 
-      <ProductTable
+      {!loading && stores.length === 0 && (
+        <div className="pa-info-banner" style={{ color: "var(--orange, #d97706)", background: "var(--orange-light, #fffbeb)", borderColor: "var(--orange-mid, #fcd34d)", marginBottom: 16 }}>
+          <strong>No stores found.</strong> Add stores in the Stores Master tab before creating product-store mappings.
+        </div>
+      )}
+
+      {!loading && products.length === 0 && (
+        <div className="pa-info-banner" style={{ color: "var(--orange, #d97706)", background: "var(--orange-light, #fffbeb)", borderColor: "var(--orange-mid, #fcd34d)", marginBottom: 16 }}>
+          <strong>No products found.</strong> Add products in the Products Master tab before creating product-store mappings.
+        </div>
+      )}
+
+      <ProductStoreMapTable
+        stores={stores}
         products={products}
-        udfFields={udfFields}
+        mappings={mappings}
+        projectId={projectId}
         loading={loading}
-        projectId={projectId}
-        onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
-        onExport={handleExport}
-      />
-
-      <AddProductModal
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        udfFields={udfFields}
-        projectId={projectId}
-        onSuccess={() => {
-          setAddOpen(false);
-          load();
-        }}
-      />
-
-      <UDFConfigModal
-        open={udfOpen}
-        onClose={() => setUdfOpen(false)}
-        scope="product"
-        projectId={projectId}
-        onSuccess={load}
       />
     </>
   );

@@ -49,10 +49,17 @@ export type {
   UdfCascadingSelectConfig,
   UdfConfigScope,
   UdfDataSourceDefinition,
+  UdfDatasourceFilterConfig,
+  UdfDatasourceFilterMode,
+  UdfDatasourceFilterParamSchema,
+  UdfDatasourceFilterModesResponse,
   UdfEntityType,
   UdfFieldConfig,
   UdfFieldType,
   UdfFieldTypeOption,
+  UdfOptionItem,
+  UdfOptionsRequest,
+  UdfOptionsResponse,
   UdfSchemaDocument,
   UdfSchemaField,
   UdfSourcePreviewItem,
@@ -95,6 +102,30 @@ export type {
   VisitSessionConfig,
   VisitType,
 } from "./visit-config-service";
+export {
+  SALES_INBOX_MODULE_ID,
+  SALES_MODULE_KEY,
+  SALES_REQUEST_TYPE,
+  normalizeSalesConfiguration,
+  salesConfigService,
+} from "./sales-config-service";
+export type {
+  SalesApprovalLevel,
+  SalesApprovalLevelRole,
+  SalesApprovalWorkflow,
+  SalesConfiguration,
+  SalesFormField,
+  SalesProductOption,
+  SalesReportParams,
+  SalesRuntimeEntry,
+  SalesRuntimeForm,
+  SalesSubmission,
+  SalesSubmissionStatus,
+  SalesTypeEntry,
+  SalesUdfSchemaDocument,
+  SaveSalesConfigurationInput,
+  SubmitSalesInput,
+} from "./sales-config-service";
 export { leaveConfigService } from "./leave-config-service";
 export type {
   HolidayUploadResponse,
@@ -134,6 +165,15 @@ export type {
   CreateStoreInput,
   UpdateStoreInput,
 } from "./store-service";
+export { productService } from "./product-service";
+export type {
+  BulkProductResult,
+  BulkProductStoreMappingResult,
+  CreateProductInput,
+  ProductRecord,
+  ProductStoreMapping,
+  UpdateProductInput,
+} from "./product-service";
 export { reportConfigService } from "./report-config-service";
 export type {
   ReportDataSource,

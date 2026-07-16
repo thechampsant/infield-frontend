@@ -22,7 +22,14 @@ export function projectAdminUploadersEntryPath(
 }
 
 export type UploadersSetupStep = {
-  id: "roles" | "designations" | "users" | "stores" | "products" | "user-store-map";
+  id:
+    | "roles"
+    | "designations"
+    | "users"
+    | "stores"
+    | "products"
+    | "user-store-map"
+    | "product-store-map";
   label: string;
   href: string;
   description: string;
@@ -71,6 +78,12 @@ export function uploadersSetupSteps(
       href: `${base}/user-store-map`,
       description: "Link users to stores",
     },
+    {
+      id: "product-store-map",
+      label: "Product-Store Map",
+      href: `${base}/product-store-map`,
+      description: "Link products to stores",
+    },
   ];
 }
 
@@ -81,5 +94,6 @@ export function uploadersStepIdFromPath(pathname: string): UploadersSetupStep["i
   if (pathname.includes("/uploaders/stores")) return "stores";
   if (pathname.includes("/uploaders/products")) return "products";
   if (pathname.includes("/uploaders/user-store-map")) return "user-store-map";
+  if (pathname.includes("/uploaders/product-store-map")) return "product-store-map";
   return null;
 }
