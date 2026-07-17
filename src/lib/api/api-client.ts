@@ -5,6 +5,26 @@
 
 import { getApiErrorMessage, unwrapApiData } from "./api-response";
 
+// ─────────────────────────────────────────────────────────────
+// Session expiry event bus
+// ─────────────────────────────────────────────────────────────
+
+type SessionExpiredListener = () => void;
+
+const sessionExpiredListeners = new Set<SessionExpiredListener>();
+
+/** Register a callback that fires when the API returns 401 (token expired). */
+export function onSessionExpired(listener: SessionExpiredListener): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => {
+    sessionExpiredListeners.delete(listener);
+  };
+}
+
+function emitSessionExpired(): void {
+  sessionExpiredListeners.forEach((fn) => fn());
+}
+
 /**
  * Get the API base URL.
  * In browser: Use empty string to leverage Next.js rewrites (avoids CORS).
@@ -85,6 +105,13 @@ class ApiClient {
         errorCode: "UNKNOWN_ERROR",
         message: response.statusText,
       }));
+
+      // Session expired: emit event so the app can logout & redirect.
+      // Skip for auth endpoints to avoid redirect loops during login flows.
+      if (response.status === 401 && !endpoint.startsWith("/api/v1/auth/")) {
+        this.clearAccessToken();
+        emitSessionExpired();
+      }
 
       throw new ApiError(
         response.status,

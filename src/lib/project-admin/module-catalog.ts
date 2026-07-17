@@ -63,6 +63,7 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     accent: "blue",
     defaultEnabled: true,
     comingSoon: false,
+    configPath: "modules/documents",
   },
   {
     id: "notifications",

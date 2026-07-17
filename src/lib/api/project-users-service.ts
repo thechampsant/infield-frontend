@@ -31,7 +31,16 @@ interface RawUser {
   dateOfJoining?: string;
   dateOfExit?: string;
   reportees?: unknown[];
+  [key: string]: unknown;
 }
+
+/** Keys that belong to the core user document and should NOT be treated as UDF data */
+const KNOWN_USER_KEYS = new Set([
+  "_id", "id", "__v", "email", "firstName", "lastName", "phoneNumber",
+  "employeeId", "designation", "status", "isActive", "udfData",
+  "createdAt", "updatedAt", "dateOfJoining", "dateOfExit", "reportees",
+  "projectId", "accountId", "accountName", "password", "role",
+]);
 
 interface PaginatedUsers {
   data?: RawUser[];
@@ -74,6 +83,20 @@ function normalizeUser(raw: RawUser): ProjectUser {
   const { designation, role } = designationLabel(raw);
   const name = `${raw.firstName ?? ""} ${raw.lastName ?? ""}`.trim() || raw.email || "";
   const backendId = raw._id ?? raw.id ?? "";
+
+  // UDF data may come in a nested udfData field OR spread at root level
+  const explicitUdf = raw.udfData;
+  const rootLevelUdf: Record<string, unknown> = {};
+  for (const key of Object.keys(raw)) {
+    if (!KNOWN_USER_KEYS.has(key)) {
+      rootLevelUdf[key] = raw[key];
+    }
+  }
+  // Merge: explicit udfData takes precedence if present, otherwise use root-level
+  const mergedUdf = (explicitUdf && Object.keys(explicitUdf).length > 0)
+    ? { ...rootLevelUdf, ...explicitUdf }
+    : rootLevelUdf;
+
   return {
     backendId,
     id: raw.employeeId ?? backendId,
@@ -85,7 +108,7 @@ function normalizeUser(raw: RawUser): ProjectUser {
     doj: raw.dateOfJoining ?? raw.createdAt?.slice(0, 10) ?? "",
     doe: raw.dateOfExit ?? "",
     status: normalizeStatus(raw),
-    udfs: normalizeUdfData(raw.udfData),
+    udfs: normalizeUdfData(Object.keys(mergedUdf).length > 0 ? mergedUdf : undefined),
     reporteeIds: normalizeReferenceIds(raw.reportees),
   };
 }
@@ -365,9 +388,9 @@ function normalizeUserSchemaFieldForSave(
 }
 
 export const projectUsersService = {
-  async listByProject(projectId: string, limit = 500): Promise<ProjectUser[]> {
+  async listByProject(projectId: string): Promise<ProjectUser[]> {
     const res = await apiClient.get<PaginatedUsers | RawUser[]>(
-      `${BASE}?projectId=${encodeURIComponent(projectId)}&limit=${limit}`,
+      `${BASE}?projectId=${encodeURIComponent(projectId)}&limit=10000`,
     );
     const rows = Array.isArray(res) ? res : (res.data ?? []);
     return rows.map(normalizeUser);

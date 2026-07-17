@@ -219,6 +219,7 @@ export function UserTable({
         searchValue={search}
         onSearchChange={setSearch}
         loading={loading}
+        pageSize={20}
         toolbarRight={
           <>
             <button
@@ -237,6 +238,7 @@ export function UserTable({
 
       {editingUser && (
         <EditUserModal
+          key={editingUser.backendId || editingUser.id}
           user={editingUser}
           backendUserId={editingUser.backendId || editingUser.id}
           open={!!editId}

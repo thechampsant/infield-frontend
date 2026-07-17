@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
+
 interface Column {
   key: string;
   label: string;
@@ -19,6 +21,8 @@ interface DataTableProps {
   toolbarRight?: React.ReactNode;
   loading?: boolean;
   emptyMessage?: string;
+  /** Enable scroll pagination — show this many rows initially, load more on scroll */
+  pageSize?: number;
 }
 
 export function DataTable({
@@ -33,7 +37,40 @@ export function DataTable({
   toolbarRight,
   loading,
   emptyMessage,
+  pageSize,
 }: DataTableProps) {
+  const [visibleCount, setVisibleCount] = useState(pageSize ?? rows.length);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Reset visible count when rows change (e.g. search/filter) or pageSize changes
+  useEffect(() => {
+    setVisibleCount(pageSize ?? rows.length);
+  }, [pageSize, rows.length, searchValue]);
+
+  const handleScroll = useCallback(() => {
+    if (!pageSize) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // Load more when user is within 100px of the bottom
+    if (scrollTop + clientHeight >= scrollHeight - 100) {
+      setVisibleCount((prev) => {
+        const next = prev + pageSize;
+        return next > rows.length ? rows.length : next;
+      });
+    }
+  }, [pageSize, rows.length]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !pageSize) return;
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [handleScroll, pageSize]);
+
+  const displayedRows = pageSize ? rows.slice(0, visibleCount) : rows;
+  const hasMore = pageSize ? visibleCount < rows.length : false;
   const gridCols = columns
     .map((c) =>
       typeof c.width === "number" ? `${c.width}px` : (c.width ?? "1fr"),
@@ -132,7 +169,7 @@ export function DataTable({
         </div>
       </div>
 
-      <div style={{ overflowX: "auto" }}>
+      <div ref={scrollContainerRef} style={{ overflowX: "auto", overflowY: pageSize ? "auto" : undefined, maxHeight: pageSize ? 640 : undefined }}>
         <div
           style={{
             display: "grid",
@@ -170,7 +207,7 @@ export function DataTable({
 
         {loading ? (
           <div className="pa-loading">Loading…</div>
-        ) : rows.length === 0 ? (
+        ) : displayedRows.length === 0 ? (
           <div style={{ padding: "48px 24px", textAlign: "center" }}>
             <div
               style={{
@@ -187,7 +224,22 @@ export function DataTable({
             </div>
           </div>
         ) : (
-          rows
+          <>
+            {displayedRows}
+            {hasMore && (
+              <div
+                style={{
+                  padding: "12px 20px",
+                  textAlign: "center",
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  fontWeight: 500,
+                }}
+              >
+                Scroll down for more…
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -204,7 +256,7 @@ export function DataTable({
         <span
           style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}
         >
-          Showing {filtered} of {total}
+          Showing {pageSize ? `${displayedRows.length} of ${filtered}` : `${filtered} of ${total}`}
         </span>
       </div>
     </div>

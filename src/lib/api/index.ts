@@ -193,6 +193,18 @@ export type {
   PreviewReportParams,
 } from "./report-config-service";
 
+export { documentsService } from "./documents-service";
+export type {
+  DocumentRecord,
+  DocumentStatus,
+  DocumentTargetModule,
+  DocumentTargetModuleConfig,
+  DocumentType,
+  DocumentsFilterParams,
+  DocumentsListResponse,
+  UploadDocumentInput,
+} from "./documents-service";
+
 // Re-export types
 export type { AdminApi } from "./admin";
 export * from "./types";

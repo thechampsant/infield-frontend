@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { formatApiError, udfConfigService } from "@/lib/api";
 import { projectUsersService } from "@/lib/api/project-users-service";
@@ -123,6 +123,103 @@ function sourcePreviewKeys(rows: UdfSourcePreviewItem[]): string[] {
     Object.keys(row).forEach((key) => keys.add(key));
   });
   return Array.from(keys);
+}
+
+/**
+ * A textarea that manages its own raw text state so the user can freely
+ * type across lines. Options are committed to the parent on blur only.
+ */
+function OptionsTextarea({
+  value,
+  onChange,
+  placeholder,
+  rows = 4,
+}: {
+  value: string[];
+  onChange: (options: string[]) => void;
+  placeholder?: string;
+  rows?: number;
+}) {
+  const [localText, setLocalText] = useState(() => value.join("\n"));
+  const committedRef = useRef(value);
+
+  // Sync local text when external value changes (e.g. after save/reload),
+  // but NOT when the user is actively editing (detected by comparing arrays).
+  useEffect(() => {
+    const externalJoined = value.join("\n");
+    const committedJoined = committedRef.current.join("\n");
+    if (externalJoined !== committedJoined) {
+      setLocalText(externalJoined);
+      committedRef.current = value;
+    }
+  }, [value]);
+
+  const handleBlur = useCallback(() => {
+    const parsed = localText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    committedRef.current = parsed;
+    onChange(parsed);
+  }, [localText, onChange]);
+
+  return (
+    <textarea
+      className="form-input"
+      rows={rows}
+      value={localText}
+      onChange={(e) => setLocalText(e.target.value)}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+    />
+  );
+}
+
+/**
+ * Same pattern for cascading select options (parentValue:value per line).
+ */
+function CascadeOptionsTextarea({
+  value,
+  onChange,
+  placeholder,
+  rows = 4,
+}: {
+  value: { value: string; parentValue: string }[];
+  onChange: (options: { value: string; parentValue: string }[]) => void;
+  placeholder?: string;
+  rows?: number;
+}) {
+  const serialize = (items: { value: string; parentValue: string }[]) =>
+    items.map((item) => `${item.parentValue}:${item.value}`).join("\n");
+
+  const [localText, setLocalText] = useState(() => serialize(value));
+  const committedRef = useRef(value);
+
+  useEffect(() => {
+    const externalText = serialize(value);
+    const committedText = serialize(committedRef.current);
+    if (externalText !== committedText) {
+      setLocalText(externalText);
+      committedRef.current = value;
+    }
+  }, [value]);
+
+  const handleBlur = useCallback(() => {
+    const parsed = parseCascadeOptions(localText);
+    committedRef.current = parsed;
+    onChange(parsed);
+  }, [localText, onChange]);
+
+  return (
+    <textarea
+      className="form-input"
+      rows={rows}
+      value={localText}
+      onChange={(e) => setLocalText(e.target.value)}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+    />
+  );
 }
 
 export function UDFConfigModal({
@@ -631,16 +728,17 @@ export function UDFConfigModal({
                 {(field.type === "SELECT" || field.type === "DROPDOWN") && (
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Options</label>
-                    <textarea
-                      className="form-input"
-                      rows={4}
-                      value={optionsTextFromField(field)}
-                      onChange={(e) =>
-                        updateFieldConfig(index, {
-                          options: parseLineOptions(e.target.value),
-                        })
+                    <OptionsTextarea
+                      value={
+                        (() => {
+                          const config = field.config && typeof field.config === "object"
+                            ? (field.config as Record<string, unknown>).options
+                            : undefined;
+                          return Array.isArray(config) ? config.map(String) : [];
+                        })()
                       }
-                      placeholder={"One option per line"}
+                      onChange={(options) => updateFieldConfig(index, { options })}
+                      placeholder="One option per line"
                     />
                   </div>
                 )}
@@ -813,16 +911,26 @@ export function UDFConfigModal({
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Static Options</label>
-                      <textarea
-                        className="form-input"
-                        rows={4}
-                        value={cascadeOptionsTextFromField(field)}
-                        onChange={(e) =>
-                          updateFieldConfig(index, {
-                            options: parseCascadeOptions(e.target.value),
-                          })
+                      <CascadeOptionsTextarea
+                        value={
+                          (() => {
+                            const config = field.config && typeof field.config === "object"
+                              ? (field.config as Record<string, unknown>).options
+                              : undefined;
+                            if (!Array.isArray(config)) return [];
+                            return config
+                              .map((item) => {
+                                const entry = item as Record<string, unknown>;
+                                return {
+                                  parentValue: String(entry.parentValue ?? ""),
+                                  value: String(entry.value ?? ""),
+                                };
+                              })
+                              .filter((item) => item.parentValue && item.value);
+                          })()
                         }
-                        placeholder={"Parent:Child\nState:City"}
+                        onChange={(options) => updateFieldConfig(index, { options })}
+                        placeholder="Parent:Child\nState:City"
                       />
                     </div>
                   </div>
