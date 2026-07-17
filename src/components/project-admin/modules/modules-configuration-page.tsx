@@ -45,6 +45,9 @@ export function ModulesConfigurationPage() {
     load();
   }, [ctxLoading, projectId, load]);
 
+  /** Modules with dedicated activation endpoints (wizard-gated). */
+  const WIZARD_GATED_MODULES = new Set(["leave", "sales"]);
+
   async function handleToggle(moduleId: string, enabled: boolean) {
     let moduleName = "Module";
     const previous = modules.find((m) => m.definition.id === moduleId)?.enabled;
@@ -59,24 +62,25 @@ export function ModulesConfigurationPage() {
     );
 
     try {
+      if (!projectId) throw new Error("Project not found");
+      setSavingModuleId(moduleId);
+
       if (moduleId === "leave") {
-        if (!projectId) throw new Error("Project not found");
-        setSavingModuleId(moduleId);
         if (enabled) {
           await leaveConfigService.activate(projectId);
         } else {
           await leaveConfigService.deactivate(projectId);
         }
-      }
-
-      if (moduleId === "sales") {
-        if (!projectId) throw new Error("Project not found");
-        setSavingModuleId(moduleId);
+      } else if (moduleId === "sales") {
         if (enabled) {
           await salesConfigService.activate(projectId);
         } else {
           await salesConfigService.deactivate(projectId);
         }
+      } else {
+        // All other modules (resources, notifications, custom-view, etc.)
+        // use the generic feature-config toggle endpoint.
+        await featureConfigService.updateModuleStatus(projectId, moduleId, enabled);
       }
 
       const name = moduleName;
@@ -104,7 +108,7 @@ export function ModulesConfigurationPage() {
         ),
       });
     } finally {
-      if (moduleId === "leave" || moduleId === "sales") setSavingModuleId(null);
+      setSavingModuleId(null);
     }
   }
 
