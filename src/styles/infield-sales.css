@@ -998,6 +998,13 @@
   font-weight: 900;
 }
 
+.sales-config-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .sales-config-card h2 {
   margin: 0;
   color: #0f1d31;
@@ -1048,6 +1055,18 @@
   color: #1768b7;
 }
 
+.sales-status {
+  border-color: #dce8f6;
+  background: #f3f7fc;
+  color: #6f89ab;
+}
+
+.sales-status.active {
+  border-color: rgba(0, 168, 122, 0.22);
+  background: #ddf6ed;
+  color: #087757;
+}
+
 .sales-chip-row .missing {
   background: #ffe8e5;
   color: #d13b31;
@@ -1067,6 +1086,20 @@
   background: rgba(255, 255, 255, 0.72);
   color: #465e7f;
   font-size: 11px;
+}
+
+.sales-card-actions button.sales-activation-btn {
+  min-width: 78px;
+  border-color: #cde7dd;
+  background: #f0fbf6;
+  color: #087757;
+  font-weight: 850;
+}
+
+.sales-card-actions button.sales-activation-btn.active {
+  border-color: #ffd6d1;
+  background: #fff4f2;
+  color: #d13b31;
 }
 
 .sales-card-actions button:not(.danger):not(:first-child) {

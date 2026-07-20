@@ -7,6 +7,10 @@ export const SALES_MODULE_KEY = "sales";
 export const SALES_INBOX_MODULE_ID = "sales";
 export const SALES_REQUEST_TYPE = "sales-entry";
 
+export function salesConfigModuleKey(salesConfigId: string): string {
+  return `sales_config_${salesConfigId}`;
+}
+
 export type SalesSubmissionStatus =
   | "Pending_Approval"
   | "Finalized"
@@ -245,16 +249,16 @@ function payload(input: SaveSalesConfigurationInput): Record<string, unknown> {
 }
 
 export const salesConfigService = {
-  async activate(projectId: string): Promise<void> {
+  async activateConfiguration(id: string, projectId: string): Promise<void> {
     await apiClient.put(
-      `${BASE}/configurations/activate/${encodeURIComponent(projectId)}`,
+      `${BASE}/configurations/${encodeURIComponent(id)}/activate?projectId=${encodeURIComponent(projectId)}`,
       {},
     );
   },
 
-  async deactivate(projectId: string): Promise<void> {
+  async deactivateConfiguration(id: string, projectId: string): Promise<void> {
     await apiClient.put(
-      `/api/v1/feature-config/${encodeURIComponent(projectId)}/module/sales`,
+      `/api/v1/feature-config/${encodeURIComponent(projectId)}/module/${encodeURIComponent(salesConfigModuleKey(id))}`,
       { isActive: false },
     );
   },

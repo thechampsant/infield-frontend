@@ -112,6 +112,7 @@ export {
   SALES_MODULE_KEY,
   SALES_REQUEST_TYPE,
   normalizeSalesConfiguration,
+  salesConfigModuleKey,
   salesConfigService,
 } from "./sales-config-service";
 export type {
