@@ -1930,6 +1930,204 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+.claims-fb-repeatPreview,
+.claims-fb-repeatMeta,
+.claims-fb-repeatAddRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.claims-fb-repeatPreview {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.claims-fb-repeatMeta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.claims-fb-repeatChildren {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.claims-fb-repeatChildCard {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.claims-fb-repeatChildCard:hover,
+.claims-fb-repeatChildCard.selected {
+  border-color: var(--claims-blue);
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.claims-fb-repeatChildIndex {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--claims-blue);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.claims-fb-repeatChildCard strong,
+.claims-fb-repeatChildCard small {
+  display: block;
+}
+
+.claims-fb-repeatChildCard strong {
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.claims-fb-repeatChildCard small {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.claims-fb-repeatEmpty {
+  padding: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.claims-fb-repeatAddRow button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.claims-fb-repeatAddRow button:hover {
+  border-color: var(--claims-blue);
+  background: var(--claims-blue-soft);
+  color: var(--claims-blue);
+}
+
+.claims-fb-childInspectorHead {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.claims-fb-childInspectorHead strong {
+  color: var(--claims-heading);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.claims-fb-formulaBuilder {
+  display: grid;
+  gap: 8px;
+}
+
+.claims-fb-formulaTerm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.claims-fb-formulaTerm .claims-fb-iconBtn:only-child {
+  grid-column: 3;
+}
+
+.claims-fb-operatorSelect {
+  text-align: center;
+  font-weight: 900;
+}
+
+.claims-fb-nestedList {
+  display: grid;
+  gap: 10px;
+}
+
+.claims-fb-nestedField {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.claims-fb-nestedHeader,
+.claims-fb-addChildRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.claims-fb-nestedHeader {
+  justify-content: space-between;
+}
+
+.claims-fb-nestedHeader strong {
+  min-width: 0;
+  color: var(--claims-heading);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.claims-fb-nestedCheck {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  color: #475569 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.claims-fb-addChildRow {
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
 .claims-fb-toggles {
   display: flex;
   flex-direction: column;
