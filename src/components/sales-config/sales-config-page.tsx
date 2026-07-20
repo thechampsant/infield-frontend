@@ -12,6 +12,7 @@ import {
   Layers3,
   Pencil,
   Plus,
+  Power,
   Settings2,
   Target,
   Trash2,
@@ -22,7 +23,9 @@ import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   designationService,
+  featureConfigService,
   formatApiError,
+  salesConfigModuleKey,
   salesConfigService,
   type Designation,
   type SalesApprovalLevelRole,
@@ -155,17 +158,32 @@ export function SalesConfigPage({
   const [errors, setErrors] = useState<string[]>([]);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SalesConfiguration | null>(null);
+  const [activeConfigIds, setActiveConfigIds] = useState<Set<string>>(() => new Set());
+  const [togglingConfigId, setTogglingConfigId] = useState<string | null>(null);
 
   const base = projectAdminBase(accountCode, projectCode);
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [configList, designationList] = await Promise.all([
+      const [configList, designationList, featureConfig] = await Promise.all([
         salesConfigService.list(projectId),
         designationService.listByProject(projectId),
+        featureConfigService.getRawByProject(projectId),
       ]);
+      const activeKeys = new Set(
+        featureConfig.modules
+          .filter((module) => module.isActive)
+          .map((module) => module.key),
+      );
       setConfigs(configList);
       setDesignations(designationList);
+      setActiveConfigIds(
+        new Set(
+          configList
+            .filter((config) => activeKeys.has(salesConfigModuleKey(config.id)))
+            .map((config) => config.id),
+        ),
+      );
     } catch (error) {
       setToast({ type: "error", message: formatApiError(error, "Failed to load Sales configuration") });
     } finally {
@@ -287,6 +305,36 @@ export function SalesConfigPage({
     }
   }
 
+  async function toggleConfigActivation(config: SalesConfiguration, enabled: boolean) {
+    setTogglingConfigId(config.id);
+    try {
+      if (enabled) {
+        await salesConfigService.activateConfiguration(config.id, projectId);
+      } else {
+        await salesConfigService.deactivateConfiguration(config.id, projectId);
+      }
+      await load();
+      setToast({
+        type: "success",
+        message: enabled
+          ? `${config.name} enabled for matching designations.`
+          : `${config.name} disabled.`,
+      });
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: formatApiError(
+          error,
+          enabled
+            ? "Sales configuration could not be activated. Complete the Form Builder first."
+            : "Sales configuration could not be disabled.",
+        ),
+      });
+    } finally {
+      setTogglingConfigId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="sales-config-page">
@@ -358,12 +406,18 @@ export function SalesConfigPage({
           ) : (
             <div className="sales-config-grid">
               {configs.map((config, index) => {
+                const enabled = activeConfigIds.has(config.id);
                 return (
                   <article className="sales-config-card" key={config.id}>
                     <div className="sales-config-main">
                       <div className="sales-config-index">{index + 1}</div>
                       <div>
-                      <h2>{config.name}</h2>
+                      <div className="sales-config-title-row">
+                        <h2>{config.name}</h2>
+                        <span className={`sales-status ${enabled ? "active" : ""}`}>
+                          {enabled ? "Enabled" : "Disabled"}
+                        </span>
+                      </div>
                       <p>{designationNames(config.applicableDesignations, designations)}</p>
                       <div className="sales-chip-row">
                         {config.productStoreMappingEnabled && <span className="map">Store-Product Mapping</span>}
@@ -376,6 +430,20 @@ export function SalesConfigPage({
                       </div>
                     </div>
                     <div className="sales-card-actions">
+                      <button
+                        type="button"
+                        className={`sales-activation-btn ${enabled ? "active" : ""}`}
+                        disabled={togglingConfigId === config.id}
+                        onClick={() => void toggleConfigActivation(config, !enabled)}
+                        title={enabled ? "Disable configuration" : "Enable configuration"}
+                      >
+                        <Power size={15} />
+                        {togglingConfigId === config.id
+                          ? "Saving..."
+                          : enabled
+                            ? "Disable"
+                            : "Enable"}
+                      </button>
                       <button type="button" onClick={() => startEdit(config)} title="Edit">
                         <Pencil size={15} /> Edit
                       </button>

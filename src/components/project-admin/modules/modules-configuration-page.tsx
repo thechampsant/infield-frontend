@@ -9,7 +9,10 @@ import {
   type ProjectModuleState,
 } from "@/lib/api/feature-config-service";
 import { leaveConfigService } from "@/lib/api/leave-config-service";
-import { salesConfigService } from "@/lib/api/sales-config-service";
+import {
+  salesConfigModuleKey,
+  salesConfigService,
+} from "@/lib/api/sales-config-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 
@@ -31,8 +34,26 @@ export function ModulesConfigurationPage() {
     setLoading(true);
     setError(null);
     try {
-      const list = await featureConfigService.getByProject(projectId);
-      setModules(list);
+      const [list, rawConfig, salesConfigs] = await Promise.all([
+        featureConfigService.getByProject(projectId),
+        featureConfigService.getRawByProject(projectId),
+        salesConfigService.list(projectId).catch(() => []),
+      ]);
+      const activeKeys = new Set(
+        rawConfig.modules
+          .filter((module) => module.isActive)
+          .map((module) => module.key),
+      );
+      const hasActiveSalesConfig = salesConfigs.some((config) =>
+        activeKeys.has(salesConfigModuleKey(config.id)),
+      );
+      setModules(
+        list.map((module) =>
+          module.definition.id === "sales"
+            ? { ...module, enabled: hasActiveSalesConfig }
+            : module,
+        ),
+      );
     } catch (err) {
       setError(formatApiError(err, "Failed to load module configuration"));
     } finally {
@@ -45,12 +66,19 @@ export function ModulesConfigurationPage() {
     load();
   }, [ctxLoading, projectId, load]);
 
-  /** Modules with dedicated activation endpoints (wizard-gated). */
-  const WIZARD_GATED_MODULES = new Set(["leave", "sales"]);
-
   async function handleToggle(moduleId: string, enabled: boolean) {
     let moduleName = "Module";
     const previous = modules.find((m) => m.definition.id === moduleId)?.enabled;
+
+    if (moduleId === "sales") {
+      setToast({
+        type: "success",
+        message:
+          "Enable or disable individual Sales configurations from Sales Configurations.",
+      });
+      return;
+    }
+
     setModules((prev) =>
       prev.map((m) => {
         if (m.definition.id === moduleId) {
@@ -70,12 +98,6 @@ export function ModulesConfigurationPage() {
           await leaveConfigService.activate(projectId);
         } else {
           await leaveConfigService.deactivate(projectId);
-        }
-      } else if (moduleId === "sales") {
-        if (enabled) {
-          await salesConfigService.activate(projectId);
-        } else {
-          await salesConfigService.deactivate(projectId);
         }
       } else {
         // All other modules (resources, notifications, custom-view, etc.)
