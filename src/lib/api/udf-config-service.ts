@@ -38,7 +38,9 @@ export type UdfFieldType =
   | "API_SELECT"
   | "CASCADING_SELECT"
   | "IMAGE"
-  | "FILE";
+  | "FILE"
+  | "REPEATABLE_GROUP"
+  | "FORMULA";
 
 export type UdfConfigScope = keyof typeof UDF_ENTITY_TYPES;
 export type UdfEntityType = (typeof UDF_ENTITY_TYPES)[UdfConfigScope] | string;
@@ -76,6 +78,32 @@ export interface UdfDatasourceFilterConfig {
   params?: Record<string, unknown>;
 }
 
+export type UdfFormulaOperator = "ADD" | "SUBTRACT" | "MULTIPLY" | "DIVIDE";
+export type UdfFormulaAggregateOperation = "SUM" | "AVG" | "MIN" | "MAX" | "COUNT";
+
+export type UdfFormulaExpressionToken =
+  | { type: "field"; fieldKey: string }
+  | { type: "constant"; value: number }
+  | { type: "operator"; operator: UdfFormulaOperator }
+  | { type: "paren"; paren: "OPEN" | "CLOSE" };
+
+export interface UdfRepeatableGroupConfig {
+  minRows?: number;
+  maxRows?: number;
+  fields: UdfSchemaField[];
+}
+
+export interface UdfFormulaConfig {
+  scope: "row" | "aggregate";
+  expression?: UdfFormulaExpressionToken[];
+  operation?: UdfFormulaAggregateOperation;
+  source?: {
+    groupFieldKey: string;
+    fieldKey: string;
+  };
+  precision?: number;
+}
+
 export interface UdfMediaConfig {
   multiple?: boolean;
   maxCount?: number;
@@ -97,6 +125,8 @@ export type UdfFieldConfig =
   | UdfOptionListConfig
   | UdfApiSelectConfig
   | UdfCascadingSelectConfig
+  | UdfRepeatableGroupConfig
+  | UdfFormulaConfig
   | UdfImageConfig
   | UdfFileConfig
   | Record<string, unknown>;
@@ -110,6 +140,7 @@ export interface UdfSchemaField {
   order?: number;
   status?: boolean;
   summaryKey?: boolean;
+  view_type?: "default" | "table";
   visibilityRules?: UdfVisibilityRule[];
 }
 
@@ -256,6 +287,8 @@ function normalizeFieldType(value: unknown): UdfFieldType | null {
     case "CASCADING_SELECT":
     case "IMAGE":
     case "FILE":
+    case "REPEATABLE_GROUP":
+    case "FORMULA":
       return raw;
     default:
       return null;
@@ -299,6 +332,10 @@ function normalizeSchemaField(rawValue: unknown, index: number): UdfSchemaField 
     status: typeof raw.status === "boolean" ? raw.status : undefined,
     summaryKey:
       typeof raw.summaryKey === "boolean" ? raw.summaryKey : undefined,
+    view_type:
+      raw.view_type === "table" || raw.view_type === "default"
+        ? raw.view_type
+        : undefined,
     visibilityRules: normalizeVisibilityRules(raw.visibilityRules),
   };
 }

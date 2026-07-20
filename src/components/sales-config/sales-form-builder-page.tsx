@@ -16,6 +16,12 @@ function cloneFields(fields: UdfSchemaField[]): UdfSchemaField[] {
   return JSON.parse(JSON.stringify(fields)) as UdfSchemaField[];
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function normalizeFieldConfig(config: UdfSchemaField["config"]): UdfSchemaField["config"] {
   if (!config || typeof config !== "object" || Array.isArray(config)) return config;
   const next = { ...(config as Record<string, unknown>) };
@@ -39,6 +45,10 @@ function normalizeFieldConfig(config: UdfSchemaField["config"]): UdfSchemaField[
     };
   }
 
+  if (Array.isArray(next.fields)) {
+    next.fields = normalizeFields(next.fields as UdfSchemaField[]);
+  }
+
   return next;
 }
 
@@ -53,10 +63,21 @@ function normalizeFields(fields: UdfSchemaField[]): UdfSchemaField[] {
   }));
 }
 
-function validateFields(fields: UdfSchemaField[]): string[] {
+function validateFields(
+  fields: UdfSchemaField[],
+  externalFieldKeys: Set<string> = new Set(),
+): string[] {
   const errors: string[] = [];
   const keys = new Set<string>();
-  const fieldKeys = new Set(fields.map((field) => field.fieldKey.trim()).filter(Boolean));
+  const fieldKeys = new Set([
+    ...externalFieldKeys,
+    ...fields.map((field) => field.fieldKey.trim()).filter(Boolean),
+  ]);
+  const repeatableGroups = new Map(
+    fields
+      .filter((field) => field.type === "REPEATABLE_GROUP")
+      .map((field) => [field.fieldKey, field]),
+  );
 
   fields.forEach((field, index) => {
     const label = `Field ${index + 1}`;
@@ -114,6 +135,53 @@ function validateFields(fields: UdfSchemaField[]): string[] {
     const contextField = String(filterParams.contextField ?? "").trim();
     if (contextField && !fieldKeys.has(contextField)) {
       errors.push(`${field.label || label}: context field "${contextField}" does not exist.`);
+    }
+
+    if (field.type === "REPEATABLE_GROUP") {
+      const minRows = Number(config.minRows ?? 0);
+      const maxRows = Number(config.maxRows ?? 0);
+      const children = Array.isArray(config.fields) ? (config.fields as UdfSchemaField[]) : [];
+      if (minRows < 0) errors.push(`${field.label || label}: minimum rows cannot be negative.`);
+      if (maxRows < 1) errors.push(`${field.label || label}: maximum rows must be at least 1.`);
+      if (maxRows > 0 && minRows > maxRows) {
+        errors.push(`${field.label || label}: minimum rows cannot exceed maximum rows.`);
+      }
+      if (!children.length) errors.push(`${field.label || label}: add at least one child field.`);
+      children.forEach((child, childIndex) => {
+        const childPrefix = `${field.label || label} child ${childIndex + 1}`;
+        if (child.type === "REPEATABLE_GROUP") {
+          errors.push(`${childPrefix}: nested repeatable groups are not supported.`);
+        }
+      });
+      validateFields(children, fieldKeys).forEach((error) => errors.push(`${field.label || label}: ${error}`));
+    }
+
+    if (field.type === "FORMULA") {
+      const scope = String(config.scope ?? "row");
+      if (scope === "row") {
+        const expression = Array.isArray(config.expression) ? config.expression : [];
+        if (!expression.length) errors.push(`${field.label || label}: row formula expression is required.`);
+      } else if (scope === "aggregate") {
+        const source = record(config.source);
+        const groupFieldKey = String(source.groupFieldKey ?? "").trim();
+        const sourceFieldKey = String(source.fieldKey ?? "").trim();
+        const group = repeatableGroups.get(groupFieldKey);
+        if (!groupFieldKey || !group) {
+          errors.push(`${field.label || label}: select a valid repeatable group.`);
+        }
+        if (!sourceFieldKey) {
+          errors.push(`${field.label || label}: select a source field.`);
+        } else if (group) {
+          const groupConfig = record(group.config);
+          const children = Array.isArray(groupConfig.fields) ? (groupConfig.fields as UdfSchemaField[]) : [];
+          const sourceField = children.find((child) => child.fieldKey === sourceFieldKey);
+          if (!sourceField || (sourceField.type !== "NUMBER" && sourceField.type !== "FORMULA")) {
+            errors.push(`${field.label || label}: aggregate source must be a numeric child field or child formula.`);
+          }
+        }
+      } else {
+        errors.push(`${field.label || label}: formula scope must be row or aggregate.`);
+      }
     }
   });
 
@@ -210,6 +278,7 @@ export function SalesFormBuilderPage({
         moduleLabel="Sales Form"
         showSystemFields={false}
         enableDatasourceFilters
+        enableAdvancedSalesFields
       />
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </>
