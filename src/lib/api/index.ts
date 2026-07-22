@@ -85,6 +85,7 @@ export type {
   ClaimCapType,
   ClaimConditionalCap,
   ClaimConditionalCapCondition,
+  ClaimPerKmRateConfig,
   ClaimSchemaDocument,
   ClaimTypeDefinition,
   ClaimsBackdateConfig,
