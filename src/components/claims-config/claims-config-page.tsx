@@ -63,6 +63,9 @@ type EditorClaimType = {
   approvalWorkflow?: {
     levels: EditorApprovalLevel[];
   };
+  perKmRateEnabled: boolean;
+  perKmRatePerKm: string;
+  perKmFieldKey: string;
 };
 
 type EditorTemplate = {
@@ -114,6 +117,9 @@ function createEmptyClaimType(): EditorClaimType {
     conditions: [],
     iconUrl: "",
     expanded: true,
+    perKmRateEnabled: false,
+    perKmRatePerKm: "",
+    perKmFieldKey: "",
   };
 }
 
@@ -184,6 +190,11 @@ function toEditorTemplate(template: ClaimsTemplateDocument | null): EditorTempla
                   })),
                 }
               : undefined,
+            perKmRateEnabled: claimType.perKmRateConfig?.isEnabled ?? false,
+            perKmRatePerKm: typeof claimType.perKmRateConfig?.ratePerKm === "number"
+              ? String(claimType.perKmRateConfig.ratePerKm)
+              : "",
+            perKmFieldKey: claimType.perKmRateConfig?.kmFieldKey ?? "",
           }))
         : [createEmptyClaimType()],
   };
@@ -302,6 +313,16 @@ function validateClaimTypes(claimTypes: EditorClaimType[]): string[] {
           );
         }
       });
+    }
+
+    if (claimType.perKmRateEnabled) {
+      const rate = Number(claimType.perKmRatePerKm);
+      if (!Number.isFinite(rate) || rate <= 0) {
+        errors.push(`${name || `Claim type ${index + 1}`}: per-km rate must be a positive number.`);
+      }
+      if (!claimType.perKmFieldKey.trim()) {
+        errors.push(`${name || `Claim type ${index + 1}`}: KM field key is required when per-km rate is enabled.`);
+      }
     }
   });
   return errors;
@@ -585,6 +606,22 @@ export function ClaimsConfigPage({
         }
 
         // Save claim types with templateId
+        // First, remove claim types that were deleted in the editor
+        const currentEditorServerIds = new Set(
+          activeTemplate.claimTypes
+            .filter((ct) => ct.serverClaimTypeId)
+            .map((ct) => ct.serverClaimTypeId),
+        );
+        const serverClaimTypes = nextTemplate.claimTypes ?? [];
+        for (const serverCt of serverClaimTypes) {
+          const serverCtId = typeof serverCt === 'object' && serverCt !== null
+            ? ((serverCt as any)._id?.toString() || (serverCt as any).id)
+            : undefined;
+          if (serverCtId && !currentEditorServerIds.has(serverCtId)) {
+            await claimsConfigService.deleteClaimType(serverCtId, projectId, nextTemplate.id);
+          }
+        }
+
         const updatedClaimTypes: EditorClaimType[] = [];
         
         for (const claimType of activeTemplate.claimTypes) {
@@ -616,6 +653,13 @@ export function ClaimsConfigPage({
             } : undefined,
             approvalWorkflow,
             iconUrl: claimType.iconUrl || undefined,
+            perKmRateConfig: claimType.perKmRateEnabled
+              ? {
+                  isEnabled: true,
+                  ratePerKm: Number(claimType.perKmRatePerKm),
+                  kmFieldKey: claimType.perKmFieldKey,
+                }
+              : { isEnabled: false },
           };
 
           if (claimType.serverClaimTypeId) {
@@ -673,6 +717,22 @@ export function ClaimsConfigPage({
         const savedConfig = await claimsConfigService.createDirectConfig(payload);
 
         // Save claim types with designationId
+        // First, remove claim types that were deleted in the editor
+        const currentEditorServerIdsDirect = new Set(
+          activeTemplate.claimTypes
+            .filter((ct) => ct.serverClaimTypeId)
+            .map((ct) => ct.serverClaimTypeId),
+        );
+        const serverClaimTypesDirect = savedConfig.claimTypes ?? [];
+        for (const serverCt of serverClaimTypesDirect) {
+          const serverCtId = typeof serverCt === 'object' && serverCt !== null
+            ? ((serverCt as any)._id?.toString() || (serverCt as any).id)
+            : undefined;
+          if (serverCtId && !currentEditorServerIdsDirect.has(serverCtId)) {
+            await claimsConfigService.deleteClaimType(serverCtId, projectId, activeTemplate.designationId!);
+          }
+        }
+
         const updatedClaimTypes: EditorClaimType[] = [];
         
         for (const claimType of activeTemplate.claimTypes) {
@@ -704,6 +764,13 @@ export function ClaimsConfigPage({
             } : undefined,
             approvalWorkflow,
             iconUrl: claimType.iconUrl || undefined,
+            perKmRateConfig: claimType.perKmRateEnabled
+              ? {
+                  isEnabled: true,
+                  ratePerKm: Number(claimType.perKmRatePerKm),
+                  kmFieldKey: claimType.perKmFieldKey,
+                }
+              : { isEnabled: false },
           };
 
           if (claimType.serverClaimTypeId) {
@@ -1500,6 +1567,66 @@ export function ClaimsConfigPage({
                                 ) : null}
                               </div>
 
+                              {/* Per-KM Rate Section */}
+                              <div className="claims-approvalSection" style={{ marginTop: "1.5rem", padding: "1rem", background: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
+                                <div className="claims-toggleSurface">
+                                  <div>
+                                    <strong>Per-KM Rate Calculation</strong>
+                                    <p>Auto-calculate claim amount based on distance (km × rate).</p>
+                                  </div>
+                                  <label className="toggle">
+                                    <input
+                                      type="checkbox"
+                                      checked={claimType.perKmRateEnabled}
+                                      onChange={(e) =>
+                                        updateClaimType(claimType.id, {
+                                          perKmRateEnabled: e.target.checked,
+                                        })
+                                      }
+                                    />
+                                    <span className="toggle-track" />
+                                    <span className="toggle-thumb" />
+                                  </label>
+                                </div>
+
+                                {claimType.perKmRateEnabled ? (
+                                  <div className="claims-fieldGrid two" style={{ marginTop: "1rem" }}>
+                                    <label className="claims-field">
+                                      <span>Rate Per KM (₹)</span>
+                                      <input
+                                        className="form-input"
+                                        type="number"
+                                        min={0.01}
+                                        step="0.01"
+                                        value={claimType.perKmRatePerKm}
+                                        onChange={(e) =>
+                                          updateClaimType(claimType.id, {
+                                            perKmRatePerKm: e.target.value,
+                                          })
+                                        }
+                                        placeholder="8.5"
+                                      />
+                                    </label>
+                                    <label className="claims-field">
+                                      <span>KM Field Key (UDF)</span>
+                                      <input
+                                        className="form-input"
+                                        value={claimType.perKmFieldKey}
+                                        onChange={(e) =>
+                                          updateClaimType(claimType.id, {
+                                            perKmFieldKey: e.target.value,
+                                          })
+                                        }
+                                        placeholder="distance_km"
+                                      />
+                                      <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                                        Enter the exact field key you will create in the Form Builder (Step 2) as a NUMBER type field. The claim amount will be calculated as: this field value x rate per km.
+                                      </p>
+                                    </label>
+                                  </div>
+                                ) : null}
+                              </div>
+
                               <div className="claims-rowEnd">
                                 <button
                                   className="claims-cardBtn danger"
@@ -1578,7 +1705,40 @@ export function ClaimsConfigPage({
             </div>
 
             {selectedClaimType ? (
-              <ClaimsFormBuilderV2
+              <>
+                {selectedClaimType.perKmRateEnabled && selectedClaimType.perKmFieldKey && (
+                  (() => {
+                    const kmFieldExists = selectedSchema.some(
+                      (f) => f.fieldKey === selectedClaimType.perKmFieldKey
+                    );
+                    const kmFieldIsNumber = selectedSchema.some(
+                      (f) => f.fieldKey === selectedClaimType.perKmFieldKey && f.type === "NUMBER"
+                    );
+                    if (!kmFieldExists) {
+                      return (
+                        <div style={{ padding: "12px 16px", marginBottom: "12px", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "8px", fontSize: "13px", color: "#92400e" }}>
+                          <strong>Per-KM Rate requires a NUMBER field</strong>
+                          <p style={{ margin: "4px 0 0" }}>
+                            This claim type has per-km calculation enabled with field key <code style={{ background: "#fde68a", padding: "1px 4px", borderRadius: "3px" }}>{selectedClaimType.perKmFieldKey}</code>. 
+                            Please add a field with this exact key and type <strong>NUMBER</strong> in the form below.
+                          </p>
+                        </div>
+                      );
+                    }
+                    if (!kmFieldIsNumber) {
+                      return (
+                        <div style={{ padding: "12px 16px", marginBottom: "12px", background: "#fee2e2", border: "1px solid #ef4444", borderRadius: "8px", fontSize: "13px", color: "#991b1b" }}>
+                          <strong>Field type mismatch</strong>
+                          <p style={{ margin: "4px 0 0" }}>
+                            Field <code style={{ background: "#fecaca", padding: "1px 4px", borderRadius: "3px" }}>{selectedClaimType.perKmFieldKey}</code> exists but is not a NUMBER type. Per-km rate calculation requires a NUMBER field to work correctly.
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()
+                )}
+                <ClaimsFormBuilderV2
                 projectId={projectId}
                 claimTypeName={selectedClaimType.name || "Claim"}
                 fields={selectedSchema}
@@ -1591,6 +1751,7 @@ export function ClaimsConfigPage({
                 onSave={() => void handleSaveSchema()}
                 onBack={() => setView("editor")}
               />
+              </>
             ) : (
               <div className="claims-emptyState">
                 <strong>No claim type selected</strong>

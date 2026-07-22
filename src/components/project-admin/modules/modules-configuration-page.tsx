@@ -183,7 +183,7 @@ export function ModulesConfigurationPage() {
               ? "modules/visit"
               : mod.definition.configPath;
           const alwaysShowConfig =
-            mod.definition.id === "leave" || mod.definition.id === "sales";
+            mod.definition.id === "leave" || mod.definition.id === "sales" || mod.definition.id === "claims";
           const configHref =
             path && (mod.enabled || alwaysShowConfig)
               ? `${base}/${path}`

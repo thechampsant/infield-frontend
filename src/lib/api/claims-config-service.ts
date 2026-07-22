@@ -37,6 +37,12 @@ export interface ClaimApprovalWorkflow {
   levels: ClaimApprovalLevel[];
 }
 
+export interface ClaimPerKmRateConfig {
+  isEnabled: boolean;
+  ratePerKm?: number;
+  kmFieldKey?: string;
+}
+
 export interface ClaimTypeDefinition {
   id: string;
   name: string;
@@ -47,6 +53,7 @@ export interface ClaimTypeDefinition {
   udfSchemaKey: string;
   iconUrl?: string;
   approvalWorkflow?: ClaimApprovalWorkflow;
+  perKmRateConfig?: ClaimPerKmRateConfig;
 }
 
 export interface ClaimsConfigDocument {
@@ -92,6 +99,7 @@ export interface SaveClaimTypeInput {
   conditionalCap?: ClaimConditionalCap;
   approvalWorkflow?: ClaimApprovalWorkflow;
   iconUrl?: string;
+  perKmRateConfig?: ClaimPerKmRateConfig;
 }
 
 export interface ClaimTypeCreateResponse {
@@ -259,6 +267,18 @@ function normalizeApprovalWorkflow(value: unknown): ClaimApprovalWorkflow | unde
   };
 }
 
+function normalizePerKmRateConfig(value: unknown): ClaimPerKmRateConfig | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const raw = asRecord(value);
+  const isEnabled = booleanValue(raw.isEnabled);
+  if (!isEnabled) return { isEnabled: false };
+  return {
+    isEnabled: true,
+    ratePerKm: numberValue(raw.ratePerKm),
+    kmFieldKey: stringValue(raw.kmFieldKey) || undefined,
+  };
+}
+
 function normalizeClaimType(rawValue: unknown, projectId: string, designationId: string): ClaimTypeDefinition {
   const raw = asRecord(rawValue);
   const id = stringValue(raw._id) || stringValue(raw.id) || stringValue(raw.claimTypeId);
@@ -277,6 +297,7 @@ function normalizeClaimType(rawValue: unknown, projectId: string, designationId:
     udfSchemaKey: schema,
     iconUrl: stringValue(raw.iconUrl) || undefined,
     approvalWorkflow: normalizeApprovalWorkflow(raw.approvalWorkflow),
+    perKmRateConfig: normalizePerKmRateConfig(raw.perKmRateConfig),
   };
 }
 
@@ -582,31 +603,41 @@ export const claimsConfigService = {
   },
 
   async cloneTemplate(projectId: string, template: ClaimsTemplateDocument): Promise<ClaimsTemplateDocument> {
-    const cloned = await this.createTemplate({
-      projectId,
-      templateName: `${template.templateName} Copy`,
-      applicableDesignations: template.applicableDesignations,
-      isModuleEnabled: template.isModuleEnabled,
-      backdateConfig: template.backdateConfig,
-    });
+    if (USE_MOCK_API) {
+      await delay();
+      const cloned = await this.createTemplate({
+        projectId,
+        templateName: `${template.templateName} Copy`,
+        applicableDesignations: template.applicableDesignations,
+        isModuleEnabled: template.isModuleEnabled,
+        backdateConfig: template.backdateConfig,
+      });
 
-    if (USE_MOCK_API && template.claimTypes.length > 0) {
-      const next = {
-        ...cloned,
-        claimTypes: template.claimTypes.map((claimType, index) => {
-          const id = `claim_type_${claimTypeSeq(projectId, cloned.id)}_${index + 1}`;
-          return {
-            ...claimType,
-            id,
-            udfSchemaKey: `${projectId}_${cloned.id}_${id}`,
-          };
-        }),
-      };
-      mockTemplateStore.set(next.id, next);
-      return next;
+      if (template.claimTypes.length > 0) {
+        const next = {
+          ...cloned,
+          claimTypes: template.claimTypes.map((claimType, index) => {
+            const id = `claim_type_${claimTypeSeq(projectId, cloned.id)}_${index + 1}`;
+            return {
+              ...claimType,
+              id,
+              udfSchemaKey: `${projectId}_${cloned.id}_${id}`,
+            };
+          }),
+        };
+        mockTemplateStore.set(next.id, next);
+        return next;
+      }
+
+      return cloned;
     }
 
-    return cloned;
+    // Real API: call the backend deep-clone endpoint
+    const raw = await apiClient.post<unknown>(
+      `${BASE}/clone/${encodeURIComponent(template.id)}`,
+      {},
+    );
+    return normalizeClaimsTemplate(raw, { projectId });
   },
 
   async deleteTemplate(templateId: string): Promise<void> {
@@ -675,6 +706,7 @@ export const claimsConfigService = {
         udfSchemaKey,
         iconUrl: input.iconUrl?.trim() || undefined,
         approvalWorkflow: input.approvalWorkflow,
+        perKmRateConfig: input.perKmRateConfig,
       };
 
       if (input.templateId) {
@@ -742,6 +774,7 @@ export const claimsConfigService = {
                   conditionalCap: input.conditionalCap,
                   iconUrl: input.iconUrl?.trim() || undefined,
                   approvalWorkflow: input.approvalWorkflow,
+                  perKmRateConfig: input.perKmRateConfig,
                 }
               : claimType,
           ),
@@ -774,6 +807,7 @@ export const claimsConfigService = {
                 conditionalCap: input.conditionalCap,
                 iconUrl: input.iconUrl?.trim() || undefined,
                 approvalWorkflow: input.approvalWorkflow,
+                perKmRateConfig: input.perKmRateConfig,
               }
             : claimType,
         ),
@@ -803,6 +837,32 @@ export const claimsConfigService = {
       projectId: input.projectId,
       designationId: input.designationId ?? "",
     });
+  },
+
+  async deleteClaimType(
+    claimTypeId: string,
+    projectId: string,
+    designationIdOrTemplateId: string,
+  ): Promise<void> {
+    if (USE_MOCK_API) {
+      await delay();
+      // Remove from mock stores
+      for (const [, template] of mockTemplateStore) {
+        template.claimTypes = template.claimTypes.filter((ct) => ct.id !== claimTypeId);
+      }
+      for (const [, config] of mockConfigStore) {
+        config.claimTypes = config.claimTypes.filter((ct) => ct.id !== claimTypeId);
+      }
+      return;
+    }
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("projectId", projectId);
+    queryParams.append("designationId", designationIdOrTemplateId);
+
+    await apiClient.delete<void>(
+      `${BASE}/claim-type/${encodeURIComponent(claimTypeId)}?${queryParams.toString()}`,
+    );
   },
 
   async getUdfSchema(projectId: string, schemaKeyValue: string): Promise<ClaimSchemaDocument | null> {
