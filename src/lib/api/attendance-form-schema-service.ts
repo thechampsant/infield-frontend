@@ -22,6 +22,8 @@ export interface AttendanceFormSchemaDocument {
 export interface SaveAttendanceFormSchemaInput {
   projectId: string;
   schemaKey?: string;
+  attendanceConfigId?: string;
+  designationId?: string;
   fields: UdfSchemaField[];
 }
 
@@ -132,14 +134,20 @@ export const attendanceFormSchemaService = {
     projectId: string,
     formType: AttendanceFormType,
     schemaKey = DEFAULT_SCHEMA_KEY,
+    context?: { attendanceConfigId?: string; designationId?: string },
   ): Promise<AttendanceFormSchemaDocument | null> {
     if (USE_MOCK_API) {
       await delay();
-      return mockStore.get(mockKey(projectId, formType, schemaKey)) ?? null;
+      const scopedKey = context?.attendanceConfigId ?? context?.designationId ?? schemaKey;
+      return mockStore.get(mockKey(projectId, formType, scopedKey)) ?? null;
     }
 
     const search = new URLSearchParams();
-    if (schemaKey && schemaKey !== DEFAULT_SCHEMA_KEY) {
+    if (context?.attendanceConfigId) {
+      search.set("attendanceConfigId", context.attendanceConfigId);
+    } else if (context?.designationId) {
+      search.set("designationId", context.designationId);
+    } else if (schemaKey && schemaKey !== DEFAULT_SCHEMA_KEY) {
       search.set("schemaKey", schemaKey);
     }
 
@@ -155,23 +163,33 @@ export const attendanceFormSchemaService = {
     input: SaveAttendanceFormSchemaInput,
   ): Promise<void> {
     const schemaKey = input.schemaKey ?? DEFAULT_SCHEMA_KEY;
+    const scopedKey = input.attendanceConfigId ?? input.designationId ?? schemaKey;
     const body = {
       projectId: input.projectId,
-      ...(schemaKey !== DEFAULT_SCHEMA_KEY ? { schemaKey } : {}),
+      ...(!input.attendanceConfigId && !input.designationId && schemaKey !== DEFAULT_SCHEMA_KEY
+        ? { schemaKey }
+        : {}),
       fields: input.fields.map(sanitizeField),
     };
 
     if (USE_MOCK_API) {
       await delay();
-      mockStore.set(mockKey(input.projectId, formType, schemaKey), {
+      mockStore.set(mockKey(input.projectId, formType, scopedKey), {
         projectId: input.projectId,
         formType,
-        schemaKey,
+        schemaKey: scopedKey,
         fields: body.fields,
       });
       return;
     }
 
-    await apiClient.post<void>(`${BASE}/${formType}`, body);
+    const search = new URLSearchParams();
+    if (input.attendanceConfigId) {
+      search.set("attendanceConfigId", input.attendanceConfigId);
+    } else if (input.designationId) {
+      search.set("designationId", input.designationId);
+    }
+    const query = search.toString();
+    await apiClient.post<void>(`${BASE}/${formType}${query ? `?${query}` : ""}`, body);
   },
 };

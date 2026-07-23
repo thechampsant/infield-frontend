@@ -10,6 +10,7 @@ import {
   MapPin,
   Target,
   TrendingUp,
+  Boxes,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   notifications: Bell,
   "custom-view": LayoutGrid,
   sales: TrendingUp,
+  stock: Boxes,
   "target-vs-achievement": Target,
 };
 

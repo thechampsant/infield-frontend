@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, Copy, FilePenLine, Plus, Trash2 } from "lucide-react";
 import {
   attendanceFormSchemaService,
+  designationService,
   featureConfigService,
   featureWizardService,
   formatApiError,
   getWizardFlow,
   isWizardFlowComplete,
   type AttendanceFormType,
+  type Designation,
   type FeatureConfigDto,
   type FeatureWizardDocument,
   type UdfSchemaField,
@@ -16,8 +20,10 @@ import {
 import {
   attendanceConfigService,
   docToForm,
+  type AttendanceConfigDoc,
   type AttendanceConfigForm,
 } from "@/lib/api/attendance-config";
+import { ApiError } from "@/lib/api/api-client";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { AttendanceConfigEdit } from "./attendance-config-edit";
 import { AttendanceFormBuilder } from "./attendance-form-builder";
@@ -25,7 +31,10 @@ import { AttendanceFormBuilder } from "./attendance-form-builder";
 interface Props {
   projectId: string;
   projectName: string;
+  modulesHref?: string;
 }
+
+type EditorTarget = { mode: "create" } | { mode: "edit"; configId: string };
 
 type StepId = "configuration" | "forms" | "review";
 type FormErrors = Partial<Record<AttendanceFormType, string | null>>;
@@ -34,11 +43,87 @@ type FormValidation = Partial<Record<AttendanceFormType, string[]>>;
 
 const EMPTY_FORM_ERRORS: FormErrors = { "check-in": null, "check-out": null };
 
-export function AttendanceConfigPage({ projectId, projectName }: Props) {
+export function AttendanceConfigPage({ projectId, projectName, modulesHref }: Props) {
+  const [configs, setConfigs] = useState<AttendanceConfigDoc[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [target, setTarget] = useState<EditorTarget | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  const loadList = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [nextConfigs, nextDesignations] = await Promise.all([
+        attendanceConfigService.list(projectId),
+        designationService.listByProject(projectId),
+      ]);
+      setConfigs(nextConfigs);
+      setDesignations(nextDesignations);
+    } catch (err) {
+      setLoadError(formatApiError(err, "Failed to load attendance configurations"));
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!target) void loadList();
+  }, [loadList, target]);
+
+  if (target) {
+    return (
+      <AttendanceConfigEditor
+        key={target.mode === "edit" ? target.configId : "new"}
+        projectId={projectId}
+        projectName={projectName}
+        target={target}
+        onBack={() => setTarget(null)}
+        onSaved={() => void loadList()}
+      />
+    );
+  }
+
+  return (
+    <>
+      <AttendanceConfigList
+        configs={configs}
+        designations={designations}
+        loading={loading}
+        error={loadError}
+        modulesHref={modulesHref}
+        onRetry={() => void loadList()}
+        onCreate={() => setTarget({ mode: "create" })}
+        onEdit={(configId) => setTarget({ mode: "edit", configId })}
+        onUnavailable={(action) =>
+          setToast({
+            message: `${action} is not supported by the current attendance API yet.`,
+            type: "error",
+          })
+        }
+      />
+      <If2Toast toast={toast} onDismiss={() => setToast(null)} />
+    </>
+  );
+}
+
+function AttendanceConfigEditor({
+  projectId,
+  projectName,
+  target,
+  onBack,
+  onSaved,
+}: Props & {
+  target: EditorTarget;
+  onBack: () => void;
+  onSaved: () => void;
+}) {
   const [step, setStep] = useState<StepId>("configuration");
   const [form, setForm] = useState<AttendanceConfigForm | null>(null);
   const [saved, setSaved] = useState<AttendanceConfigForm | null>(null);
   const [exists, setExists] = useState(false);
+  const [configId, setConfigId] = useState(target.mode === "edit" ? target.configId : "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -64,11 +149,33 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [doc, checkInSchema, checkOutSchema, nextFeatureConfig, nextFeatureWizard] =
+      if (target.mode === "create") {
+        const [nextFeatureConfig, nextFeatureWizard] = await Promise.all([
+          featureConfigService.getRawByProject(projectId),
+          featureWizardService.getByProject(projectId),
+        ]);
+        const next = docToForm(null);
+        setForm(next);
+        setSaved(next);
+        setExists(false);
+        setConfigId("");
+        setFeatureConfig(nextFeatureConfig);
+        setFeatureWizard(nextFeatureWizard);
+        setSchemas({ "check-in": [], "check-out": [] });
+        setSavedSchemas({ "check-in": [], "check-out": [] });
+        return;
+      }
+
+      const doc = await attendanceConfigService.getById(target.configId);
+      const nextConfigId = doc?._id ?? doc?.id ?? target.configId;
+      const [checkInSchema, checkOutSchema, nextFeatureConfig, nextFeatureWizard] =
         await Promise.all([
-        attendanceConfigService.get(projectId),
-        attendanceFormSchemaService.get(projectId, "check-in"),
-        attendanceFormSchemaService.get(projectId, "check-out"),
+        attendanceFormSchemaService.get(projectId, "check-in", undefined, {
+          attendanceConfigId: nextConfigId,
+        }),
+        attendanceFormSchemaService.get(projectId, "check-out", undefined, {
+          attendanceConfigId: nextConfigId,
+        }),
         featureConfigService.getRawByProject(projectId),
         featureWizardService.getByProject(projectId),
       ]);
@@ -76,6 +183,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
       setForm(next);
       setSaved(next);
       setExists(Boolean(doc));
+      setConfigId(nextConfigId);
       setFeatureConfig(nextFeatureConfig);
       setFeatureWizard(nextFeatureWizard);
       setSchemas({
@@ -91,7 +199,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, target]);
 
   useEffect(() => {
     void load();
@@ -174,27 +282,53 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
     setSaving(true);
     try {
       if (exists) {
-        await attendanceConfigService.update(projectId, form);
+        if (configId) {
+          const doc = await attendanceConfigService.updateById(configId, form);
+          const next = docToForm(doc);
+          setForm(next);
+          setSaved(next);
+          setConfigId(next.id ?? configId);
+        } else {
+          const doc = await attendanceConfigService.update(projectId, form);
+          const next = docToForm(doc);
+          setForm(next);
+          setSaved(next);
+        }
       } else {
-        await attendanceConfigService.create(projectId, form);
+        const doc = await attendanceConfigService.create(projectId, form);
+        const next = docToForm(doc);
+        setForm(next);
+        setSaved(next);
+        setConfigId(next.id ?? "");
         setExists(true);
       }
-      setSaved(form);
       const [nextFeatureWizard, nextFeatureConfig] = await Promise.all([
         featureWizardService.getByProject(projectId),
         featureConfigService.getRawByProject(projectId),
       ]);
       setFeatureWizard(nextFeatureWizard);
       setFeatureConfig(nextFeatureConfig);
+      onSaved();
       setToast({ message: "Attendance configuration saved", type: "success" });
       return true;
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        const conflictingIds = Array.isArray(err.details?.conflictingDesignationIds)
+          ? err.details.conflictingDesignationIds.map(String).filter(Boolean)
+          : [];
+        if (conflictingIds.length > 0) {
+          setErrors((prev) => ({
+            ...prev,
+            applicableDesignations: conflictingIds.join(","),
+          }));
+        }
+      }
       setToast({ message: formatApiError(err, "Failed to save"), type: "error" });
       return false;
     } finally {
       setSaving(false);
     }
-  }, [exists, form, projectId]);
+  }, [configId, exists, form, onSaved, projectId]);
 
   function handleSchemaChange(formType: AttendanceFormType, nextFields: UdfSchemaField[]) {
     setSchemas((prev) => ({ ...prev, [formType]: nextFields }));
@@ -222,6 +356,7 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
     try {
       await attendanceFormSchemaService.save(formType, {
         projectId,
+        ...(configId ? { attendanceConfigId: configId } : {}),
         fields,
       });
       setSavedSchemas((prev) => ({ ...prev, [formType]: fields }));
@@ -307,6 +442,10 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
   return (
     <>
       <div className="att-config-page">
+        <button className="att-editor-back" type="button" onClick={onBack}>
+          <ChevronLeft size={16} />
+          Back to Configurations
+        </button>
         <div className="att-setup-shell">
           <div className="att-setup-stepper">
             {stepItems.map((item, index) => (
@@ -547,6 +686,156 @@ export function AttendanceConfigPage({ projectId, projectName }: Props) {
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </>
   );
+}
+
+function AttendanceConfigList({
+  configs,
+  designations,
+  loading,
+  error,
+  modulesHref,
+  onRetry,
+  onCreate,
+  onEdit,
+  onUnavailable,
+}: {
+  configs: AttendanceConfigDoc[];
+  designations: Designation[];
+  loading: boolean;
+  error: string | null;
+  modulesHref?: string;
+  onRetry: () => void;
+  onCreate: () => void;
+  onEdit: (configId: string) => void;
+  onUnavailable: (action: string) => void;
+}) {
+  const designationNameById = useMemo(
+    () => new Map(designations.map((designation) => [designation.id, designation.name] as const)),
+    [designations],
+  );
+
+  if (loading) {
+    return (
+      <div className="att-config-page">
+        <div className="edit-skeleton">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton-section" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="att-config-page">
+        <div className="config-load-error">
+          <p>{error}</p>
+          <button className="btn btn-secondary btn-sm" onClick={onRetry}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="att-config-page">
+      <div className="att-config-list-head">
+        <div>
+          <p className="page-eyebrow">Attendance Module</p>
+          <h1 className="page-title">Attendance Configurations</h1>
+          <p className="page-desc">
+            Manage multiple attendance configurations for different designations.
+          </p>
+        </div>
+        {modulesHref ? (
+          <Link href={modulesHref} className="att-back-modules">
+            <ChevronLeft size={16} />
+            Back to Modules
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="att-config-list">
+        {configs.map((config, index) => {
+          const configId = config._id ?? config.id ?? "";
+          const assignedIds = Array.isArray(config.applicableDesignations)
+            ? config.applicableDesignations
+            : [];
+          const assignedNames = assignedIds
+            .map((id) => designationNameById.get(id) ?? id)
+            .filter(Boolean);
+          const title =
+            config.name?.trim() ||
+            (assignedNames[0] ? `${assignedNames[0]} Config` : "Legacy Attendance Config");
+          const subtitle =
+            assignedNames.length > 0
+              ? summarizeNames(assignedNames)
+              : "No designations assigned";
+
+          return (
+            <div className="att-config-card" key={configId || index}>
+              <div className="att-config-card__number">{index + 1}</div>
+              <button
+                className="att-config-card__main"
+                type="button"
+                onClick={() => configId && onEdit(configId)}
+                disabled={!configId}
+              >
+                <strong>{title}</strong>
+                <span>{subtitle}</span>
+              </button>
+              <div className="att-config-card__actions">
+                <button
+                  className="att-card-action"
+                  type="button"
+                  title="Clone is not supported yet"
+                  onClick={() => onUnavailable("Clone")}
+                >
+                  <Copy size={15} />
+                  Clone
+                </button>
+                <button
+                  className="att-card-action"
+                  type="button"
+                  onClick={() => configId && onEdit(configId)}
+                  disabled={!configId}
+                >
+                  <FilePenLine size={15} />
+                  Edit
+                </button>
+                <button
+                  className="att-card-action danger"
+                  type="button"
+                  title="Delete is not supported yet"
+                  onClick={() => onUnavailable("Delete")}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {configs.length === 0 ? (
+          <div className="att-empty-list">
+            No attendance configurations found. Add one to get started.
+          </div>
+        ) : null}
+
+        <button className="att-add-config" type="button" onClick={onCreate}>
+          <Plus size={22} />
+          Add New Configuration
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function summarizeNames(names: string[]): string {
+  if (names.length <= 3) return names.join(", ");
+  return `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
 }
 
 function activationBlockReason({

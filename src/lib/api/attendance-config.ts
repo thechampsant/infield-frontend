@@ -1,10 +1,13 @@
 /**
  * Attendance configuration service (INF2-1536).
  *
- * Backend exposes a single config per project:
+ * Backend supports legacy project-level configs and designation-scoped configs:
  *   GET    /api/v1/attendance-config/get/{projectId}
+ *   GET    /api/v1/attendance-config/list/{projectId}
+ *   GET    /api/v1/attendance-config/{configId}
  *   POST   /api/v1/attendance-config/create
  *   PUT    /api/v1/attendance-config/update/{projectId}
+ *   PUT    /api/v1/attendance-config/{configId}
  *   PUT    /api/v1/attendance-config/activate/{projectId}
  *
  * The UI works against a flat `AttendanceConfigForm`; mappers translate to and
@@ -117,6 +120,8 @@ export interface LeaveModuleConfigDto {
 
 /** Body shared by create/update (create also carries `projectId`). */
 export interface AttendanceConfigDto {
+  name?: string;
+  applicableDesignations?: string[];
   isModuleEnabled: boolean;
   checkInLabel: LabelConfigDto;
   checkOutLabel: LabelConfigDto;
@@ -140,7 +145,17 @@ export interface CreateAttendanceConfigDto extends AttendanceConfigDto {
 }
 
 /** Stored document returned by GET — all fields optional for defensive reads. */
-export type AttendanceConfigDoc = Partial<CreateAttendanceConfigDto>;
+export type AttendanceConfigDoc = Partial<CreateAttendanceConfigDto> & {
+  _id?: string;
+  id?: string;
+  name?: string;
+  applicableDesignations?: string[];
+  isActive?: boolean;
+  checkInFormSchemaKey?: string;
+  checkOutFormSchemaKey?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 // ─────────────────────────────────────────────────────────────
 // UI form model (flat, used by the editor)
@@ -164,6 +179,10 @@ export interface ApprovalLevelForm {
 }
 
 export interface AttendanceConfigForm {
+  id?: string;
+  name: string;
+  applicableDesignations: string[];
+
   isModuleEnabled: boolean;
 
   checkInEnabled: boolean;
@@ -239,6 +258,10 @@ export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
 ];
 
 export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
+  id: undefined,
+  name: "",
+  applicableDesignations: [],
+
   isModuleEnabled: false,
 
   checkInEnabled: true,
@@ -338,6 +361,12 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
       : DEFAULT_ATTENDANCE_TYPES.map((t) => ({ ...t }));
 
   return {
+    id: doc._id ?? doc.id,
+    name: doc.name ?? "",
+    applicableDesignations: Array.isArray(doc.applicableDesignations)
+      ? doc.applicableDesignations.filter(Boolean)
+      : [],
+
     isModuleEnabled: Boolean(doc.isModuleEnabled),
 
     checkInEnabled: doc.checkInLabel?.isEnabled ?? true,
@@ -409,6 +438,8 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
   const anyGeoFenced = form.types.some((t) => t.geoFenced);
 
   return {
+    name: form.name.trim() || undefined,
+    applicableDesignations: form.applicableDesignations,
     isModuleEnabled: form.isModuleEnabled,
     checkInLabel: { ...label(form.checkInLabel, "Check-In"), isEnabled: form.checkInEnabled },
     checkOutLabel: {
@@ -489,10 +520,33 @@ function delay(ms = 400): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 export const attendanceConfigService = {
+  async list(projectId: string): Promise<AttendanceConfigDoc[]> {
+    if (USE_MOCK_API) {
+      await delay(250);
+      return Array.from(mockStore.values()).filter((doc) => doc.projectId === projectId);
+    }
+    const docs = await apiClient.get<AttendanceConfigDoc[]>(`${BASE}/list/${projectId}`);
+    return Array.isArray(docs) ? docs : [];
+  },
+
+  async getById(configId: string): Promise<AttendanceConfigDoc | null> {
+    if (USE_MOCK_API) {
+      await delay(250);
+      return mockStore.get(configId) ?? null;
+    }
+    try {
+      const doc = await apiClient.get<AttendanceConfigDoc | null>(`${BASE}/${configId}`);
+      return doc ?? null;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
+  },
+
   async get(projectId: string): Promise<AttendanceConfigDoc | null> {
     if (USE_MOCK_API) {
       await delay(250);
-      return mockStore.get(projectId) ?? null;
+      return Array.from(mockStore.values()).find((doc) => doc.projectId === projectId) ?? null;
     }
     try {
       const doc = await apiClient.get<AttendanceConfigDoc | null>(
@@ -509,19 +563,36 @@ export const attendanceConfigService = {
     const body: CreateAttendanceConfigDto = { projectId, ...formToDto(form) };
     if (USE_MOCK_API) {
       await delay();
-      const doc = body as AttendanceConfigDoc;
-      mockStore.set(projectId, doc);
+      const id = `att-config-${mockStore.size + 1}`;
+      const doc = { _id: id, ...body, isActive: true } as AttendanceConfigDoc;
+      mockStore.set(id, doc);
       return doc;
     }
     return apiClient.post<AttendanceConfigDoc>(`${BASE}/create`, body);
+  },
+
+  async updateById(configId: string, form: AttendanceConfigForm): Promise<AttendanceConfigDoc> {
+    const body = formToDto(form);
+    if (USE_MOCK_API) {
+      await delay();
+      const current = mockStore.get(configId) ?? {};
+      const doc = { ...current, ...body, _id: configId } as AttendanceConfigDoc;
+      mockStore.set(configId, doc);
+      return doc;
+    }
+    return apiClient.put<AttendanceConfigDoc>(`${BASE}/${configId}`, body);
   },
 
   async update(projectId: string, form: AttendanceConfigForm): Promise<AttendanceConfigDoc> {
     const body = formToDto(form);
     if (USE_MOCK_API) {
       await delay();
-      const doc = { projectId, ...body } as AttendanceConfigDoc;
-      mockStore.set(projectId, doc);
+      const current =
+        Array.from(mockStore.entries()).find(([, doc]) => doc.projectId === projectId) ??
+        [`att-config-${mockStore.size + 1}`, {} as AttendanceConfigDoc];
+      const [id, currentDoc] = current;
+      const doc = { ...currentDoc, projectId, ...body, _id: id } as AttendanceConfigDoc;
+      mockStore.set(id, doc);
       return doc;
     }
     return apiClient.put<AttendanceConfigDoc>(`${BASE}/update/${projectId}`, body);

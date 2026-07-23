@@ -56,6 +56,7 @@ class ApiError extends Error {
     public readonly errorCode: string,
     public readonly requestId?: string,
     message?: string,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message || errorCode || "Request failed");
     this.name = "ApiError";
@@ -118,6 +119,7 @@ class ApiClient {
         errorBody.errorCode || "UNKNOWN_ERROR",
         errorBody.requestId,
         getApiErrorMessage(errorBody, response.statusText),
+        errorBody as unknown as Record<string, unknown>,
       );
     }
 
@@ -208,6 +210,7 @@ class ApiClient {
         errorBody.errorCode || "UNKNOWN_ERROR",
         errorBody.requestId,
         getApiErrorMessage(errorBody, response.statusText),
+        errorBody as unknown as Record<string, unknown>,
       );
     }
 
@@ -223,4 +226,3 @@ class ApiClient {
 export const apiClient = new ApiClient();
 export { ApiError, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE };
 export type { ApiErrorResponse };
-

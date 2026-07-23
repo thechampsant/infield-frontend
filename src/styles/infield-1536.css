@@ -94,6 +94,175 @@
   max-width: 640px;
 }
 
+/* ── Configuration list ───────────────────────────────────────────────────── */
+
+.att-config-page .att-config-list-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.att-config-page .att-back-modules,
+.att-config-page .att-editor-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.att-config-page .att-back-modules:hover,
+.att-config-page .att-editor-back:hover {
+  border-color: var(--color-primary-light);
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+}
+.att-config-page .att-editor-back {
+  margin-bottom: 16px;
+}
+.att-config-page .att-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.att-config-page .att-config-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 88px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.att-config-page .att-config-card:hover {
+  border-color: var(--color-primary-light);
+  box-shadow: 0 4px 20px rgba(30, 95, 168, 0.1);
+}
+.att-config-page .att-config-card__number {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+}
+.att-config-page .att-config-card__main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  cursor: pointer;
+}
+.att-config-page .att-config-card__main:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.att-config-page .att-config-card__main strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+.att-config-page .att-config-card__main span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.att-config-page .att-config-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.att-config-page .att-card-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.att-config-page .att-card-action:hover {
+  border-color: var(--color-primary-light);
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+}
+.att-config-page .att-card-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.att-config-page .att-card-action.danger {
+  width: 34px;
+  padding: 7px;
+  border-color: var(--color-danger-light);
+  background: var(--color-danger-pale);
+  color: var(--color-danger);
+}
+.att-config-page .att-add-config {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  margin-top: 4px;
+  border: 2px dashed var(--color-primary-light);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.35);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 800;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.att-config-page .att-add-config:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+}
+.att-config-page .att-empty-list {
+  padding: 32px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 /* ── Module enable banner ─────────────────────────────────────────────────── */
 
 .att-config-page .module-banner {
@@ -270,6 +439,59 @@
   font-size: 10px;
   color: var(--color-text-muted);
   margin: 1px 0 0;
+}
+
+/* ── Designation scope selector ───────────────────────────────────────────── */
+
+.att-config-page .att-designation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+.att-config-page .att-designation-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 9px;
+  align-items: center;
+  min-height: 54px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.att-config-page .att-designation-option input {
+  margin: 0;
+}
+.att-config-page .att-designation-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.att-config-page .att-designation-option small {
+  grid-column: 2;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.att-config-page .att-designation-option.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-pale);
+  color: var(--color-primary);
+}
+.att-config-page .att-designation-option.disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  background: var(--color-surface-2);
+}
+.att-config-page .att-designation-option.conflict {
+  border-color: var(--color-danger);
+  background: var(--color-danger-pale);
 }
 
 /* ── Toggle ───────────────────────────────────────────────────────────────── */
@@ -1278,6 +1500,14 @@
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
 @media (max-width: 920px) {
+  .att-config-page .att-config-list-head,
+  .att-config-page .att-config-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .att-config-page .att-config-card__actions {
+    justify-content: flex-start;
+  }
   .att-config-page .att-setup-stepper,
   .att-config-page .att-review__grid,
   .att-config-page .att-review__wizardGrid {

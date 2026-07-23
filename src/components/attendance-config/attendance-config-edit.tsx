@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import type {
   AttendanceConfigForm,
+  AttendanceConfigDoc,
   AttendanceTypeForm,
   PhotoDirection,
   PhotoSource,
   RegWindowType,
 } from "@/lib/api/attendance-config";
+import { attendanceConfigService } from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
 
 type ChangeFn = <K extends keyof AttendanceConfigForm>(
@@ -39,19 +41,41 @@ export function AttendanceConfigEdit({
   onDiscard,
 }: Props) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    scope: true,
     basic: true,
   });
   const [addTypeModal, setAddTypeModal] = useState(false);
   const [designations, setDesignations] = useState<Designation[]>([]);
+  const [configs, setConfigs] = useState<AttendanceConfigDoc[]>([]);
 
   useEffect(() => {
     designationService.listByProject(projectId).then(setDesignations).catch(() => {});
+    attendanceConfigService.list(projectId).then(setConfigs).catch(() => {});
   }, [projectId]);
 
   const toggleSection = (id: string) =>
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const anyGeoFenced = form.types.some((t) => t.geoFenced);
+  const usedDesignations = new Map<string, string>();
+  configs.forEach((config, index) => {
+    const configId = config._id ?? config.id ?? "";
+    if (configId && form.id && configId === form.id) return;
+    const configName = config.name?.trim() || `Configuration ${index + 1}`;
+    (config.applicableDesignations ?? []).forEach((designationId) => {
+      usedDesignations.set(designationId, configName);
+    });
+  });
+
+  function toggleApplicableDesignation(designationId: string) {
+    const selected = form.applicableDesignations.includes(designationId);
+    onChange(
+      "applicableDesignations",
+      selected
+        ? form.applicableDesignations.filter((id) => id !== designationId)
+        : [...form.applicableDesignations, designationId],
+    );
+  }
 
   return (
     <div className="att-config-page">
@@ -65,6 +89,73 @@ export function AttendanceConfigEdit({
           </p>
         </div>
       </div>
+
+      <Section
+        id="scope"
+        title="Configuration scope"
+        description="Name and assigned designations"
+        open={openSections.scope}
+        onToggle={() => toggleSection("scope")}
+      >
+        <div className="section-inner">
+          <FormGroup label="Configuration name">
+            <input
+              className="form-input"
+              value={form.name}
+              onChange={(e) => onChange("name", e.target.value)}
+              placeholder="e.g. ISP Executive Config"
+            />
+          </FormGroup>
+          <FieldError message={errors.name} />
+
+          <div className="section-divider">Applicable designations</div>
+          {designations.length > 0 ? (
+            <div className="att-designation-grid">
+              {designations.map((designation) => {
+                const selected = form.applicableDesignations.includes(designation.id);
+                const usedBy = usedDesignations.get(designation.id);
+                const disabled = Boolean(usedBy && !selected);
+                return (
+                  <label
+                    key={designation.id}
+                    className={`att-designation-option${selected ? " selected" : ""}${
+                      disabled ? " disabled" : ""
+                    }${errors.applicableDesignations?.includes(designation.id) ? " conflict" : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={disabled}
+                      onChange={() => toggleApplicableDesignation(designation.id)}
+                    />
+                    <span>{designation.name}</span>
+                    {usedBy ? <small>Assigned to {usedBy}</small> : null}
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flat-mode-note">
+              No designations found for this project. You can save this as an unassigned
+              configuration and assign designations later.
+            </div>
+          )}
+          {form.applicableDesignations.length === 0 ? (
+            <div className="flat-mode-note">
+              This configuration has no assigned designations yet. Legacy project-level configs
+              can stay unassigned during rollout.
+            </div>
+          ) : null}
+          <FieldError
+            message={
+              errors.applicableDesignations &&
+              !errors.applicableDesignations.includes("DESIGNATION")
+                ? "One or more selected designations conflict with another active attendance configuration."
+                : errors.applicableDesignations
+            }
+          />
+        </div>
+      </Section>
 
       <div className="module-banner">
         <div>

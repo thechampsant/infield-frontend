@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { formatApiError, getAdminApi } from "@/lib/api";
 import type { Project } from "@/lib/api/types";
 import { AttendanceConfigPage } from "@/components/attendance-config/attendance-config-page";
@@ -56,22 +55,10 @@ export default function AttendanceModulePage() {
   }
 
   return (
-    <>
-      <div className="pa-page-header" style={{ marginBottom: 16 }}>
-        <div>
-          <Link
-            href={`${base}/modules`}
-            style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600 }}
-          >
-            ← Back to Modules
-          </Link>
-          <div className="pa-eyebrow" style={{ marginTop: 8 }}>
-            Modules
-          </div>
-          <div className="pa-page-title">Attendance Configuration</div>
-        </div>
-      </div>
-      <AttendanceConfigPage projectId={project.id} projectName={project.name} />
-    </>
+    <AttendanceConfigPage
+      projectId={project.id}
+      projectName={project.name}
+      modulesHref={`${base}/modules`}
+    />
   );
 }

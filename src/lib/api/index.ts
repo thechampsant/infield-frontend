@@ -133,6 +133,27 @@ export type {
   SaveSalesConfigurationInput,
   SubmitSalesInput,
 } from "./sales-config-service";
+export {
+  STOCK_MODULE_KEY,
+  normalizeStockConfiguration,
+  normalizeStockType,
+  stockConfigService,
+} from "./stock-config-service";
+export type {
+  SaveStockConfigurationInput,
+  SaveStockSalesLinkageInput,
+  SaveStockTypeInput,
+  StockApprovalLevel,
+  StockApprovalLevelRole,
+  StockApprovalWorkflow,
+  StockConfiguration,
+  StockFieldMapping,
+  StockSalesLinkage,
+  StockTrackingLevel,
+  StockType,
+  StockTypeBehavior,
+  StockUdfSchemaDocument,
+} from "./stock-config-service";
 export { leaveConfigService } from "./leave-config-service";
 export type {
   HolidayUploadResponse,

@@ -579,6 +579,23 @@
   grid-column: 1 / -1;
 }
 
+.sales-field-action {
+  display: flex;
+  align-items: end;
+}
+
+.sales-section-note {
+  margin: 0 20px 18px;
+  color: var(--sales-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.sales-accordion-body > .sales-section-note {
+  margin: 0;
+}
+
 .sales-fields-grid label {
   display: grid;
   gap: 6px;
