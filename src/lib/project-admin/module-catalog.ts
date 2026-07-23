@@ -100,6 +100,15 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     configPath: "modules/sales",
   },
   {
+    id: "stock",
+    name: "Stock",
+    description: "Manage stock movements, balances, deductions, and reconciliation.",
+    accent: "blue",
+    defaultEnabled: false,
+    comingSoon: false,
+    configPath: "modules/stock",
+  },
+  {
     id: "target-vs-achievement",
     name: "Target vs Achievement",
     description: "Set targets and track achievement against goals.",

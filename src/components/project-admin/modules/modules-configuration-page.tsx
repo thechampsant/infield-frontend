@@ -13,6 +13,7 @@ import {
   salesConfigModuleKey,
   salesConfigService,
 } from "@/lib/api/sales-config-service";
+import { stockConfigService } from "@/lib/api/stock-config-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 
@@ -34,10 +35,11 @@ export function ModulesConfigurationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [list, rawConfig, salesConfigs] = await Promise.all([
+      const [list, rawConfig, salesConfigs, stockConfigs] = await Promise.all([
         featureConfigService.getByProject(projectId),
         featureConfigService.getRawByProject(projectId),
         salesConfigService.list(projectId).catch(() => []),
+        stockConfigService.list(projectId).catch(() => []),
       ]);
       const activeKeys = new Set(
         rawConfig.modules
@@ -47,12 +49,17 @@ export function ModulesConfigurationPage() {
       const hasActiveSalesConfig = salesConfigs.some((config) =>
         activeKeys.has(salesConfigModuleKey(config.id)),
       );
+      const hasActiveStockConfig = stockConfigs.some((config) => config.isActive);
       setModules(
-        list.map((module) =>
-          module.definition.id === "sales"
-            ? { ...module, enabled: hasActiveSalesConfig }
-            : module,
-        ),
+        list.map((module) => {
+          if (module.definition.id === "sales") {
+            return { ...module, enabled: hasActiveSalesConfig };
+          }
+          if (module.definition.id === "stock") {
+            return { ...module, enabled: hasActiveStockConfig };
+          }
+          return module;
+        }),
       );
     } catch (err) {
       setError(formatApiError(err, "Failed to load module configuration"));
@@ -75,6 +82,15 @@ export function ModulesConfigurationPage() {
         type: "success",
         message:
           "Enable or disable individual Sales configurations from Sales Configurations.",
+      });
+      return;
+    }
+
+    if (moduleId === "stock") {
+      setToast({
+        type: "success",
+        message:
+          "Activate individual Stock configurations from Stock Configurations so setup requirements can be checked.",
       });
       return;
     }
@@ -182,8 +198,7 @@ export function ModulesConfigurationPage() {
             mod.definition.id === "visits"
               ? "modules/visit"
               : mod.definition.configPath;
-          const alwaysShowConfig =
-            mod.definition.id === "leave" || mod.definition.id === "sales";
+          const alwaysShowConfig = Boolean(path);
           const configHref =
             path && (mod.enabled || alwaysShowConfig)
               ? `${base}/${path}`
