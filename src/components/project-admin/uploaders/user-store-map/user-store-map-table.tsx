@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link2, Link2Off } from "lucide-react";
 import { AssignStoresModal } from "./assign-stores-modal";
 import type { MappedUser } from "@/lib/api/user-store-mapping-service";
 import type { StoreRecord } from "@/lib/api/store-service";
+
+const PAGE_SIZE = 50;
 
 interface UserStoreMapTableProps {
   users: MappedUser[];
@@ -22,6 +24,8 @@ export function UserStoreMapTable({
   const [search, setSearch] = useState("");
   const [filterMapped, setFilterMapped] = useState<"all" | "mapped" | "unmapped">("all");
   const [assignUser, setAssignUser] = useState<MappedUser | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Build a lookup: storeId → StoreRecord for fast name resolution
   const storeById = useMemo(
@@ -47,6 +51,33 @@ export function UserStoreMapTable({
         );
       });
   }, [users, search, filterMapped]);
+
+  // Reset visible count when filters/search change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, filterMapped]);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    if (scrollTop + clientHeight >= scrollHeight - 100) {
+      setVisibleCount((prev) => {
+        const next = prev + PAGE_SIZE;
+        return next > filtered.length ? filtered.length : next;
+      });
+    }
+  }, [filtered.length]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  const displayedUsers = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   const mappedCount = users.filter((u) => u.mappedStoreIds.length > 0).length;
   const unmappedCount = users.length - mappedCount;
@@ -130,7 +161,7 @@ export function UserStoreMapTable({
             onChange={(e) => setSearch(e.target.value)}
           />
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: "auto" }}>
-            {loading ? "Loading…" : `Showing ${filtered.length} of ${users.length} users`}
+            {loading ? "Loading…" : `Showing ${displayedUsers.length} of ${filtered.length} users`}
           </div>
         </div>
 
@@ -158,6 +189,7 @@ export function UserStoreMapTable({
         </div>
 
         {/* Rows */}
+        <div ref={scrollContainerRef} style={{ overflowY: "auto", maxHeight: 640 }}>
         {loading ? (
           <div style={{ padding: "48px 24px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
             Loading…
@@ -169,7 +201,8 @@ export function UserStoreMapTable({
               : "No users found for this project."}
           </div>
         ) : (
-          filtered.map((user) => {
+          <>
+          {displayedUsers.map((user, idx) => {
             const mappedStores = user.mappedStoreIds
               .map((id) => storeById.get(id))
               .filter((s): s is StoreRecord => Boolean(s));
@@ -178,7 +211,7 @@ export function UserStoreMapTable({
 
             return (
               <div
-                key={user.backendId}
+                key={`${user.backendId}-${idx}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1.8fr 140px 1fr 90px",
@@ -226,9 +259,9 @@ export function UserStoreMapTable({
                 <div>
                   {hasMapped ? (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {mappedStores.slice(0, 3).map((s) => (
+                      {mappedStores.slice(0, 3).map((s, sIdx) => (
                         <span
-                          key={s.backendId}
+                          key={`${s.backendId}-${sIdx}`}
                           style={{
                             fontSize: 10,
                             fontWeight: 600,
@@ -294,8 +327,23 @@ export function UserStoreMapTable({
                 </div>
               </div>
             );
-          })
+          })}
+          {hasMore && (
+            <div
+              style={{
+                padding: "12px 20px",
+                textAlign: "center",
+                fontSize: 11,
+                color: "var(--text-muted)",
+                fontWeight: 500,
+              }}
+            >
+              Scroll down for more…
+            </div>
+          )}
+          </>
         )}
+        </div>
 
         {/* Footer */}
         {!loading && filtered.length > 0 && (

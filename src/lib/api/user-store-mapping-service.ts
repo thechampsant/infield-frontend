@@ -82,7 +82,7 @@ function normalizeUser(raw: RawUser): MappedUser {
 
 export const userStoreMappingService = {
   /** List all active users for a project with their current store mappings. */
-  async listUsersWithMapping(projectId: string, limit = 500): Promise<MappedUser[]> {
+  async listUsersWithMapping(projectId: string, limit = 10000): Promise<MappedUser[]> {
     const res = await apiClient.get<PaginatedUsers | RawUser[]>(
       `${USERS_BASE}?projectId=${encodeURIComponent(projectId)}&limit=${limit}`,
     );
