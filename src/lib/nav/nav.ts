@@ -135,6 +135,7 @@ export function uploadersTabs(accountCode: string, projectCode: string) {
     { label: "Stores", href: `${base}/stores` },
     { label: "Products", href: `${base}/products` },
     { label: "User-Store Map", href: `${base}/user-store-map` },
+    { label: "Reportee Map", href: `${base}/reportee-map` },
     { label: "Product-Store Map", href: `${base}/product-store-map` },
   ];
 }

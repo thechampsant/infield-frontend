@@ -268,13 +268,13 @@ export function UDFFormFields({
                           </div>
                           <div className="udf-multiSelect__options">
                             {filteredOptionItems.length > 0 ? (
-                              filteredOptionItems.map((option) => {
+                              filteredOptionItems.map((option, optIdx) => {
                                 const selected = arrayValue(f.fieldKey).includes(
                                   option.value,
                                 );
                                 return (
                                   <button
-                                    key={`${f.id}-${option.value}`}
+                                    key={`${f.id}-${option.value}-${optIdx}`}
                                     type="button"
                                     className={`udf-multiSelect__option${
                                       selected ? " selected" : ""
@@ -310,8 +310,8 @@ export function UDFFormFields({
                       onChange={(e) => set(f.fieldKey, e.target.value)}
                     >
                       <option value="">Select</option>
-                      {visibleOptionItems.map((option) => (
-                        <option key={`${f.id}-${option.value}`} value={option.value}>
+                      {visibleOptionItems.map((option, optIdx) => (
+                        <option key={`${f.id}-${option.value}-${optIdx}`} value={option.value}>
                           {option.label}
                         </option>
                       ))}
