@@ -6,6 +6,10 @@ const BASE = "/api/v1/stock";
 
 export const STOCK_MODULE_KEY = "stock";
 
+export function stockConfigModuleKey(stockConfigId: string): string {
+  return `stock_config_${stockConfigId}`;
+}
+
 export type StockTrackingLevel = "user" | "store" | "user_store";
 
 export type StockTypeBehavior =
@@ -446,6 +450,13 @@ export const stockConfigService = {
     await apiClient.put(
       `${BASE}/configurations/${encodeURIComponent(id)}/activate?projectId=${encodeURIComponent(projectId)}`,
       {},
+    );
+  },
+
+  async deactivate(id: string, projectId: string): Promise<void> {
+    await apiClient.put(
+      `/api/v1/feature-config/${encodeURIComponent(projectId)}/module/${encodeURIComponent(stockConfigModuleKey(id))}`,
+      { isActive: false },
     );
   },
 

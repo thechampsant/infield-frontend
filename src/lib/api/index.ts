@@ -137,6 +137,7 @@ export {
   STOCK_MODULE_KEY,
   normalizeStockConfiguration,
   normalizeStockType,
+  stockConfigModuleKey,
   stockConfigService,
 } from "./stock-config-service";
 export type {
