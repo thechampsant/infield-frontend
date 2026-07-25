@@ -24,8 +24,10 @@ import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   designationService,
+  featureConfigService,
   formatApiError,
   salesConfigService,
+  stockConfigModuleKey,
   stockConfigService,
   type Designation,
   type SalesConfiguration,
@@ -293,6 +295,7 @@ export function StockConfigPage({
   const [errors, setErrors] = useState<string[]>([]);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<StockConfiguration | null>(null);
+  const [activeConfigIds, setActiveConfigIds] = useState<Set<string>>(() => new Set());
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const [stockTypeName, setStockTypeName] = useState("");
   const [stockTypeBehavior, setStockTypeBehavior] = useState<StockTypeBehavior>("ADD");
@@ -316,14 +319,27 @@ export function StockConfigPage({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [configList, designationList, salesList] = await Promise.all([
+      const [configList, designationList, salesList, featureConfig] = await Promise.all([
         stockConfigService.list(projectId),
         designationService.listByProject(projectId),
         salesConfigService.list(projectId),
+        featureConfigService.getRawByProject(projectId),
       ]);
+      const activeKeys = new Set(
+        featureConfig.modules
+          .filter((module) => module.isActive)
+          .map((module) => module.key),
+      );
       setConfigs(configList);
       setDesignations(designationList);
       setSalesConfigs(salesList.filter((config) => config.isActive));
+      setActiveConfigIds(
+        new Set(
+          configList
+            .filter((config) => activeKeys.has(stockConfigModuleKey(config.id)))
+            .map((config) => config.id),
+        ),
+      );
     } catch (error) {
       setToast({ type: "error", message: formatApiError(error, "Failed to load Stock configuration") });
     } finally {
@@ -517,14 +533,31 @@ export function StockConfigPage({
     }
   }
 
-  async function activateConfig(config: StockConfiguration) {
+  async function toggleConfigActivation(config: StockConfiguration, enabled: boolean) {
     setActivatingId(config.id);
     try {
-      await stockConfigService.activate(config.id, projectId);
+      if (enabled) {
+        await stockConfigService.activate(config.id, projectId);
+      } else {
+        await stockConfigService.deactivate(config.id, projectId);
+      }
       await load();
-      setToast({ type: "success", message: `${config.name} activated.` });
+      setToast({
+        type: "success",
+        message: enabled
+          ? `${config.name} enabled for matching designations.`
+          : `${config.name} disabled.`,
+      });
     } catch (error) {
-      setToast({ type: "error", message: formatApiError(error, "Stock configuration could not be activated.") });
+      setToast({
+        type: "error",
+        message: formatApiError(
+          error,
+          enabled
+            ? "Stock configuration could not be activated. Complete the setup requirements first."
+            : "Stock configuration could not be disabled.",
+        ),
+      });
     } finally {
       setActivatingId(null);
     }
@@ -923,15 +956,17 @@ export function StockConfigPage({
             </div>
           ) : (
             <div className="sales-config-grid">
-              {configs.map((config, index) => (
+              {configs.map((config, index) => {
+                const enabled = activeConfigIds.has(config.id);
+                return (
                 <article className="sales-config-card" key={config.id}>
                   <div className="sales-config-main">
                     <div className="sales-config-index">{index + 1}</div>
                     <div>
                       <div className="sales-config-title-row">
                         <h2>{config.name}</h2>
-                        <span className={`sales-status ${config.isActive ? "active" : ""}`}>
-                          {config.isActive ? "Active" : "Inactive"}
+                        <span className={`sales-status ${enabled ? "active" : ""}`}>
+                          {enabled ? "Enabled" : "Disabled"}
                         </span>
                       </div>
                       <p>{designationNames(config.applicableDesignations, designations)}</p>
@@ -946,18 +981,20 @@ export function StockConfigPage({
                     </div>
                   </div>
                   <div className="sales-card-actions">
-                    {!config.isActive && (
-                      <button
-                        type="button"
-                        className="sales-activation-btn"
-                        disabled={activatingId === config.id}
-                        onClick={() => void activateConfig(config)}
-                        title="Activate configuration"
-                      >
-                        <Power size={15} />
-                        {activatingId === config.id ? "Activating..." : "Activate"}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className={`sales-activation-btn ${enabled ? "active" : ""}`}
+                      disabled={activatingId === config.id}
+                      onClick={() => void toggleConfigActivation(config, !enabled)}
+                      title={enabled ? "Disable configuration" : "Enable configuration"}
+                    >
+                      <Power size={15} />
+                      {activatingId === config.id
+                        ? "Saving..."
+                        : enabled
+                          ? "Disable"
+                          : "Enable"}
+                    </button>
                     <button type="button" onClick={() => startEdit(config)} title="Edit">
                       <Pencil size={15} /> Edit
                     </button>
@@ -969,7 +1006,8 @@ export function StockConfigPage({
                     </button>
                   </div>
                 </article>
-              ))}
+                );
+              })}
               <button type="button" className="sales-add-config" onClick={startCreate}>
                 <Plus size={18} />
                 Add New Stock Configuration
