@@ -143,16 +143,22 @@ export type {
   SaveStockConfigurationInput,
   SaveStockSalesLinkageInput,
   SaveStockTypeInput,
+  StockBalanceFormula,
+  StockBalanceFormulaSalesTerm,
+  StockBalanceFormulaTerm,
   StockApprovalLevel,
   StockApprovalLevelRole,
   StockApprovalWorkflow,
   StockConfiguration,
   StockFieldMapping,
+  StockImpactOperator,
   StockSalesLinkage,
   StockTrackingLevel,
   StockType,
   StockTypeBehavior,
   StockUdfSchemaDocument,
+  UpdateStockSalesLinkageInput,
+  UpdateStockTypeInput,
 } from "./stock-config-service";
 export { leaveConfigService } from "./leave-config-service";
 export type {
