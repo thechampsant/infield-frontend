@@ -14,8 +14,10 @@ import {
   Plus,
   Power,
   Settings2,
+  Store,
   Trash2,
   UserRound,
+  Users,
   X,
 } from "lucide-react";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
@@ -30,6 +32,8 @@ import {
   type StockApprovalLevelRole,
   type StockConfiguration,
   type StockFieldMapping,
+  type StockImpactOperator,
+  type StockSalesLinkage,
   type StockTrackingLevel,
   type StockType,
   type StockTypeBehavior,
@@ -83,6 +87,13 @@ const stockTypeBehaviorLabels: Record<StockTypeBehavior, string> = {
 
 const stockTypeBehaviors = Object.keys(stockTypeBehaviorLabels) as StockTypeBehavior[];
 
+function impactPayload(operator: StockImpactOperator) {
+  return {
+    affectsBalance: operator !== "NONE",
+    impactOperator: operator,
+  };
+}
+
 function makeId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -90,6 +101,13 @@ function makeId(prefix: string): string {
 function mappingToValue(mapping?: StockFieldMapping): string {
   if (!mapping?.fieldKey) return "";
   return `${mapping.groupFieldKey ?? ""}::${mapping.fieldKey}`;
+}
+
+function mappingLabel(mapping?: StockFieldMapping): string {
+  if (!mapping?.fieldKey) return "Not mapped";
+  return mapping.groupFieldKey
+    ? `${mapping.groupFieldKey} / ${mapping.fieldKey}`
+    : mapping.fieldKey;
 }
 
 function valueToMapping(value: string): StockFieldMapping | undefined {
@@ -208,6 +226,49 @@ function validate(editor: EditorState): string[] {
   return errors;
 }
 
+function mergeSalesLinkage(
+  config: StockConfiguration,
+  linkage: StockSalesLinkage,
+): StockConfiguration {
+  const salesLinkages = [
+    ...config.salesLinkages.filter((item) => item.salesConfigId !== linkage.salesConfigId),
+    linkage,
+  ];
+  return { ...config, salesLinkages };
+}
+
+function withSalesLinkages(
+  config: StockConfiguration,
+  salesLinkages: StockSalesLinkage[],
+): StockConfiguration {
+  return { ...config, salesLinkages };
+}
+
+function hydrateSalesLinkages(
+  linkages: StockSalesLinkage[],
+  salesConfigs: SalesConfiguration[],
+): StockSalesLinkage[] {
+  return linkages.map((linkage) => {
+    const salesConfig = salesConfigs.find((config) => config.id === linkage.salesConfigId);
+    return {
+      ...linkage,
+      salesConfigName: linkage.salesConfigName || salesConfig?.name,
+    };
+  });
+}
+
+function formulaTermClass(operator: StockImpactOperator): string {
+  return operator.toLowerCase();
+}
+
+function formulaOperatorLabel(operator: StockImpactOperator): string {
+  return operator === "SUBTRACT" ? "-" : "+";
+}
+
+function nextFormulaOperator(operator: StockImpactOperator): StockImpactOperator {
+  return operator === "SUBTRACT" ? "ADD" : "SUBTRACT";
+}
+
 export function StockConfigPage({
   projectId,
   accountCode,
@@ -239,6 +300,8 @@ export function StockConfigPage({
   const [linkSalesId, setLinkSalesId] = useState("");
   const [linkProductMapping, setLinkProductMapping] = useState("");
   const [linkQuantityMapping, setLinkQuantityMapping] = useState("");
+  const [linkAutoDeductEnabled, setLinkAutoDeductEnabled] = useState(true);
+  const [salesLinkageEnabled, setSalesLinkageEnabled] = useState(true);
   const [salesSchemaFields, setSalesSchemaFields] = useState<UdfSchemaField[]>([]);
   const [linkSaving, setLinkSaving] = useState(false);
 
@@ -281,13 +344,20 @@ export function StockConfigPage({
     let active = true;
     async function loadEditorExtras() {
       try {
-        const [types, schema] = await Promise.all([
+        const [types, schema, detail] = await Promise.all([
           stockConfigService.listStockTypes(editor.id as string, projectId),
           stockConfigService.getUdfSchema(editor.id as string, projectId),
+          stockConfigService.get(editor.id as string, projectId),
         ]);
         if (!active) return;
-        setStockTypes(types);
+        setStockTypes(detail.stockTypes.length ? detail.stockTypes : types);
         setSchemaFields(schema.fields);
+        const hydrated = hydrateSalesLinkages(detail.salesLinkages, salesConfigs);
+        setConfigs((current) =>
+          current.map((config) =>
+            config.id === editor.id ? withSalesLinkages(detail, hydrated) : config,
+          ),
+        );
       } catch (error) {
         if (!active) return;
         setToast({ type: "error", message: formatApiError(error, "Failed to load Stock setup details") });
@@ -297,13 +367,14 @@ export function StockConfigPage({
     return () => {
       active = false;
     };
-  }, [editor.id, projectId]);
+  }, [editor.id, projectId, salesConfigs]);
 
   useEffect(() => {
     if (!linkSalesId) {
       setSalesSchemaFields([]);
       setLinkProductMapping("");
       setLinkQuantityMapping("");
+      setLinkAutoDeductEnabled(true);
       return;
     }
     let active = true;
@@ -386,6 +457,7 @@ export function StockConfigPage({
     const nextErrors = validate(editor);
     setErrors(nextErrors);
     if (nextErrors.length) return null;
+    const visibleLinkagesBeforeSave = selectedConfig?.salesLinkages ?? [];
 
     setSaving(true);
     try {
@@ -397,6 +469,16 @@ export function StockConfigPage({
         setEditor((current) => ({ ...current, id: saved.id }));
       }
       await load();
+      const detail = await stockConfigService.get(saved.id, projectId).catch(() => saved);
+      const hydratedLinkages = hydrateSalesLinkages(
+        detail.salesLinkages.length ? detail.salesLinkages : visibleLinkagesBeforeSave,
+        salesConfigs,
+      );
+      setConfigs((current) =>
+        current.map((config) =>
+          config.id === saved.id ? withSalesLinkages(detail, hydratedLinkages) : config,
+        ),
+      );
       setToast({ type: "success", message: "Stock configuration saved." });
       return saved;
     } catch (error) {
@@ -462,15 +544,58 @@ export function StockConfigPage({
       const created = await stockConfigService.createStockType(editor.id, projectId, {
         name: stockTypeName.trim(),
         behavior: stockTypeBehavior,
+        ...impactPayload("NONE"),
       });
       setStockTypes((current) => [...current, created]);
       setStockTypeName("");
       setStockTypeBehavior("ADD");
+      const detail = await stockConfigService.get(editor.id, projectId);
+      setStockTypes(detail.stockTypes.length ? detail.stockTypes : (current) => current);
+      setConfigs((current) =>
+        current.map((config) =>
+          config.id === detail.id
+            ? withSalesLinkages(detail, hydrateSalesLinkages(detail.salesLinkages, salesConfigs))
+            : config,
+        ),
+      );
       setToast({ type: "success", message: "Stock Type added." });
     } catch (error) {
       setToast({ type: "error", message: formatApiError(error, "Failed to add Stock Type") });
     } finally {
       setStockTypeSaving(false);
+    }
+  }
+
+  async function updateStockTypeImpact(stockType: StockType, impactOperator: StockImpactOperator) {
+    if (!editor.id) return;
+    if (stockType.usedInSubmissions) {
+      setToast({
+        type: "error",
+        message: `${stockType.name} is already used in submissions. Review impact changes carefully before saving.`,
+      });
+    }
+    try {
+      const updated = await stockConfigService.updateStockType(
+        editor.id,
+        projectId,
+        stockType.id,
+        impactPayload(impactOperator),
+      );
+      setStockTypes((current) =>
+        current.map((item) => item.id === updated.id ? updated : item),
+      );
+      const detail = await stockConfigService.get(editor.id, projectId);
+      setStockTypes(detail.stockTypes.length ? detail.stockTypes : (current) => current);
+      setConfigs((current) =>
+        current.map((config) =>
+          config.id === detail.id
+            ? withSalesLinkages(detail, hydrateSalesLinkages(detail.salesLinkages, salesConfigs))
+            : config,
+        ),
+      );
+      setToast({ type: "success", message: `${stockType.name} impact updated.` });
+    } catch (error) {
+      setToast({ type: "error", message: formatApiError(error, "Failed to update Stock Type impact") });
     }
   }
 
@@ -511,14 +636,37 @@ export function StockConfigPage({
 
     setLinkSaving(true);
     try {
-      await stockConfigService.linkSalesConfiguration(editor.id, projectId, {
+      const linked = await stockConfigService.linkSalesConfiguration(editor.id, projectId, {
         salesConfigId: linkSalesId,
         product,
-        quantity,
+        salesDeductionField: quantity,
+        autoDeductEnabled: linkAutoDeductEnabled,
       });
+      const visibleLinkage: StockSalesLinkage = {
+        ...linked,
+        id: linked.id || linkSalesId,
+        salesConfigId: linked.salesConfigId || linkSalesId,
+        salesConfigName: linked.salesConfigName || salesConfig?.name,
+        product: linked.product || product,
+        quantity: linked.salesDeductionField || linked.quantity || quantity,
+        salesDeductionField: linked.salesDeductionField || linked.quantity || quantity,
+        autoDeductEnabled: linked.autoDeductEnabled,
+      };
       const next = await stockConfigService.get(editor.id, projectId);
-      setConfigs((current) => current.map((config) => config.id === next.id ? next : config));
+      setConfigs((current) =>
+        current.map((config) =>
+          config.id === next.id
+            ? mergeSalesLinkage(
+                withSalesLinkages(next, config.salesLinkages),
+                visibleLinkage,
+              )
+            : config,
+        ),
+      );
       setLinkSalesId("");
+      setLinkProductMapping("");
+      setLinkQuantityMapping("");
+      setLinkAutoDeductEnabled(true);
       setToast({ type: "success", message: "Sales configuration linked to Stock." });
     } catch (error) {
       setToast({ type: "error", message: formatApiError(error, "Failed to link Sales configuration") });
@@ -532,10 +680,46 @@ export function StockConfigPage({
     try {
       await stockConfigService.unlinkSalesConfiguration(editor.id, projectId, salesConfigId);
       const next = await stockConfigService.get(editor.id, projectId);
-      setConfigs((current) => current.map((config) => config.id === next.id ? next : config));
+      const hydratedLinkages = hydrateSalesLinkages(next.salesLinkages, salesConfigs).filter(
+        (linkage) => linkage.salesConfigId !== salesConfigId,
+      );
+      setConfigs((current) =>
+        current.map((config) =>
+          config.id === next.id
+            ? withSalesLinkages(next, hydratedLinkages)
+            : config,
+        ),
+      );
       setToast({ type: "success", message: "Sales linkage removed." });
     } catch (error) {
       setToast({ type: "error", message: formatApiError(error, "Failed to unlink Sales configuration") });
+    }
+  }
+
+  async function updateSalesLinkageAutoDeduct(linkage: StockSalesLinkage, enabled: boolean) {
+    if (!editor.id) return;
+    try {
+      await stockConfigService.updateSalesLinkage(
+        editor.id,
+        projectId,
+        linkage.salesConfigId,
+        {
+          product: linkage.product,
+          salesDeductionField: linkage.salesDeductionField || linkage.quantity,
+          autoDeductEnabled: enabled,
+        },
+      );
+      const next = await stockConfigService.get(editor.id, projectId);
+      setConfigs((current) =>
+        current.map((config) =>
+          config.id === next.id
+            ? withSalesLinkages(next, hydrateSalesLinkages(next.salesLinkages, salesConfigs))
+            : config,
+        ),
+      );
+      setToast({ type: "success", message: enabled ? "Auto-deduct enabled." : "Auto-deduct disabled." });
+    } catch (error) {
+      setToast({ type: "error", message: formatApiError(error, "Failed to update Sales linkage") });
     }
   }
 
@@ -544,8 +728,134 @@ export function StockConfigPage({
     { label: "Product field mapping is selected", done: Boolean(editor.productMapping) },
     { label: "Movement quantity field mapping is selected", done: Boolean(editor.quantityMapping) },
     { label: "At least one active Stock Type exists", done: stockTypes.some((type) => type.isActive) },
+    {
+      label: "At least one Stock Type affects balance",
+      done: stockTypes.some((type) => type.isActive && type.affectsBalance && type.impactOperator !== "NONE"),
+    },
     { label: "Approval workflow is valid if enabled", done: validate(editor).filter((error) => error.startsWith("Approval")).length === 0 },
   ];
+  const readinessDone = readiness.filter((item) => item.done).length;
+  const readinessTotal = readiness.length;
+  const activationReady = readinessDone === readinessTotal;
+  const formulaStockTypes = stockTypes.filter(
+    (type) => type.isActive && type.affectsBalance && (type.impactOperator === "ADD" || type.impactOperator === "SUBTRACT"),
+  );
+  const stockFormulaEditor = (
+    <div className="stock-formula-panel">
+      <section className="stock-formula-builder">
+        <div>
+          <div className="stock-formula-title">Formula creation</div>
+          <p>
+            Add Stock Types to the formula, remove them when they should stay informational,
+            and use the operator buttons to decide how each term affects balance.
+          </p>
+        </div>
+        {stockTypes.length === 0 ? (
+          <div className="stock-formula-empty">Create Stock Types before building the balance formula.</div>
+        ) : (
+          <>
+            <div className="stock-formula-expression" aria-label="Stock balance formula">
+              {formulaStockTypes.length === 0 ? (
+                <span className="stock-formula-placeholder">Add Stock Types from below to build the formula.</span>
+              ) : (
+                formulaStockTypes.map((type, index) => (
+                  <div className="stock-formula-expression-term" key={type.id}>
+                    {index > 0 && (
+                      <button
+                        type="button"
+                        className={`stock-formula-operator ${type.impactOperator === "SUBTRACT" ? "subtract" : "add"}`}
+                        onClick={() => void updateStockTypeImpact(type, nextFormulaOperator(type.impactOperator))}
+                        title="Change operator"
+                      >
+                        {formulaOperatorLabel(type.impactOperator)}
+                      </button>
+                    )}
+                    <span className="stock-formula-token">
+                      <strong>{type.name}</strong>
+                      <button
+                        type="button"
+                        onClick={() => void updateStockTypeImpact(type, "NONE")}
+                        title="Remove from formula"
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="stock-formula-source">
+              <div className="stock-formula-source-title">
+                <span>Stock Type Values</span>
+                <small>from Stock Type dropdown</small>
+              </div>
+              <div className="stock-formula-source-list">
+                {stockTypes.map((type) => {
+                  const included = formulaStockTypes.some((item) => item.id === type.id);
+                  return (
+                    <button
+                      type="button"
+                      className={`stock-formula-source-chip ${included ? "included" : ""}`}
+                      disabled={!type.isActive || included}
+                      onClick={() => void updateStockTypeImpact(type, "ADD")}
+                      key={type.id}
+                      title={included ? "Already in formula" : "Add to formula"}
+                    >
+                      {type.name}
+                      {included && <CheckCircle2 size={13} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+      <FormulaSection
+        title="Available stock formula"
+        empty="Choose at least one Stock Type that adds or subtracts stock before activation."
+        terms={[
+          ...(selectedConfig?.balanceFormula.stockTypeTerms ?? [])
+            .filter((term) => !term.excluded && (term.operator === "ADD" || term.operator === "SUBTRACT"))
+            .map((term) => ({
+              key: term.stockTypeId,
+              label: term.stockTypeName,
+              operator: term.operator,
+            })),
+          ...(selectedConfig?.balanceFormula.salesTerms ?? [])
+            .filter((term) => term.autoDeductEnabled)
+            .map((term) => ({
+              key: term.salesConfigId,
+              label: `Sales ${mappingLabel(term.salesDeductionField)}`,
+              operator: "SUBTRACT" as StockImpactOperator,
+            })),
+        ]}
+      />
+      <FormulaSection
+        title="Reconciliation"
+        empty="Reconcile Stock Types record counted stock and discrepancy without directly adding or subtracting available stock."
+        terms={(selectedConfig?.balanceFormula.stockTypeTerms ?? [])
+          .filter((term) => !term.excluded && term.operator === "RECONCILE")
+          .map((term) => ({
+            key: term.stockTypeId,
+            label: term.stockTypeName,
+            operator: term.operator,
+          }))}
+      />
+      <FormulaSection
+        title="Informational only"
+        empty="Informational Stock Types are saved in submissions and reports, but do not change stock balance."
+        terms={(selectedConfig?.balanceFormula.stockTypeTerms ?? [])
+          .filter((term) => term.excluded || term.operator === "NONE" || !term.affectsBalance)
+          .map((term) => ({
+            key: term.stockTypeId,
+            label: term.stockTypeName,
+            operator: "NONE" as StockImpactOperator,
+          }))}
+      />
+    </div>
+  );
 
   if (loading) {
     return (
@@ -697,7 +1007,7 @@ export function StockConfigPage({
             <EditorAccordion
               icon={<Settings2 size={18} />}
               title="Configuration Settings"
-              description="Name, designations, and tracking level"
+              description="Name and assigned designations"
               open={openSection === "settings"}
               onToggle={() => setOpenSection((current) => current === "settings" ? null : "settings")}
             >
@@ -710,22 +1020,6 @@ export function StockConfigPage({
                     onChange={(event) => setEditor((current) => ({ ...current, name: event.target.value }))}
                     placeholder="ISP Executive - Stock"
                   />
-                </label>
-                <label>
-                  <span>Tracking Level</span>
-                  <select
-                    value={editor.trackingLevel}
-                    onChange={(event) =>
-                      setEditor((current) => ({
-                        ...current,
-                        trackingLevel: event.target.value as StockTrackingLevel,
-                      }))
-                    }
-                  >
-                    <option value="user">User wise</option>
-                    <option value="store">Store wise</option>
-                    <option value="user_store">User + Store wise</option>
-                  </select>
                 </label>
               </div>
               <div className="sales-designation-grid">
@@ -746,82 +1040,36 @@ export function StockConfigPage({
             </EditorAccordion>
 
             <EditorAccordion
-              icon={<Boxes size={18} />}
-              title="Stock Field Mapping"
-              description="Map product and movement quantity from the saved UDF schema"
-              open={openSection === "mapping"}
-              onToggle={() => setOpenSection((current) => current === "mapping" ? null : "mapping")}
-            >
-              <div className="sales-fields-grid">
-                <label>
-                  <span>Stock Product Field</span>
-                  <select
-                    value={editor.productMapping}
-                    disabled={!editor.id || options.length === 0}
-                    onChange={(event) => setEditor((current) => ({ ...current, productMapping: event.target.value }))}
-                  >
-                    <option value="">Select product field</option>
-                    {options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} ({option.type})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Movement Quantity Field</span>
-                  <select
-                    value={editor.quantityMapping}
-                    disabled={!editor.id || options.length === 0}
-                    onChange={(event) => setEditor((current) => ({ ...current, quantityMapping: event.target.value }))}
-                  >
-                    <option value="">Select quantity field</option>
-                    {options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} ({option.type})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <p className="sales-section-note">
-                {options.length
-                  ? "If one field is inside a repeatable group, the other must be inside the same group."
-                  : "Save this configuration, build the Stock UDF form, then return here to map product and movement quantity."}
-              </p>
-            </EditorAccordion>
-
-            <EditorAccordion
               icon={<Layers3 size={18} />}
               title="Stock Types"
               description="Create movement behaviors used by Stock submissions"
               open={openSection === "types"}
               onToggle={() => setOpenSection((current) => current === "types" ? null : "types")}
             >
-              <div className="sales-fields-grid">
-                <label>
-                  <span>Stock Type Name</span>
-                  <input
-                    value={stockTypeName}
-                    maxLength={120}
-                    disabled={!editor.id}
-                    onChange={(event) => setStockTypeName(event.target.value)}
-                    placeholder="Damaged Stock"
-                  />
-                </label>
-                <label>
-                  <span>Behavior</span>
-                  <select
-                    value={stockTypeBehavior}
-                    disabled={!editor.id}
-                    onChange={(event) => setStockTypeBehavior(event.target.value as StockTypeBehavior)}
-                  >
-                    {stockTypeBehaviors.map((behavior) => (
-                      <option key={behavior} value={behavior}>{stockTypeBehaviorLabels[behavior]}</option>
-                    ))}
-                  </select>
-                </label>
-                <div className="sales-field-action">
+              <div className="stock-types-panel">
+                <div className="stock-type-create">
+                  <label>
+                    <span>Stock Type Name</span>
+                    <input
+                      value={stockTypeName}
+                      maxLength={120}
+                      disabled={!editor.id}
+                      onChange={(event) => setStockTypeName(event.target.value)}
+                      placeholder="Damaged Stock"
+                    />
+                  </label>
+                  <label>
+                    <span>Behavior</span>
+                    <select
+                      value={stockTypeBehavior}
+                      disabled={!editor.id}
+                      onChange={(event) => setStockTypeBehavior(event.target.value as StockTypeBehavior)}
+                    >
+                      {stockTypeBehaviors.map((behavior) => (
+                        <option key={behavior} value={behavior}>{stockTypeBehaviorLabels[behavior]}</option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     type="button"
                     className="sales-primary-btn"
@@ -831,28 +1079,261 @@ export function StockConfigPage({
                     <Plus size={16} /> {stockTypeSaving ? "Adding..." : "Add Stock Type"}
                   </button>
                 </div>
-              </div>
-              <div className="sales-level-list">
                 {stockTypes.length === 0 ? (
-                  <div className="sales-section-note">Save the configuration to view seeded Stock Types or add new ones.</div>
-                ) : stockTypes.map((type) => (
-                  <div className="sales-level-row" key={type.id}>
-                    <span className="sales-level-index">{type.isActive ? "A" : "I"}</span>
-                    <strong>{type.name}</strong>
-                    <span className={`sales-status ${type.isActive ? "active" : ""}`}>
-                      {stockTypeBehaviorLabels[type.behavior]}
-                    </span>
-                    <button
-                      type="button"
-                      className="sales-icon-btn danger"
-                      disabled={!type.isActive}
-                      onClick={() => void deactivateStockType(type)}
-                      title="Deactivate Stock Type"
-                    >
-                      <X size={15} /> Deactivate
-                    </button>
+                  <div className="stock-type-empty">
+                    Save the configuration to view seeded Stock Types or add new ones.
                   </div>
-                ))}
+                ) : (
+                  <div className="stock-type-table-wrap">
+                    <table className="stock-type-table">
+                      <thead>
+                        <tr>
+                          <th>Stock Type</th>
+                          <th>Behavior</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stockTypes.map((type) => (
+                          <tr key={type.id}>
+                            <td>
+                              <div className="stock-type-name-cell">
+                                <strong>{type.name}</strong>
+                                <span>{type.isActive ? "Available for new submissions" : "Kept for history"}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`stock-behavior-badge ${type.behavior.toLowerCase()}`}>
+                                {stockTypeBehaviorLabels[type.behavior]}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`stock-status-badge ${type.isActive ? "active" : "inactive"}`}>
+                                {type.isActive ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="stock-type-action"
+                                disabled={!type.isActive}
+                                onClick={() => void deactivateStockType(type)}
+                                title="Deactivate Stock Type"
+                              >
+                                <X size={14} /> Deactivate
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </EditorAccordion>
+
+            <EditorAccordion
+              icon={<GitBranch size={18} />}
+              title="Sales-Stock Linkage"
+              description="Auto-deduction, sale blocking, and stock calculations"
+              open={openSection === "sales"}
+              onToggle={() => setOpenSection((current) => current === "sales" ? null : "sales")}
+            >
+              <div className="stock-linkage-panel">
+                <div className={`stock-linkage-master-toggle ${salesLinkageEnabled ? "enabled" : ""}`}>
+                  <div>
+                    <strong>Link to Sales Module</strong>
+                    <span>Enable cross-module features between Stock and Sales</span>
+                  </div>
+                  <label className="stock-switch" aria-label="Toggle Sales linkage">
+                    <input
+                      type="checkbox"
+                      checked={salesLinkageEnabled}
+                      onChange={(event) => setSalesLinkageEnabled(event.target.checked)}
+                    />
+                    <span />
+                  </label>
+                </div>
+
+                <div className="stock-tracking-section">
+                  <div>
+                    <div className="stock-tracking-title">Stock Tracking Level</div>
+                    <p>Applies to all linked Sales behavior below.</p>
+                  </div>
+                  <div className="stock-tracking-grid">
+                    {[
+                      {
+                        value: "user" as StockTrackingLevel,
+                        title: "User",
+                        description: "ISP owns inventory personally",
+                        icon: <UserRound size={17} />,
+                      },
+                      {
+                        value: "store" as StockTrackingLevel,
+                        title: "Store",
+                        description: "Stock tracked per store location",
+                        icon: <Store size={17} />,
+                      },
+                      {
+                        value: "user_store" as StockTrackingLevel,
+                        title: "User + Store",
+                        description: "Per ISP per store - most granular",
+                        icon: <Users size={17} />,
+                      },
+                    ].map((option) => {
+                      const selected = editor.trackingLevel === option.value;
+                      return (
+                        <label
+                          className={`stock-tracking-card ${selected ? "selected" : ""}`}
+                          key={option.value}
+                        >
+                          <input
+                            type="radio"
+                            name="stock-tracking-level"
+                            checked={selected}
+                            onChange={() =>
+                              setEditor((current) => ({
+                                ...current,
+                                trackingLevel: option.value,
+                              }))
+                            }
+                          />
+                          <span className="stock-tracking-radio" />
+                          <span className="stock-tracking-content">
+                            {option.icon}
+                            <strong>{option.title}</strong>
+                            <small>{option.description}</small>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className={`stock-linkage-create ${salesLinkageEnabled ? "" : "disabled"}`}>
+                  <label className="wide">
+                    <span>Active Sales Configuration</span>
+                    <select
+                      value={linkSalesId}
+                      disabled={!editor.id || !salesLinkageEnabled}
+                      onChange={(event) => setLinkSalesId(event.target.value)}
+                    >
+                      <option value="">Select Sales configuration</option>
+                      {salesConfigs.map((config) => (
+                        <option key={config.id} value={config.id}>
+                          {config.name} - {designationNames(config.applicableDesignations, designations)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Sales Product Field</span>
+                    <select
+                      value={linkProductMapping}
+                      disabled={!salesLinkageEnabled || !linkSalesId || salesOptions.length === 0}
+                      onChange={(event) => setLinkProductMapping(event.target.value)}
+                    >
+                      <option value="">Select product field</option>
+                      {salesOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label} ({option.type})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Sales Deduction Field</span>
+                    <select
+                      value={linkQuantityMapping}
+                      disabled={!salesLinkageEnabled || !linkSalesId || salesOptions.length === 0}
+                      onChange={(event) => setLinkQuantityMapping(event.target.value)}
+                    >
+                      <option value="">Select quantity field</option>
+                      {salesOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label} ({option.type})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="stock-linkage-toggle">
+                    <span>Auto Deduct</span>
+                    <input
+                      type="checkbox"
+                      checked={linkAutoDeductEnabled}
+                      disabled={!editor.id || !salesLinkageEnabled}
+                      onChange={(event) => setLinkAutoDeductEnabled(event.target.checked)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="sales-primary-btn"
+                    disabled={!editor.id || !salesLinkageEnabled || linkSaving}
+                    onClick={() => void linkSalesConfiguration()}
+                  >
+                    <Plus size={16} /> {linkSaving ? "Linking..." : "Link Sales"}
+                  </button>
+                </div>
+                <div className="stock-linkage-note">
+                  With Sales approval disabled, Stock deducts immediately. With Sales approval enabled, Stock reserves on submission and deducts after final approval.
+                </div>
+                {(selectedConfig?.salesLinkages ?? []).length === 0 ? (
+                  <div className="stock-linkage-empty">No Sales configurations linked yet.</div>
+                ) : (
+                  <div className="stock-linkage-table-wrap">
+                    <table className="stock-linkage-table">
+                      <thead>
+                        <tr>
+                          <th>Sales Configuration</th>
+                          <th>Product Field</th>
+                          <th>Deduction Field</th>
+                          <th>Auto Deduct</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedConfig?.salesLinkages.map((linkage) => (
+                          <tr key={linkage.salesConfigId}>
+                            <td>
+                              <div className="stock-linkage-name-cell">
+                                <strong>{linkage.salesConfigName || linkage.salesConfigId}</strong>
+                                <span>{linkage.salesConfigId}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="stock-mapping-pill product">
+                                {mappingLabel(linkage.product)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="stock-mapping-pill quantity">
+                                {mappingLabel(linkage.salesDeductionField || linkage.quantity)}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={`stock-auto-deduct-toggle ${linkage.autoDeductEnabled ? "enabled" : ""}`}
+                                disabled={!salesLinkageEnabled}
+                                onClick={() => void updateSalesLinkageAutoDeduct(linkage, !linkage.autoDeductEnabled)}
+                              >
+                                {linkage.autoDeductEnabled ? "Enabled" : "Disabled"}
+                              </button>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="stock-linkage-action"
+                                onClick={() => void unlinkSalesConfiguration(linkage.salesConfigId)}
+                                title="Unlink Sales configuration"
+                              >
+                                <X size={14} /> Unlink
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {salesLinkageEnabled && stockFormulaEditor}
               </div>
             </EditorAccordion>
 
@@ -943,92 +1424,49 @@ export function StockConfigPage({
             </EditorAccordion>
 
             <EditorAccordion
-              icon={<GitBranch size={18} />}
-              title="Sales Linkage"
-              description="Deduct or reserve stock from linked Sales submissions"
-              open={openSection === "sales"}
-              onToggle={() => setOpenSection((current) => current === "sales" ? null : "sales")}
+              icon={<Boxes size={18} />}
+              title="Stock Field Mapping"
+              description="Map product and movement quantity from the saved UDF schema"
+              open={openSection === "mapping"}
+              onToggle={() => setOpenSection((current) => current === "mapping" ? null : "mapping")}
             >
               <div className="sales-fields-grid">
-                <label className="wide">
-                  <span>Active Sales Configuration</span>
+                <label>
+                  <span>Stock Product Field</span>
                   <select
-                    value={linkSalesId}
-                    disabled={!editor.id}
-                    onChange={(event) => setLinkSalesId(event.target.value)}
+                    value={editor.productMapping}
+                    disabled={!editor.id || options.length === 0}
+                    onChange={(event) => setEditor((current) => ({ ...current, productMapping: event.target.value }))}
                   >
-                    <option value="">Select Sales configuration</option>
-                    {salesConfigs.map((config) => (
-                      <option key={config.id} value={config.id}>
-                        {config.name} - {designationNames(config.applicableDesignations, designations)}
+                    <option value="">Select product field</option>
+                    {options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.type})
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <span>Sales Product Field</span>
+                  <span>Movement Quantity Field</span>
                   <select
-                    value={linkProductMapping}
-                    disabled={!linkSalesId || salesOptions.length === 0}
-                    onChange={(event) => setLinkProductMapping(event.target.value)}
-                  >
-                    <option value="">Select product field</option>
-                    {salesOptions.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label} ({option.type})</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Sold Quantity Field</span>
-                  <select
-                    value={linkQuantityMapping}
-                    disabled={!linkSalesId || salesOptions.length === 0}
-                    onChange={(event) => setLinkQuantityMapping(event.target.value)}
+                    value={editor.quantityMapping}
+                    disabled={!editor.id || options.length === 0}
+                    onChange={(event) => setEditor((current) => ({ ...current, quantityMapping: event.target.value }))}
                   >
                     <option value="">Select quantity field</option>
-                    {salesOptions.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label} ({option.type})</option>
+                    {options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.type})
+                      </option>
                     ))}
                   </select>
                 </label>
-                <div className="sales-field-action">
-                  <button
-                    type="button"
-                    className="sales-primary-btn"
-                    disabled={!editor.id || linkSaving}
-                    onClick={() => void linkSalesConfiguration()}
-                  >
-                    <Plus size={16} /> {linkSaving ? "Linking..." : "Link Sales"}
-                  </button>
-                </div>
               </div>
               <p className="sales-section-note">
-                With Sales approval disabled, Stock deducts immediately. With Sales approval enabled, Stock reserves on submission and deducts after final approval.
+                {options.length
+                  ? "If one field is inside a repeatable group, the other must be inside the same group."
+                  : "Save this configuration, build the Stock UDF form, then return here to map product and movement quantity."}
               </p>
-              <div className="sales-level-list">
-                {(selectedConfig?.salesLinkages ?? []).length === 0 ? (
-                  <div className="sales-section-note">No Sales configurations linked yet.</div>
-                ) : selectedConfig?.salesLinkages.map((linkage) => (
-                  <div className="sales-level-row" key={linkage.salesConfigId}>
-                    <span className="sales-level-index">S</span>
-                    <strong>{linkage.salesConfigName || linkage.salesConfigId}</strong>
-                    <span className="sales-status active">
-                      Product: {mappingToValue(linkage.product) || "Not mapped"}
-                    </span>
-                    <span className="sales-status">
-                      Qty: {mappingToValue(linkage.quantity) || "Not mapped"}
-                    </span>
-                    <button
-                      type="button"
-                      className="sales-icon-btn danger"
-                      onClick={() => void unlinkSalesConfiguration(linkage.salesConfigId)}
-                      title="Unlink Sales configuration"
-                    >
-                      <X size={15} /> Unlink
-                    </button>
-                  </div>
-                ))}
-              </div>
             </EditorAccordion>
 
             <EditorAccordion
@@ -1038,15 +1476,29 @@ export function StockConfigPage({
               open={openSection === "activate"}
               onToggle={() => setOpenSection((current) => current === "activate" ? null : "activate")}
             >
-              <div className="sales-level-list">
-                {readiness.map((item) => (
-                  <div className="sales-level-row" key={item.label}>
-                    <span className={`sales-level-index ${item.done ? "active" : ""}`}>
-                      {item.done ? "✓" : "!"}
+              <div className="stock-readiness-panel">
+                <div className={`stock-readiness-summary ${activationReady ? "ready" : "blocked"}`}>
+                  <div>
+                    <strong>{activationReady ? "Ready to activate" : "Setup incomplete"}</strong>
+                    <span>
+                      {readinessDone} of {readinessTotal} activation checks complete
                     </span>
-                    <strong>{item.label}</strong>
                   </div>
-                ))}
+                  <span className="stock-readiness-count">
+                    {readinessDone}/{readinessTotal}
+                  </span>
+                </div>
+                <div className="stock-readiness-list">
+                  {readiness.map((item) => (
+                    <div className={`stock-readiness-item ${item.done ? "done" : "blocked"}`} key={item.label}>
+                      <span className="stock-readiness-icon">{item.done ? "✓" : "!"}</span>
+                      <div>
+                        <strong>{item.label}</strong>
+                        <span>{item.done ? "Complete" : "Required before activation"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </EditorAccordion>
           </div>
@@ -1142,5 +1594,36 @@ function ToggleCard({
         <small>{description}</small>
       </span>
     </label>
+  );
+}
+
+function FormulaSection({
+  title,
+  empty,
+  terms,
+}: {
+  title: string;
+  empty: string;
+  terms: Array<{ key: string; label: string; operator: StockImpactOperator }>;
+}) {
+  return (
+    <section className="stock-formula-section">
+      <div className="stock-formula-title">{title}</div>
+      {terms.length === 0 ? (
+        <div className="stock-formula-empty">{empty}</div>
+      ) : (
+        <div className="stock-formula-terms">
+          {terms.map((term, index) => (
+            <span className={`stock-formula-chip ${formulaTermClass(term.operator)}`} key={`${term.key}-${index}`}>
+              {term.operator === "ADD" && "+"}
+              {term.operator === "SUBTRACT" && "-"}
+              {term.operator === "RECONCILE" && "R"}
+              {term.operator === "NONE" && "i"}
+              <strong>{term.label}</strong>
+            </span>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

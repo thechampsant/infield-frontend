@@ -17,6 +17,7 @@ export type StockTypeBehavior =
   | "ADJUSTMENT_DEDUCT";
 
 export type StockApprovalLevelRole = "direct_manager" | "designation";
+export type StockImpactOperator = "ADD" | "SUBTRACT" | "RECONCILE" | "NONE";
 
 export interface StockFieldMapping {
   groupFieldKey?: string;
@@ -49,6 +50,8 @@ export interface StockConfiguration {
   };
   approvalWorkflow: StockApprovalWorkflow;
   salesLinkages: StockSalesLinkage[];
+  stockTypes: StockType[];
+  balanceFormula: StockBalanceFormula;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -70,6 +73,9 @@ export interface StockType {
   id: string;
   name: string;
   behavior: StockTypeBehavior;
+  affectsBalance: boolean;
+  impactOperator: StockImpactOperator;
+  usedInSubmissions: boolean;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -78,6 +84,15 @@ export interface StockType {
 export interface SaveStockTypeInput {
   name: string;
   behavior: StockTypeBehavior;
+  affectsBalance?: boolean;
+  impactOperator?: StockImpactOperator;
+}
+
+export interface UpdateStockTypeInput {
+  name?: string;
+  behavior?: StockTypeBehavior;
+  affectsBalance?: boolean;
+  impactOperator?: StockImpactOperator;
 }
 
 export interface StockSalesLinkage {
@@ -86,13 +101,44 @@ export interface StockSalesLinkage {
   salesConfigName?: string;
   product?: StockFieldMapping;
   quantity?: StockFieldMapping;
+  salesDeductionField?: StockFieldMapping;
+  autoDeductEnabled: boolean;
+  deductionOperator: "SUBTRACT" | "NONE";
+  isActive: boolean;
   createdAt?: string;
 }
 
 export interface SaveStockSalesLinkageInput {
   salesConfigId: string;
   product: StockFieldMapping;
-  quantity: StockFieldMapping;
+  salesDeductionField: StockFieldMapping;
+  autoDeductEnabled: boolean;
+}
+
+export interface UpdateStockSalesLinkageInput {
+  product?: StockFieldMapping;
+  salesDeductionField?: StockFieldMapping;
+  autoDeductEnabled?: boolean;
+}
+
+export interface StockBalanceFormulaTerm {
+  stockTypeId: string;
+  stockTypeName: string;
+  operator: StockImpactOperator;
+  affectsBalance: boolean;
+  excluded: boolean;
+}
+
+export interface StockBalanceFormulaSalesTerm {
+  salesConfigId: string;
+  operator: "SUBTRACT" | "NONE";
+  autoDeductEnabled: boolean;
+  salesDeductionField?: StockFieldMapping;
+}
+
+export interface StockBalanceFormula {
+  stockTypeTerms: StockBalanceFormulaTerm[];
+  salesTerms: StockBalanceFormulaSalesTerm[];
 }
 
 export interface StockUdfSchemaDocument {
@@ -139,6 +185,25 @@ function normalizeBehavior(value: unknown): StockTypeBehavior {
     : "ADD";
 }
 
+function derivedImpactOperator(behavior: StockTypeBehavior): StockImpactOperator {
+  if (behavior === "OPENING" || behavior === "ADD" || behavior === "ADJUSTMENT_ADD") {
+    return "ADD";
+  }
+  if (behavior === "DEDUCT" || behavior === "ADJUSTMENT_DEDUCT") {
+    return "SUBTRACT";
+  }
+  if (behavior === "CLOSING_RECONCILIATION") {
+    return "RECONCILE";
+  }
+  return "NONE";
+}
+
+function normalizeImpactOperator(value: unknown, behavior: StockTypeBehavior): StockImpactOperator {
+  return value === "ADD" || value === "SUBTRACT" || value === "RECONCILE" || value === "NONE"
+    ? value
+    : derivedImpactOperator(behavior);
+}
+
 function normalizeFieldMapping(value: unknown): StockFieldMapping | undefined {
   const raw = record(value);
   const fieldKey = text(raw.fieldKey);
@@ -163,15 +228,85 @@ function normalizeApprovalLevel(value: unknown, index: number): StockApprovalLev
 }
 
 function normalizeSalesLinkage(value: unknown): StockSalesLinkage {
-  const raw = record(value);
+  const container = record(value);
+  const raw =
+    record(container.linkage)._id || record(container.linkage).salesConfigId
+      ? record(container.linkage)
+      : record(container.salesLinkage)._id || record(container.salesLinkage).salesConfigId
+        ? record(container.salesLinkage)
+        : container;
   const salesConfig = record(raw.salesConfig);
+  const salesConfiguration = record(raw.salesConfiguration);
+  const nestedSalesConfigId = record(raw.salesConfigId);
+  const salesDeductionField =
+    normalizeFieldMapping(raw.salesDeductionField) ||
+    normalizeFieldMapping(raw.quantity) ||
+    normalizeFieldMapping(raw.soldQuantity) ||
+    normalizeFieldMapping(raw.quantityMapping);
+  const autoDeductEnabled = bool(raw.autoDeductEnabled, true);
   return {
-    id: text(raw._id) || text(raw.id) || text(raw.salesConfigId),
-    salesConfigId: text(raw.salesConfigId) || text(salesConfig._id) || text(salesConfig.id),
-    salesConfigName: text(raw.salesConfigName) || text(salesConfig.name) || undefined,
-    product: normalizeFieldMapping(raw.product),
-    quantity: normalizeFieldMapping(raw.quantity),
+    id:
+      text(raw._id) ||
+      text(raw.id) ||
+      text(raw.salesConfigId) ||
+      text(nestedSalesConfigId._id) ||
+      text(nestedSalesConfigId.id) ||
+      text(raw.salesConfigurationId),
+    salesConfigId:
+      text(raw.salesConfigId) ||
+      text(nestedSalesConfigId._id) ||
+      text(nestedSalesConfigId.id) ||
+      text(raw.salesConfigurationId) ||
+      text(salesConfig._id) ||
+      text(salesConfig.id) ||
+      text(salesConfiguration._id) ||
+      text(salesConfiguration.id),
+    salesConfigName:
+      text(raw.salesConfigName) ||
+      text(salesConfig.name) ||
+      text(salesConfiguration.name) ||
+      text(nestedSalesConfigId.name) ||
+      undefined,
+    product: normalizeFieldMapping(raw.product) || normalizeFieldMapping(raw.productMapping),
+    quantity: salesDeductionField,
+    salesDeductionField,
+    autoDeductEnabled,
+    deductionOperator: text(raw.deductionOperator) === "NONE" || !autoDeductEnabled ? "NONE" : "SUBTRACT",
+    isActive: bool(raw.isActive, true),
     createdAt: text(raw.createdAt) || undefined,
+  };
+}
+
+function normalizeFormulaTerm(value: unknown): StockBalanceFormulaTerm {
+  const raw = record(value);
+  const operator = normalizeImpactOperator(raw.operator, "ADD");
+  return {
+    stockTypeId: text(raw.stockTypeId) || text(raw._id) || text(raw.id),
+    stockTypeName: text(raw.stockTypeName) || text(raw.name) || "Stock Type",
+    operator,
+    affectsBalance: bool(raw.affectsBalance, operator !== "NONE"),
+    excluded: bool(raw.excluded, operator === "NONE"),
+  };
+}
+
+function normalizeFormulaSalesTerm(value: unknown): StockBalanceFormulaSalesTerm {
+  const raw = record(value);
+  const autoDeductEnabled = bool(raw.autoDeductEnabled, true);
+  return {
+    salesConfigId: text(raw.salesConfigId),
+    operator: text(raw.operator) === "SUBTRACT" && autoDeductEnabled ? "SUBTRACT" : "NONE",
+    autoDeductEnabled,
+    salesDeductionField: normalizeFieldMapping(raw.salesDeductionField),
+  };
+}
+
+function normalizeBalanceFormula(value: unknown): StockBalanceFormula {
+  const raw = record(value);
+  const stockTypeTerms = Array.isArray(raw.stockTypeTerms) ? raw.stockTypeTerms : [];
+  const salesTerms = Array.isArray(raw.salesTerms) ? raw.salesTerms : [];
+  return {
+    stockTypeTerms: stockTypeTerms.map(normalizeFormulaTerm),
+    salesTerms: salesTerms.map(normalizeFormulaSalesTerm),
   };
 }
 
@@ -182,9 +317,18 @@ export function normalizeStockConfiguration(value: unknown): StockConfiguration 
   const mappings = record(raw.fieldMappings);
   const linkages = Array.isArray(raw.salesLinkages)
     ? raw.salesLinkages
-    : Array.isArray(raw.linkedSalesConfigurations)
-      ? raw.linkedSalesConfigurations
-      : [];
+    : Array.isArray(raw.linkedSalesConfigs)
+      ? raw.linkedSalesConfigs
+    : Array.isArray(raw.salesLinkage)
+      ? raw.salesLinkage
+      : Array.isArray(raw.salesStockLinkages)
+        ? raw.salesStockLinkages
+        : Array.isArray(raw.linkedSalesConfigurations)
+          ? raw.linkedSalesConfigurations
+          : Array.isArray(raw.linkages)
+            ? raw.linkages
+            : [];
+  const stockTypes = Array.isArray(raw.stockTypes) ? raw.stockTypes : [];
 
   return {
     id: text(raw._id) || text(raw.id),
@@ -204,6 +348,8 @@ export function normalizeStockConfiguration(value: unknown): StockConfiguration 
       levels: levels.map(normalizeApprovalLevel),
     },
     salesLinkages: linkages.map(normalizeSalesLinkage),
+    stockTypes: stockTypes.map(normalizeStockType),
+    balanceFormula: normalizeBalanceFormula(raw.balanceFormula),
     isActive: bool(raw.isActive),
     createdAt: text(raw.createdAt) || undefined,
     updatedAt: text(raw.updatedAt) || undefined,
@@ -212,10 +358,15 @@ export function normalizeStockConfiguration(value: unknown): StockConfiguration 
 
 export function normalizeStockType(value: unknown): StockType {
   const raw = record(value);
+  const behavior = normalizeBehavior(raw.behavior);
+  const impactOperator = normalizeImpactOperator(raw.impactOperator, behavior);
   return {
     id: text(raw._id) || text(raw.id),
     name: text(raw.name),
-    behavior: normalizeBehavior(raw.behavior),
+    behavior,
+    affectsBalance: bool(raw.affectsBalance, impactOperator !== "NONE"),
+    impactOperator,
+    usedInSubmissions: bool(raw.usedInSubmissions),
     isActive: bool(raw.isActive, true),
     createdAt: text(raw.createdAt) || undefined,
     updatedAt: text(raw.updatedAt) || undefined,
@@ -348,7 +499,7 @@ export const stockConfigService = {
     configId: string,
     projectId: string,
     stockTypeId: string,
-    input: SaveStockTypeInput,
+    input: UpdateStockTypeInput,
   ): Promise<StockType> {
     const result = await apiClient.patch<unknown>(
       `${BASE}/configurations/${encodeURIComponent(configId)}/stock-types/${encodeURIComponent(stockTypeId)}?projectId=${encodeURIComponent(projectId)}`,
@@ -374,6 +525,19 @@ export const stockConfigService = {
   ): Promise<StockSalesLinkage> {
     const result = await apiClient.post<unknown>(
       `${BASE}/configurations/${encodeURIComponent(configId)}/sales-linkages?projectId=${encodeURIComponent(projectId)}`,
+      input,
+    );
+    return normalizeSalesLinkage(result);
+  },
+
+  async updateSalesLinkage(
+    configId: string,
+    projectId: string,
+    salesConfigId: string,
+    input: UpdateStockSalesLinkageInput,
+  ): Promise<StockSalesLinkage> {
+    const result = await apiClient.patch<unknown>(
+      `${BASE}/configurations/${encodeURIComponent(configId)}/sales-linkages/${encodeURIComponent(salesConfigId)}?projectId=${encodeURIComponent(projectId)}`,
       input,
     );
     return normalizeSalesLinkage(result);
