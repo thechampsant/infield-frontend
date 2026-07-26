@@ -14,6 +14,10 @@ import {
   salesConfigService,
 } from "@/lib/api/sales-config-service";
 import { stockConfigService } from "@/lib/api/stock-config-service";
+import {
+  targetVsAchievementConfigModuleKey,
+  targetVsAchievementService,
+} from "@/lib/api/target-vs-achievement-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 
@@ -35,11 +39,12 @@ export function ModulesConfigurationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [list, rawConfig, salesConfigs, stockConfigs] = await Promise.all([
+      const [list, rawConfig, salesConfigs, stockConfigs, targetConfigs] = await Promise.all([
         featureConfigService.getByProject(projectId),
         featureConfigService.getRawByProject(projectId),
         salesConfigService.list(projectId).catch(() => []),
         stockConfigService.list(projectId).catch(() => []),
+        targetVsAchievementService.list(projectId).catch(() => []),
       ]);
       const activeKeys = new Set(
         rawConfig.modules
@@ -50,6 +55,9 @@ export function ModulesConfigurationPage() {
         activeKeys.has(salesConfigModuleKey(config.id)),
       );
       const hasActiveStockConfig = stockConfigs.some((config) => config.isActive);
+      const hasActiveTargetConfig = targetConfigs.some((config) =>
+        activeKeys.has(targetVsAchievementConfigModuleKey(config.id)),
+      );
       setModules(
         list.map((module) => {
           if (module.definition.id === "sales") {
@@ -57,6 +65,9 @@ export function ModulesConfigurationPage() {
           }
           if (module.definition.id === "stock") {
             return { ...module, enabled: hasActiveStockConfig };
+          }
+          if (module.definition.id === "target-vs-achievement") {
+            return { ...module, enabled: hasActiveTargetConfig };
           }
           return module;
         }),
@@ -91,6 +102,15 @@ export function ModulesConfigurationPage() {
         type: "success",
         message:
           "Activate individual Stock configurations from Stock Configurations so setup requirements can be checked.",
+      });
+      return;
+    }
+
+    if (moduleId === "target-vs-achievement") {
+      setToast({
+        type: "success",
+        message:
+          "Activate individual Target vs Achievement widgets from Target vs Achievement Configurations.",
       });
       return;
     }

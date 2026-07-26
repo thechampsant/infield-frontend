@@ -136,6 +136,48 @@ class ApiClient {
     return this.request<T>(endpoint, { method: "GET" }, config);
   }
 
+  async getRaw<T>(endpoint: string, config: { authToken?: string } = {}): Promise<T> {
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    const token = config.authToken ?? this.accessToken;
+    if (token) {
+      (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const errorBody: ApiErrorResponse = await response.json().catch(() => ({
+        errorCode: "UNKNOWN_ERROR",
+        message: response.statusText,
+      }));
+
+      if (response.status === 401 && !endpoint.startsWith("/api/v1/auth/")) {
+        this.clearAccessToken();
+        emitSessionExpired();
+      }
+
+      throw new ApiError(
+        response.status,
+        errorBody.errorCode || "UNKNOWN_ERROR",
+        errorBody.requestId,
+        getApiErrorMessage(errorBody, response.statusText),
+        errorBody as unknown as Record<string, unknown>,
+      );
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  }
+
   post<T>(
     endpoint: string,
     data?: unknown,
