@@ -114,6 +114,7 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     description: "Set targets and track achievement against goals.",
     accent: "amber",
     defaultEnabled: false,
-    comingSoon: true,
+    comingSoon: false,
+    configPath: "modules/target-vs-achievement",
   },
 ];

@@ -161,6 +161,31 @@ export type {
   UpdateStockSalesLinkageInput,
   UpdateStockTypeInput,
 } from "./stock-config-service";
+export {
+  TARGET_VS_ACHIEVEMENT_MODULE_KEY,
+  normalizeTargetVsAchievementConfiguration,
+  targetVsAchievementConfigModuleKey,
+  targetVsAchievementService,
+} from "./target-vs-achievement-service";
+export type {
+  ListTargetRowsParams,
+  SaveTargetVsAchievementInput,
+  TargetAssignmentScope,
+  TargetBasis,
+  TargetFieldOption,
+  TargetFieldReference,
+  TargetFocusConfig,
+  TargetPeriodConfig,
+  TargetPeriodType,
+  TargetProductSplit,
+  TargetRowsMeta,
+  TargetRowsResponse,
+  TargetSalesFieldOptions,
+  TargetUploadError,
+  TargetUploadSummary,
+  TargetUploadedRow,
+  TargetVsAchievementConfiguration,
+} from "./target-vs-achievement-service";
 export { leaveConfigService } from "./leave-config-service";
 export type {
   HolidayUploadResponse,
