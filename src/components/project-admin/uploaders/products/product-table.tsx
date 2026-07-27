@@ -226,6 +226,7 @@ export function ProductTable({
         searchValue={search}
         onSearchChange={setSearch}
         loading={loading}
+        pageSize={20}
         toolbarRight={
           <>
             <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenUDFConfig}>

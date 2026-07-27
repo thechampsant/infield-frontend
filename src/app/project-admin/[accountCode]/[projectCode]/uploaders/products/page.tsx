@@ -42,10 +42,10 @@ export default function ProductsMasterPage() {
     setError(null);
     try {
       const [productList, fields] = await Promise.all([
-        productService.listByProject(projectId),
+        productService.listAllByProject(projectId),
         productService.getFormFields(projectId),
       ]);
-      setProducts(productList.data);
+      setProducts(productList);
       setUdfFields(fields);
     } catch (err) {
       setError(formatApiError(err, "Failed to load products"));
