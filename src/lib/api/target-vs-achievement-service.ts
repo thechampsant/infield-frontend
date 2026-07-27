@@ -28,6 +28,7 @@ export interface TargetProductSplit {
 
 export interface TargetFocusConfig {
   enabled: boolean;
+  autoDerived?: boolean;
   skuAutoDerived?: boolean;
 }
 
@@ -257,9 +258,11 @@ function normalizeProductSplit(value: unknown): TargetProductSplit {
 
 function normalizeFocus(value: unknown): TargetFocusConfig {
   const raw = record(value);
+  const autoDerived = bool(raw.autoDerived) || bool(raw.skuAutoDerived);
   return {
     enabled: bool(raw.enabled),
-    skuAutoDerived: bool(raw.skuAutoDerived),
+    autoDerived,
+    skuAutoDerived: autoDerived,
   };
 }
 

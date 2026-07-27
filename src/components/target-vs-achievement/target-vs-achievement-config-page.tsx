@@ -195,13 +195,6 @@ const fallbackAchievementOptions: TargetFieldOption[] = [
   },
 ];
 
-const fallbackProductOptions: TargetFieldOption[] = [
-  { value: "category", fieldKey: "category", label: "Category" },
-  { value: "sku_code", fieldKey: "sku_code", label: "SKU Code" },
-  { value: "brand", fieldKey: "brand", label: "Brand" },
-  { value: "model", fieldKey: "model", label: "Model" },
-];
-
 function emptyEditor(): EditorState {
   return {
     name: "",
@@ -348,7 +341,14 @@ function validate(
   }
   if (!achievementField) errors.push("Select an achievement field.");
   if (editor.productSplitEnabled && !productField) {
-    errors.push("Select the Product Master field when product split is enabled.");
+    errors.push("Select the Sales product field when product split is enabled.");
+  }
+  if (
+    editor.productSplitEnabled &&
+    achievementField?.groupFieldKey &&
+    productField?.groupFieldKey !== achievementField.groupFieldKey
+  ) {
+    errors.push("Sales product field must be inside the same repeatable group as the achievement field.");
   }
   const fiscalMonth = Number(editor.fiscalYearStartMonth);
   if (!Number.isInteger(fiscalMonth) || fiscalMonth < 1 || fiscalMonth > 12) {
@@ -410,7 +410,7 @@ export function TargetVsAchievementConfigPage({
     [achievementOptions],
   );
   const effectiveProductOptions = useMemo(
-    () => normalizeFieldOptions(productOptions.length ? productOptions : fallbackProductOptions),
+    () => normalizeFieldOptions(productOptions),
     [productOptions],
   );
   const selectedAchievement = fieldFromValue(editor.achievementFieldValue, effectiveAchievementOptions);
@@ -472,14 +472,11 @@ export function TargetVsAchievementConfigPage({
 
     let active = true;
     setFieldOptionsLoading(true);
-    Promise.all([
-      targetVsAchievementService.getSalesFieldOptions(projectId, editor.salesConfigId),
-      targetVsAchievementService.getProductFieldOptions(projectId).catch(() => [] as TargetFieldOption[]),
-    ])
-      .then(([salesOptions, productMasterOptions]) => {
+    targetVsAchievementService.getSalesFieldOptions(projectId, editor.salesConfigId)
+      .then((salesOptions) => {
         if (!active) return;
         setAchievementOptions(salesOptions.achievementFields);
-        setProductOptions(productMasterOptions.length ? productMasterOptions : salesOptions.productFields);
+        setProductOptions(salesOptions.productFields);
       })
       .catch((error) => {
         if (!active) return;
@@ -828,8 +825,8 @@ export function TargetVsAchievementConfigPage({
                       {editor.productSplitEnabled && (
                         <>
                           <label className="tva-field max-w-xl">
-                            <span>Product Master Field <strong>*</strong></span>
-                            <small>Select which field from the Product Master to use for target split</small>
+                            <span>Sales Product Field <strong>*</strong></span>
+                            <small>Select the matching product field from the linked Sales form</small>
                             <select
                               value={editor.salesProductFieldValue}
                               disabled={!editor.salesConfigId || fieldOptionsLoading}
