@@ -67,6 +67,7 @@ interface EditorState {
   achievementFieldValue: string;
   productSplitEnabled: boolean;
   salesProductFieldValue: string;
+  productBreakdownFieldValue: string;
   focusEnabled: boolean;
   periodType: TargetPeriodType;
   fiscalYearStartMonth: string;
@@ -195,6 +196,14 @@ const fallbackAchievementOptions: TargetFieldOption[] = [
   },
 ];
 
+const fallbackProductBreakdownOptions: TargetFieldOption[] = [
+  { value: "productCode", fieldKey: "productCode", label: "Product Code" },
+  { value: "category", fieldKey: "category", label: "Category" },
+  { value: "brand", fieldKey: "brand", label: "Brand" },
+  { value: "productName", fieldKey: "productName", label: "Product Name" },
+  { value: "model", fieldKey: "model", label: "Model" },
+];
+
 function emptyEditor(): EditorState {
   return {
     name: "",
@@ -205,6 +214,7 @@ function emptyEditor(): EditorState {
     achievementFieldValue: "",
     productSplitEnabled: false,
     salesProductFieldValue: "",
+    productBreakdownFieldValue: "",
     focusEnabled: false,
     periodType: "monthly",
     fiscalYearStartMonth: "4",
@@ -266,7 +276,8 @@ function toEditor(config: TargetVsAchievementConfiguration): EditorState {
     assignmentScope: config.assignmentScope,
     achievementFieldValue: fieldValue(config.achievementField),
     productSplitEnabled: config.productSplit.enabled,
-    salesProductFieldValue: fieldValue(config.salesProductField) || config.productSplit.productFieldKey || "",
+    salesProductFieldValue: fieldValue(config.salesProductField),
+    productBreakdownFieldValue: config.productSplit.productFieldKey || "",
     focusEnabled: config.focus.enabled,
     periodType: config.period.type,
     fiscalYearStartMonth: String(config.period.fiscalYearStartMonth || 4),
@@ -325,12 +336,14 @@ function validate(
   editor: EditorState,
   salesConfigs: SalesConfiguration[],
   achievementOptions: TargetFieldOption[],
-  productOptions: TargetFieldOption[],
+  salesProductOptions: TargetFieldOption[],
+  productBreakdownOptions: TargetFieldOption[],
 ): string[] {
   const errors: string[] = [];
   const salesConfig = salesConfigs.find((config) => config.id === editor.salesConfigId);
   const achievementField = fieldFromValue(editor.achievementFieldValue, achievementOptions);
-  const productField = fieldFromValue(editor.salesProductFieldValue, productOptions);
+  const salesProductField = fieldFromValue(editor.salesProductFieldValue, salesProductOptions);
+  const productBreakdownField = fieldFromValue(editor.productBreakdownFieldValue, productBreakdownOptions);
 
   if (!editor.name.trim()) errors.push("Configuration name is required.");
   if (editor.name.trim().length > 160) errors.push("Configuration name must be 160 characters or fewer.");
@@ -340,15 +353,18 @@ function validate(
     errors.push("Applicable designations must exactly match the linked Sales configuration.");
   }
   if (!achievementField) errors.push("Select an achievement field.");
-  if (editor.productSplitEnabled && !productField) {
-    errors.push("Select the Sales product field when product split is enabled.");
+  if (editor.productSplitEnabled && !salesProductField) {
+    errors.push("Select the Sales product identity field when product split is enabled.");
+  }
+  if (editor.productSplitEnabled && !productBreakdownField) {
+    errors.push("Select the Product Breakdown field when product split is enabled.");
   }
   if (
     editor.productSplitEnabled &&
     achievementField?.groupFieldKey &&
-    productField?.groupFieldKey !== achievementField.groupFieldKey
+    salesProductField?.groupFieldKey !== achievementField.groupFieldKey
   ) {
-    errors.push("Sales product field must be inside the same repeatable group as the achievement field.");
+    errors.push("Sales product identity field must be inside the same repeatable group as the achievement field.");
   }
   const fiscalMonth = Number(editor.fiscalYearStartMonth);
   if (!Number.isInteger(fiscalMonth) || fiscalMonth < 1 || fiscalMonth > 12) {
@@ -381,6 +397,7 @@ export function TargetVsAchievementConfigPage({
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [achievementOptions, setAchievementOptions] = useState<TargetFieldOption[]>([]);
   const [productOptions, setProductOptions] = useState<TargetFieldOption[]>([]);
+  const [productBreakdownOptions, setProductBreakdownOptions] = useState<TargetFieldOption[]>([]);
   const [editor, setEditor] = useState<EditorState>(emptyEditor);
   const [openSection, setOpenSection] = useState<EditorSection | null>("settings");
   const [customRanges, setCustomRanges] = useState<CustomRange[]>([
@@ -413,8 +430,13 @@ export function TargetVsAchievementConfigPage({
     () => normalizeFieldOptions(productOptions),
     [productOptions],
   );
+  const effectiveProductBreakdownOptions = useMemo(
+    () => normalizeFieldOptions(productBreakdownOptions.length ? productBreakdownOptions : fallbackProductBreakdownOptions),
+    [productBreakdownOptions],
+  );
   const selectedAchievement = fieldFromValue(editor.achievementFieldValue, effectiveAchievementOptions);
   const selectedProduct = fieldFromValue(editor.salesProductFieldValue, effectiveProductOptions);
+  const selectedProductBreakdown = fieldFromValue(editor.productBreakdownFieldValue, effectiveProductBreakdownOptions);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -458,6 +480,7 @@ export function TargetVsAchievementConfigPage({
     if (!editor.salesConfigId) {
       setAchievementOptions([]);
       setProductOptions([]);
+      setProductBreakdownOptions([]);
       return;
     }
 
@@ -472,17 +495,22 @@ export function TargetVsAchievementConfigPage({
 
     let active = true;
     setFieldOptionsLoading(true);
-    targetVsAchievementService.getSalesFieldOptions(projectId, editor.salesConfigId)
-      .then((salesOptions) => {
+    Promise.all([
+      targetVsAchievementService.getSalesFieldOptions(projectId, editor.salesConfigId),
+      targetVsAchievementService.getProductFieldOptions(projectId).catch(() => [] as TargetFieldOption[]),
+    ])
+      .then(([salesOptions, breakdownOptions]) => {
         if (!active) return;
         setAchievementOptions(salesOptions.achievementFields);
         setProductOptions(salesOptions.productFields);
+        setProductBreakdownOptions(breakdownOptions);
       })
       .catch((error) => {
         if (!active) return;
         setToast({ type: "error", message: formatApiError(error, "Failed to load field options") });
         setAchievementOptions([]);
         setProductOptions([]);
+        setProductBreakdownOptions([]);
       })
       .finally(() => {
         if (active) setFieldOptionsLoading(false);
@@ -510,7 +538,8 @@ export function TargetVsAchievementConfigPage({
   function buildSaveInput() {
     const achievementField = fieldFromValue(editor.achievementFieldValue, effectiveAchievementOptions);
     const salesProductField = fieldFromValue(editor.salesProductFieldValue, effectiveProductOptions);
-    const selectedProductOption = effectiveProductOptions.find((option) => option.value === editor.salesProductFieldValue);
+    const productBreakdownField = fieldFromValue(editor.productBreakdownFieldValue, effectiveProductBreakdownOptions);
+    const selectedBreakdownOption = effectiveProductBreakdownOptions.find((option) => option.value === editor.productBreakdownFieldValue);
     return {
       name: editor.name.trim(),
       salesConfigId: editor.salesConfigId,
@@ -519,11 +548,11 @@ export function TargetVsAchievementConfigPage({
       assignmentScope: editor.assignmentScope,
       productSplit: {
         enabled: editor.productSplitEnabled,
-        ...(editor.productSplitEnabled && salesProductField
+        ...(editor.productSplitEnabled && productBreakdownField
           ? {
-              productFieldKey: salesProductField.fieldKey,
-              productFieldLabel: salesProductField.label,
-              productFieldIsUdf: Boolean(selectedProductOption?.isUdf),
+              productFieldKey: productBreakdownField.fieldKey,
+              productFieldLabel: productBreakdownField.label,
+              productFieldIsUdf: Boolean(selectedBreakdownOption?.isUdf),
             }
           : {}),
       },
@@ -538,7 +567,13 @@ export function TargetVsAchievementConfigPage({
   }
 
   async function saveConfig() {
-    const nextErrors = validate(editor, salesConfigs, effectiveAchievementOptions, effectiveProductOptions);
+    const nextErrors = validate(
+      editor,
+      salesConfigs,
+      effectiveAchievementOptions,
+      effectiveProductOptions,
+      effectiveProductBreakdownOptions,
+    );
     setErrors(nextErrors);
     if (nextErrors.length) return;
 
@@ -824,25 +859,44 @@ export function TargetVsAchievementConfigPage({
                       />
                       {editor.productSplitEnabled && (
                         <>
-                          <label className="tva-field max-w-xl">
-                            <span>Sales Product Field <strong>*</strong></span>
-                            <small>Select the matching product field from the linked Sales form</small>
-                            <select
-                              value={editor.salesProductFieldValue}
-                              disabled={!editor.salesConfigId || fieldOptionsLoading}
-                              onChange={(event) => setEditor((current) => ({ ...current, salesProductFieldValue: event.target.value }))}
-                            >
-                              <option value="">{fieldOptionsLoading ? "Loading fields..." : "Select field"}</option>
-                              {effectiveProductOptions.map((field, index) => (
-                                <option key={field.value} value={field.value}>{fieldOptionLabel(field, index)}</option>
-                              ))}
-                            </select>
-                          </label>
+                          <div className="grid gap-4 xl:grid-cols-2">
+                            <label className="tva-field">
+                              <span>Sales Product Identity Field <strong>*</strong></span>
+                              <small>Sales submission field that identifies the Product Master item, usually products.productCode.</small>
+                              <select
+                                value={editor.salesProductFieldValue}
+                                disabled={!editor.salesConfigId || fieldOptionsLoading}
+                                onChange={(event) => setEditor((current) => ({ ...current, salesProductFieldValue: event.target.value }))}
+                              >
+                                <option value="">{fieldOptionsLoading ? "Loading fields..." : "Select Sales field"}</option>
+                                {effectiveProductOptions.map((field, index) => (
+                                  <option key={field.value} value={field.value}>{fieldOptionLabel(field, index)}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="tva-field">
+                              <span>Product Breakdown Field <strong>*</strong></span>
+                              <small>Product Master field used to group and display T vs A results.</small>
+                              <select
+                                value={editor.productBreakdownFieldValue}
+                                disabled={fieldOptionsLoading}
+                                onChange={(event) => setEditor((current) => ({ ...current, productBreakdownFieldValue: event.target.value }))}
+                              >
+                                <option value="">{fieldOptionsLoading ? "Loading fields..." : "Select breakdown field"}</option>
+                                {effectiveProductBreakdownOptions.map((field, index) => (
+                                  <option key={field.value} value={field.value}>{fieldOptionLabel(field, index)}</option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                           <div className="tva-summary-strip">
-                            <span>Target split on:</span>
+                            <span>Resolve by:</span>
+                            <ConfigChip tone="blue">{selectedProduct?.label || "Sales product"}</ConfigChip>
+                            <X size={17} className="text-[#c5d4e6]" />
+                            <span>Break down by:</span>
                             <ConfigChip tone="blue">Store</ConfigChip>
                             <X size={17} className="text-[#c5d4e6]" />
-                            <ConfigChip tone="purple">{selectedProduct?.label || "Product field"}</ConfigChip>
+                            <ConfigChip tone="purple">{selectedProductBreakdown?.label || "Product field"}</ConfigChip>
                           </div>
                         </>
                       )}
@@ -1030,12 +1084,12 @@ export function TargetVsAchievementConfigPage({
                       <div className="flex flex-wrap gap-2">
                         <ConfigChip tone="green">{editor.targetBasis === "value" ? "₹ Value" : "Volume"}</ConfigChip>
                         <ConfigChip tone="purple">{scopeLabels[editor.assignmentScope]}</ConfigChip>
-                        {editor.productSplitEnabled && <ConfigChip tone="blue">{selectedProduct?.label || "Product"}</ConfigChip>}
+                        {editor.productSplitEnabled && <ConfigChip tone="blue">{selectedProductBreakdown?.label || "Product"}</ConfigChip>}
                         <ConfigChip tone="yellow">{periodLabels[editor.periodType]}</ConfigChip>
                       </div>
                       <TemplatePreview
                         targetBasis={editor.targetBasis}
-                        productLabel={editor.productSplitEnabled ? selectedProduct?.label : undefined}
+                        productLabel={editor.productSplitEnabled ? selectedProductBreakdown?.label : undefined}
                         periodType={editor.periodType}
                         focus={false}
                       />
