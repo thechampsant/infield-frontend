@@ -134,6 +134,9 @@ export default function TargetMasterUploadPage() {
     [activeConfigs, selectedConfigId],
   );
   const canUpload = Boolean(selectedConfig);
+  const canUploadFocus = Boolean(
+    selectedConfig?.focus.enabled && selectedConfig.focus.autoDerived !== true && selectedConfig.focus.skuAutoDerived !== true,
+  );
   const tableColumns = useMemo(() => rowColumns(rowsResponse?.data ?? []), [rowsResponse]);
   const rowMeta = rowsResponse?.meta;
 
@@ -178,7 +181,7 @@ export default function TargetMasterUploadPage() {
       setRowsResponse(null);
       return;
     }
-    if (rowKind === "focus" && !selectedConfig.focus.enabled) {
+    if (rowKind === "focus" && !canUploadFocus) {
       setRowsResponse(null);
       return;
     }
@@ -200,12 +203,12 @@ export default function TargetMasterUploadPage() {
     } finally {
       setRowsLoading(false);
     }
-  }, [periodKey, projectId, rowKind, rowsPage, selectedConfig]);
+  }, [canUploadFocus, periodKey, projectId, rowKind, rowsPage, selectedConfig]);
 
   useEffect(() => {
     setRowsPage(1);
-    if (!selectedConfig?.focus.enabled) setRowKind("target");
-  }, [selectedConfig?.focus.enabled, selectedConfig?.id]);
+    if (!canUploadFocus) setRowKind("target");
+  }, [canUploadFocus, selectedConfig?.id]);
 
   useEffect(() => {
     void loadRows();
@@ -241,7 +244,7 @@ export default function TargetMasterUploadPage() {
         setError(`Upload completed with ${summary.rejected} rejected row${summary.rejected === 1 ? "" : "s"}.`);
       }
     } catch (err) {
-      setError(formatApiError(err, "Target upload failed"));
+      setError(formatApiError(err, kind === "focus" ? "Focus target upload failed" : "Target upload failed"));
     } finally {
       setUploading(null);
       if (targetInputRef.current) targetInputRef.current.value = "";
@@ -256,7 +259,7 @@ export default function TargetMasterUploadPage() {
       return;
     }
     const confirmed = window.confirm(
-      "Uploaded rows with matching config, period, assignee, and product keys will overwrite existing rows. Rows not included in the sheet remain unchanged. Continue?",
+      "Matching rows will be overwritten, and rows not in the sheet will remain unchanged. Continue?",
     );
     if (!confirmed) {
       if (targetInputRef.current) targetInputRef.current.value = "";
@@ -344,9 +347,12 @@ export default function TargetMasterUploadPage() {
         </div>
       )}
 
-      {selectedConfig?.focus.enabled && (
+      {canUploadFocus && (
         <div className="pa-info-banner" style={{ marginBottom: 16 }}>
           <strong>Focus targets enabled.</strong> Upload the focus target file separately for this configuration.
+          <span style={{ display: "block", marginTop: 4 }}>
+            Focus upload can reject rows where Focus Target is greater than the Overall Target.
+          </span>
           <div className="pa-actions" style={{ marginTop: 10 }}>
             <button
               type="button"
@@ -475,7 +481,7 @@ export default function TargetMasterUploadPage() {
                 }}
               >
                 <option value="target">Target Master</option>
-                {selectedConfig.focus.enabled && <option value="focus">Focus Targets</option>}
+                {canUploadFocus && <option value="focus">Focus Targets</option>}
               </select>
               <input
                 className="form-input"
