@@ -28,7 +28,11 @@ export type AdvancedComponentType =
   | "dependent-dropdown"
   | "list-view"
   | "file-upload"
-  | "conditional-logic";
+  | "conditional-logic"
+  | "api-select"
+  | "cascading-select"
+  | "repeatable-group"
+  | "formula";
 
 export type LayoutComponentType =
   | "section-group"

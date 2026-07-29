@@ -523,6 +523,92 @@ export function AttendanceFormBuilder({
                   </div>
                 </>
               ) : null}
+
+              {selectedField.type === "DATE" ? (
+                <div className="att-form-builder__dateSettings">
+                  <div className="att-form-builder__toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (selectedField.config as Record<string, unknown> | undefined)
+                            ?.defaultToToday === true
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex, { defaultToToday: e.target.checked })
+                        }
+                      />
+                      Default to today
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (selectedField.config as Record<string, unknown> | undefined)
+                            ?.allowPastDates !== false
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex, { allowPastDates: e.target.checked })
+                        }
+                      />
+                      Allow past dates
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (selectedField.config as Record<string, unknown> | undefined)
+                            ?.allowFutureDates !== false
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex, { allowFutureDates: e.target.checked })
+                        }
+                      />
+                      Allow future dates
+                    </label>
+                  </div>
+                  {(selectedField.config as Record<string, unknown> | undefined)?.allowPastDates !==
+                    false && (
+                    <label className="att-form-builder__field">
+                      <span>Max back-date days (0 = unlimited)</span>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min={0}
+                        value={Number(
+                          (selectedField.config as Record<string, unknown> | undefined)
+                            ?.maxBackdateDays ?? 0,
+                        )}
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex, {
+                            maxBackdateDays: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                      />
+                    </label>
+                  )}
+                  {(selectedField.config as Record<string, unknown> | undefined)
+                    ?.allowFutureDates !== false && (
+                    <label className="att-form-builder__field">
+                      <span>Max future days (0 = unlimited)</span>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min={0}
+                        value={Number(
+                          (selectedField.config as Record<string, unknown> | undefined)
+                            ?.maxFutureDays ?? 0,
+                        )}
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex, {
+                            maxFutureDays: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                      />
+                    </label>
+                  )}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
