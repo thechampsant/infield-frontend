@@ -49,6 +49,10 @@ const COMPONENT_TO_UDF_TYPE: Record<string, string> = {
   "add-more-block": "STRING",
   "divider": "STRING",
   "info-label": "STRING",
+  "api-select": "API_SELECT",
+  "cascading-select": "CASCADING_SELECT",
+  "repeatable-group": "REPEATABLE_GROUP",
+  "formula": "FORMULA",
 };
 
 // ─── Component Type Mapping ───────────────────────────────────────────────
@@ -82,6 +86,10 @@ const API_TYPE_TO_FRONTEND: Record<string, ComponentType> = {
   ADD_MORE_BLOCK: "add-more-block",
   DIVIDER: "divider",
   INFO_LABEL: "info-label",
+  API_SELECT: "api-select",
+  CASCADING_SELECT: "cascading-select",
+  REPEATABLE_GROUP: "repeatable-group",
+  FORMULA: "formula",
 };
 
 const FRONTEND_TO_API_TYPE: Record<ComponentType, string> = Object.fromEntries(
@@ -151,6 +159,64 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       config.source = "Camera";
       config.multiple = false;
       config.maxCount = 1;
+    }
+
+    // API Select config — save as flat config properties (same as Claims/Sales)
+    if (field.type === "api-select" || field.type === "list-view") {
+      const sourceKey = field.dataSource?.customName || "";
+      if (sourceKey) {
+        config.dataSource = sourceKey;
+        config.sourceKey = sourceKey;
+      }
+      const labelField = field.dataSource?.filterColumns?.[0] || "";
+      const valueField = field.dataSource?.filterColumns?.[1] || "";
+      if (labelField) config.labelField = labelField;
+      if (valueField) config.valueField = valueField;
+      if (field.typeConfig.validateAgainstMaster) config.multiple = true;
+      // Filter mode (stored in readOnlyColumns[0] on frontend)
+      const filterMode = field.dataSource?.readOnlyColumns?.[0] || "";
+      if (filterMode) {
+        config.filters = { mode: filterMode };
+      }
+    }
+
+    // Cascading Select config — save as flat config properties (same as Claims/Sales)
+    if (field.type === "cascading-select" || field.type === "dependent-dropdown") {
+      const dependsOn = field.dataSource?.chainLevels?.[0] || "";
+      if (dependsOn) {
+        config.dependsOn = dependsOn;
+      }
+      const sourceKey = field.dataSource?.customName || "";
+      if (sourceKey) {
+        config.sourceKey = sourceKey;
+      }
+      const valueField = field.dataSource?.filterColumns?.[0] || "";
+      const parentField = field.dataSource?.filterColumns?.[1] || "";
+      if (valueField) config.valueField = valueField;
+      if (parentField) config.parentField = parentField;
+      // Filter mode (stored in readOnlyColumns[0] on frontend)
+      const filterMode = field.dataSource?.readOnlyColumns?.[0] || "";
+      if (filterMode) {
+        config.filters = { mode: filterMode };
+      }
+      // If no dynamic source and no static options, provide empty options array
+      if (!sourceKey && !config.options) {
+        config.options = [];
+      }
+    }
+
+    // Repeatable Group config
+    if (field.type === "repeatable-group") {
+      config.minRows = field.addMoreMin ?? 1;
+      config.maxRows = field.addMoreMax ?? 10;
+      config.fields = [];
+    }
+
+    // Formula config
+    if (field.type === "formula") {
+      config.scope = "row";
+      config.expression = [];
+      config.precision = 2;
     }
 
     return {
@@ -270,8 +336,34 @@ export function mapUdfFieldToFrontend(udf: ApiUdfField): FormField {
     masterField: Array.isArray(cfg.options) ? "" : (cfg.options?.masterField ?? ""),
     mappingParentField: Array.isArray(cfg.options) ? "" : (cfg.options?.mappingParentField ?? ""),
 
-    // Data source
-    dataSource: cfg.dataSource ?? null,
+    // Data source — rebuild DataSourceConfig from flat config properties
+    dataSource: (() => {
+      const componentFe = apiComponentTypeToFrontend(componentType);
+      if (componentFe === "api-select" || componentFe === "list-view") {
+        const srcKey = typeof cfg.dataSource === 'string' ? cfg.dataSource : (cfg.sourceKey ?? "");
+        const filterMode = cfg.filters?.mode ?? "";
+        return {
+          source: "custom" as const,
+          customName: srcKey,
+          chainLevels: [],
+          filterColumns: [cfg.labelField ?? "", cfg.valueField ?? ""],
+          readOnlyColumns: filterMode ? [filterMode] : [],
+          editableColumns: [],
+        };
+      }
+      if (componentFe === "cascading-select" || componentFe === "dependent-dropdown") {
+        const filterMode = cfg.filters?.mode ?? "";
+        return {
+          source: "custom" as const,
+          customName: cfg.sourceKey ?? "",
+          chainLevels: [cfg.dependsOn ?? ""],
+          filterColumns: [cfg.valueField ?? "", cfg.parentField ?? ""],
+          readOnlyColumns: filterMode ? [filterMode] : [],
+          editableColumns: [],
+        };
+      }
+      return cfg.dataSource && typeof cfg.dataSource === 'object' ? cfg.dataSource : null;
+    })(),
 
     // Formula
     formula: cfg.formula?.expression ?? "",

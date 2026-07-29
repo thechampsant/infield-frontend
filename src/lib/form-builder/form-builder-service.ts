@@ -567,14 +567,23 @@ export const formBuilderService = {
     const schemaPayload = mapFieldsToSaveSchemaPayload(fields);
     await formBuilderApi.saveSchema(configId, schemaPayload);
 
-    // Step 2: Publish
-    const result = await formBuilderApi.publish(configId);
-    return {
-      status: result.status,
-      errors: result.errors ?? [],
-      warnings: result.warnings ?? [],
-      publishedAt: result.publishedAt,
-    };
+    // Step 2: Publish (ignore "no draft changes" error — schema save is the main operation)
+    try {
+      const result = await formBuilderApi.publish(configId);
+      return {
+        status: result.status,
+        errors: result.errors ?? [],
+        warnings: result.warnings ?? [],
+        publishedAt: result.publishedAt,
+      };
+    } catch (err: any) {
+      // If already published and no draft changes, treat as success
+      const msg = typeof err?.message === "string" ? err.message.toLowerCase() : "";
+      if (msg.includes("no draft") || msg.includes("already published")) {
+        return { status: "published", errors: [], warnings: [], publishedAt: new Date().toISOString() };
+      }
+      throw err;
+    }
   },
 
   /**

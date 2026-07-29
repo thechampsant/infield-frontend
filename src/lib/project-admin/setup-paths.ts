@@ -29,6 +29,7 @@ export type UploadersSetupStep = {
     | "stores"
     | "products"
     | "user-store-map"
+    | "pjp"
     | "product-store-map"
     | "target-master";
   label: string;
@@ -80,6 +81,12 @@ export function uploadersSetupSteps(
       description: "Link users to stores",
     },
     {
+      id: "pjp",
+      label: "PJP",
+      href: `${base}/pjp`,
+      description: "Upload daily store visit plans",
+    },
+    {
       id: "product-store-map",
       label: "Product-Store Map",
       href: `${base}/product-store-map`,
@@ -101,6 +108,7 @@ export function uploadersStepIdFromPath(pathname: string): UploadersSetupStep["i
   if (pathname.includes("/uploaders/stores")) return "stores";
   if (pathname.includes("/uploaders/products")) return "products";
   if (pathname.includes("/uploaders/user-store-map")) return "user-store-map";
+  if (pathname.includes("/uploaders/pjp")) return "pjp";
   if (pathname.includes("/uploaders/product-store-map")) return "product-store-map";
   if (pathname.includes("/uploaders/target-master")) return "target-master";
   return null;

@@ -5,6 +5,8 @@ import { X, MousePointerClick } from "lucide-react";
 import { useFormBuilder } from "@/lib/form-builder/form-builder-context";
 import { getComponentDefinition } from "@/lib/form-builder/constants";
 import type { FormField } from "@/lib/form-builder/types";
+import { udfConfigService } from "@/lib/api";
+import type { UdfDataSourceDefinition, UdfSourcePreviewItem, UdfDatasourceFilterModesResponse } from "@/lib/api";
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 
@@ -331,6 +333,53 @@ function InspectorContent({
   const [label, setLabel] = useState(field.label);
   const [helpText, setHelpText] = useState(field.helpText);
 
+  // Data sources state (for API Select and Cascading Select)
+  const [sources, setSources] = useState<UdfDataSourceDefinition[]>([]);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [sourcePreview, setSourcePreview] = useState<UdfSourcePreviewItem[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [filterModes, setFilterModes] = useState<UdfDatasourceFilterModesResponse | null>(null);
+  const [filterModesLoading, setFilterModesLoading] = useState(false);
+
+  // Load available data sources when field type is api-select or cascading-select
+  useEffect(() => {
+    const needsSources =
+      field.type === "api-select" ||
+      field.type === "list-view" ||
+      field.type === "cascading-select" ||
+      field.type === "dependent-dropdown";
+    if (!needsSources) return;
+    let cancelled = false;
+    setSourcesLoading(true);
+    udfConfigService.getSources().then((list) => {
+      if (!cancelled) setSources(list);
+    }).catch(() => {
+      if (!cancelled) setSources([]);
+    }).finally(() => {
+      if (!cancelled) setSourcesLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [field.type]);
+
+  // Load filter modes when data source changes
+  useEffect(() => {
+    const sourceKey = field.dataSource?.customName ?? "";
+    if (!sourceKey) {
+      setFilterModes(null);
+      return;
+    }
+    let cancelled = false;
+    setFilterModesLoading(true);
+    udfConfigService.getSourceFilterModes(sourceKey).then((modes) => {
+      if (!cancelled) setFilterModes(modes);
+    }).catch(() => {
+      if (!cancelled) setFilterModes(null);
+    }).finally(() => {
+      if (!cancelled) setFilterModesLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [field.dataSource?.customName]);
+
   // Sync local state when field changes
   useEffect(() => {
     setLabel(field.label);
@@ -374,7 +423,11 @@ function InspectorContent({
   );
   const isNumberType = field.type === "number";
   const isImageType = field.type === "image-capture";
+  const isDateType = field.type === "date-picker";
   const isRatingType = field.type === "rating";
+  const isApiSelectType = field.type === "api-select" || field.type === "list-view";
+  const isCascadingType = field.type === "cascading-select" || field.type === "dependent-dropdown";
+  const isRepeatableType = field.type === "repeatable-group";
   const hasOptions = ["dropdown", "multi-select", "radio", "checkbox"].includes(
     field.type
   );
@@ -674,6 +727,554 @@ function InspectorContent({
               })
             }
           />
+        )}
+        {isDateType && (
+          <>
+            <div
+              style={{
+                padding: "8px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: colors.labelText,
+                  }}
+                >
+                  Default to Today
+                </div>
+                <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                  Pre-fill with current date
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={field.typeConfig.defaultToday ?? false}
+                onChange={(checked) =>
+                  updateField({
+                    typeConfig: { ...field.typeConfig, defaultToday: checked },
+                  })
+                }
+              />
+            </div>
+            <div
+              style={{
+                padding: "8px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: colors.labelText,
+                  }}
+                >
+                  Allow Past Dates
+                </div>
+                <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                  Let user select dates before today
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={field.typeConfig.allowPast !== false}
+                onChange={(checked) =>
+                  updateField({
+                    typeConfig: { ...field.typeConfig, allowPast: checked },
+                  })
+                }
+              />
+            </div>
+            {field.typeConfig.allowPast !== false && (
+              <InspectorInput
+                label="Max back-date days"
+                value={field.typeConfig.maxBackdateDays ?? ""}
+                type="number"
+                onChange={(v) =>
+                  updateField({
+                    typeConfig: {
+                      ...field.typeConfig,
+                      maxBackdateDays: v ? Number(v) : undefined,
+                    },
+                  })
+                }
+                description="0 or empty = unlimited past"
+              />
+            )}
+            <div
+              style={{
+                padding: "8px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: colors.labelText,
+                  }}
+                >
+                  Allow Future Dates
+                </div>
+                <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                  Let user select dates after today
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={field.typeConfig.allowFuture !== false}
+                onChange={(checked) =>
+                  updateField({
+                    typeConfig: { ...field.typeConfig, allowFuture: checked },
+                  })
+                }
+              />
+            </div>
+            {field.typeConfig.allowFuture !== false && (
+              <InspectorInput
+                label="Max future days"
+                value={field.typeConfig.maxFutureDays ?? ""}
+                type="number"
+                onChange={(v) =>
+                  updateField({
+                    typeConfig: {
+                      ...field.typeConfig,
+                      maxFutureDays: v ? Number(v) : undefined,
+                    },
+                  })
+                }
+                description="0 or empty = unlimited future"
+              />
+            )}
+          </>
+        )}
+        {isApiSelectType && (
+          <>
+            <SectionHeader title="Data Source" />
+            <div style={{ padding: "6px 16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: colors.labelText,
+                  marginBottom: 4,
+                }}
+              >
+                Source
+              </label>
+              <select
+                value={(field.dataSource?.customName) ?? ""}
+                onChange={(e) =>
+                  updateField({
+                    dataSource: {
+                      ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                      customName: e.target.value,
+                    },
+                  })
+                }
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  border: `1px solid ${colors.inputBorder}`,
+                  borderRadius: 6,
+                  background: colors.inputBg,
+                  color: colors.inputText,
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">
+                  {sourcesLoading ? "Loading sources..." : "Select source..."}
+                </option>
+                {sources.map((src) => (
+                  <option key={src.key} value={src.key}>
+                    {src.label || src.name}
+                  </option>
+                ))}
+              </select>
+              <span style={{ display: "block", fontSize: 11, color: colors.muted, marginTop: 3 }}>
+                Backend data source key (e.g. stores, products)
+              </span>
+            </div>
+            <InspectorInput
+              label="Label field"
+              value={field.dataSource?.filterColumns?.[0] ?? ""}
+              onChange={(v) => {
+                const cols = [...(field.dataSource?.filterColumns ?? [])];
+                cols[0] = v;
+                updateField({
+                  dataSource: {
+                    ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                    filterColumns: cols,
+                  },
+                });
+              }}
+              description="Field name used as display label"
+            />
+            <InspectorInput
+              label="Value field"
+              value={field.dataSource?.filterColumns?.[1] ?? ""}
+              onChange={(v) => {
+                const cols = [...(field.dataSource?.filterColumns ?? [])];
+                cols[1] = v;
+                updateField({
+                  dataSource: {
+                    ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                    filterColumns: cols,
+                  },
+                });
+              }}
+              description="Field name used as stored value"
+            />
+            {field.dataSource?.customName && (
+              <div style={{ padding: "6px 16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: colors.labelText,
+                    marginBottom: 4,
+                  }}
+                >
+                  Filter Mode
+                </label>
+                <select
+                  value={field.dataSource?.readOnlyColumns?.[0] ?? ""}
+                  disabled={filterModesLoading}
+                  onChange={(e) =>
+                    updateField({
+                      dataSource: {
+                        ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                        readOnlyColumns: [e.target.value],
+                      },
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    fontSize: 13,
+                    border: `1px solid ${colors.inputBorder}`,
+                    borderRadius: 6,
+                    background: colors.inputBg,
+                    color: colors.inputText,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">
+                    {filterModesLoading
+                      ? "Loading filter modes..."
+                      : `Use datasource default${filterModes?.defaultMode ? ` (${filterModes.defaultMode})` : ""}`}
+                  </option>
+                  {filterModes?.modes.map((mode) => (
+                    <option key={mode.key} value={mode.key}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div
+              style={{
+                padding: "8px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: colors.labelText }}>
+                  Allow multiple
+                </div>
+                <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                  Let user select more than one value
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={field.typeConfig.validateAgainstMaster ?? false}
+                onChange={(checked) =>
+                  updateField({
+                    typeConfig: { ...field.typeConfig, validateAgainstMaster: checked },
+                  })
+                }
+              />
+            </div>
+            {field.dataSource?.customName && (
+              <div style={{ padding: "6px 16px" }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setPreviewLoading(true);
+                    try {
+                      const rows = await udfConfigService.previewSource(
+                        field.dataSource!.customName,
+                        { projectId: state.configurations[0]?.id ?? "" },
+                      );
+                      setSourcePreview(rows.slice(0, 5));
+                    } catch {
+                      setSourcePreview([]);
+                    } finally {
+                      setPreviewLoading(false);
+                    }
+                  }}
+                  disabled={previewLoading}
+                  style={{
+                    width: "100%",
+                    padding: "7px 12px",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    border: `1px solid ${colors.inputBorder}`,
+                    borderRadius: 6,
+                    background: colors.inputBg,
+                    color: colors.inputText,
+                    cursor: previewLoading ? "wait" : "pointer",
+                  }}
+                >
+                  {previewLoading ? "Loading..." : "Preview source"}
+                </button>
+                {sourcePreview.length > 0 && (
+                  <pre
+                    style={{
+                      marginTop: 8,
+                      padding: 8,
+                      fontSize: 11,
+                      background: "#f8fafc",
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: 6,
+                      overflow: "auto",
+                      maxHeight: 160,
+                    }}
+                  >
+                    {JSON.stringify(sourcePreview, null, 2)}
+                  </pre>
+                )}
+              </div>
+            )}
+          </>
+        )}
+        {isCascadingType && (
+          <>
+            <SectionHeader title="Cascading Config" />
+            <div style={{ padding: "6px 16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: colors.labelText,
+                  marginBottom: 4,
+                }}
+              >
+                Parent Field
+              </label>
+              <select
+                value={field.dataSource?.chainLevels?.[0] ?? ""}
+                onChange={(e) =>
+                  updateField({
+                    dataSource: {
+                      ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                      chainLevels: [e.target.value],
+                    },
+                  })
+                }
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  border: `1px solid ${colors.inputBorder}`,
+                  borderRadius: 6,
+                  background: colors.inputBg,
+                  color: colors.inputText,
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">Select parent field...</option>
+                {(state.configurations.find((c) => c.id === state.activeConfigId)?.fields ?? [])
+                  .filter((f) => f.id !== field.id)
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.label} ({f.id.slice(0, 8)}...)
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div style={{ padding: "6px 16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: colors.labelText,
+                  marginBottom: 4,
+                }}
+              >
+                Dynamic Source
+              </label>
+              <select
+                value={field.dataSource?.customName ?? ""}
+                onChange={(e) =>
+                  updateField({
+                    dataSource: {
+                      ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                      customName: e.target.value,
+                    },
+                  })
+                }
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  border: `1px solid ${colors.inputBorder}`,
+                  borderRadius: 6,
+                  background: colors.inputBg,
+                  color: colors.inputText,
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">
+                  {sourcesLoading ? "Loading..." : "Use static options"}
+                </option>
+                {sources.map((src) => (
+                  <option key={src.key} value={src.key}>
+                    {src.label || src.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {field.dataSource?.customName && (
+              <div style={{ padding: "6px 16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: colors.labelText,
+                    marginBottom: 4,
+                  }}
+                >
+                  Filter Mode
+                </label>
+                <select
+                  value={field.dataSource?.readOnlyColumns?.[0] ?? ""}
+                  disabled={filterModesLoading}
+                  onChange={(e) =>
+                    updateField({
+                      dataSource: {
+                        ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                        readOnlyColumns: [e.target.value],
+                      },
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    fontSize: 13,
+                    border: `1px solid ${colors.inputBorder}`,
+                    borderRadius: 6,
+                    background: colors.inputBg,
+                    color: colors.inputText,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">
+                    {filterModesLoading
+                      ? "Loading filter modes..."
+                      : `Use datasource default${filterModes?.defaultMode ? ` (${filterModes.defaultMode})` : ""}`}
+                  </option>
+                  {filterModes?.modes.map((mode) => (
+                    <option key={mode.key} value={mode.key}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <InspectorInput
+              label="Dynamic Value Field"
+              value={field.dataSource?.filterColumns?.[0] ?? ""}
+              onChange={(v) => {
+                const cols = [...(field.dataSource?.filterColumns ?? [])];
+                cols[0] = v;
+                updateField({
+                  dataSource: {
+                    ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                    filterColumns: cols,
+                  },
+                });
+              }}
+              description="Column in the data source for this field's option values"
+            />
+            <InspectorInput
+              label="Dynamic Parent Field"
+              value={field.dataSource?.filterColumns?.[1] ?? ""}
+              onChange={(v) => {
+                const cols = [...(field.dataSource?.filterColumns ?? [])];
+                cols[1] = v;
+                updateField({
+                  dataSource: {
+                    ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                    filterColumns: cols,
+                  },
+                });
+              }}
+              description="Column that maps child values to parent's selected value"
+            />
+          </>
+        )}
+        {isRepeatableType && (
+          <>
+            <SectionHeader title="Repeatable Group" />
+            <InspectorInput
+              label="Minimum rows"
+              value={field.addMoreMin ?? 1}
+              type="number"
+              onChange={(v) =>
+                updateField({ addMoreMin: v ? Number(v) : 1 })
+              }
+              description="Minimum number of rows required"
+            />
+            <InspectorInput
+              label="Maximum rows"
+              value={field.addMoreMax ?? 10}
+              type="number"
+              onChange={(v) =>
+                updateField({ addMoreMax: v ? Number(v) : 10 })
+              }
+              description="Maximum number of rows allowed"
+            />
+            <div style={{ padding: "8px 16px" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: colors.muted,
+                  lineHeight: 1.5,
+                }}
+              >
+                Child fields are managed inside the repeatable group card on the
+                canvas. Click the group card to add/remove child fields.
+              </span>
+            </div>
+          </>
         )}
 
         {/* OPTIONS Section (for dropdown, multi-select, radio, checkbox) */}

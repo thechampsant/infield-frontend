@@ -1121,6 +1121,85 @@ export function ClaimsFormBuilderV2({
           </>
         )}
 
+        {selectedChildField.type === "DATE" && (
+          <>
+            <div className="claims-fb-toggles">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={childConfig.defaultToToday === true}
+                  onChange={(event) =>
+                    patchRepeatableChildConfig(parentIndex, childIndex, {
+                      defaultToToday: event.target.checked,
+                    })
+                  }
+                />
+                Default to today
+              </label>
+            </div>
+            <div className="claims-fb-toggles">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={childConfig.allowPastDates !== false}
+                  onChange={(event) =>
+                    patchRepeatableChildConfig(parentIndex, childIndex, {
+                      allowPastDates: event.target.checked,
+                    })
+                  }
+                />
+                Allow past dates
+              </label>
+            </div>
+            {childConfig.allowPastDates !== false && (
+              <div className="claims-fb-formGroup">
+                <label>Max back-date days (0 = unlimited)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={0}
+                  value={Number(childConfig.maxBackdateDays ?? 0)}
+                  onChange={(event) =>
+                    patchRepeatableChildConfig(parentIndex, childIndex, {
+                      maxBackdateDays: Math.max(0, Number(event.target.value) || 0),
+                    })
+                  }
+                />
+              </div>
+            )}
+            <div className="claims-fb-toggles">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={childConfig.allowFutureDates !== false}
+                  onChange={(event) =>
+                    patchRepeatableChildConfig(parentIndex, childIndex, {
+                      allowFutureDates: event.target.checked,
+                    })
+                  }
+                />
+                Allow future dates
+              </label>
+            </div>
+            {childConfig.allowFutureDates !== false && (
+              <div className="claims-fb-formGroup">
+                <label>Max future days (0 = unlimited)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={0}
+                  value={Number(childConfig.maxFutureDays ?? 0)}
+                  onChange={(event) =>
+                    patchRepeatableChildConfig(parentIndex, childIndex, {
+                      maxFutureDays: Math.max(0, Number(event.target.value) || 0),
+                    })
+                  }
+                />
+              </div>
+            )}
+          </>
+        )}
+
         {selectedChildField.type === "FORMULA" && (
           <>
             <div className="claims-fb-formGroup">
@@ -1851,6 +1930,79 @@ export function ClaimsFormBuilderV2({
                     field={selectedField}
                     onChange={(patch) => updateFieldConfig(selectedIndex!, patch)}
                   />
+                </>
+              )}
+
+              {selectedField.type === "DATE" && (
+                <>
+                  <div className="claims-fb-toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={(selectedField.config as Record<string, unknown>)?.defaultToToday === true}
+                        onChange={(event) =>
+                          updateFieldConfig(selectedIndex!, { defaultToToday: event.target.checked })
+                        }
+                      />
+                      Default to today
+                    </label>
+                  </div>
+                  <div className="claims-fb-toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={(selectedField.config as Record<string, unknown>)?.allowPastDates !== false}
+                        onChange={(event) =>
+                          updateFieldConfig(selectedIndex!, { allowPastDates: event.target.checked })
+                        }
+                      />
+                      Allow past dates
+                    </label>
+                  </div>
+                  {(selectedField.config as Record<string, unknown>)?.allowPastDates !== false && (
+                    <div className="claims-fb-formGroup">
+                      <label>Max back-date days (0 = unlimited)</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min={0}
+                        value={Number((selectedField.config as Record<string, unknown>)?.maxBackdateDays ?? 0)}
+                        onChange={(event) =>
+                          updateFieldConfig(selectedIndex!, {
+                            maxBackdateDays: Math.max(0, Number(event.target.value) || 0),
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                  <div className="claims-fb-toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={(selectedField.config as Record<string, unknown>)?.allowFutureDates !== false}
+                        onChange={(event) =>
+                          updateFieldConfig(selectedIndex!, { allowFutureDates: event.target.checked })
+                        }
+                      />
+                      Allow future dates
+                    </label>
+                  </div>
+                  {(selectedField.config as Record<string, unknown>)?.allowFutureDates !== false && (
+                    <div className="claims-fb-formGroup">
+                      <label>Max future days (0 = unlimited)</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min={0}
+                        value={Number((selectedField.config as Record<string, unknown>)?.maxFutureDays ?? 0)}
+                        onChange={(event) =>
+                          updateFieldConfig(selectedIndex!, {
+                            maxFutureDays: Math.max(0, Number(event.target.value) || 0),
+                          })
+                        }
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
