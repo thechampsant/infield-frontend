@@ -173,10 +173,18 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       if (labelField) config.labelField = labelField;
       if (valueField) config.valueField = valueField;
       if (field.typeConfig.validateAgainstMaster) config.multiple = true;
-      // Filter mode (stored in readOnlyColumns[0] on frontend)
+      // Filter mode + context params (stored in readOnlyColumns[0] and editableColumns)
       const filterMode = field.dataSource?.readOnlyColumns?.[0] || "";
       if (filterMode) {
-        config.filters = { mode: filterMode };
+        const params: Record<string, string> = {};
+        (field.dataSource?.editableColumns ?? []).forEach((col) => {
+          if (col.name && col.options?.[0]) {
+            params[col.name] = col.options[0];
+          }
+        });
+        config.filters = Object.keys(params).length > 0
+          ? { mode: filterMode, params }
+          : { mode: filterMode };
       }
     }
 
@@ -194,10 +202,18 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       const parentField = field.dataSource?.filterColumns?.[1] || "";
       if (valueField) config.valueField = valueField;
       if (parentField) config.parentField = parentField;
-      // Filter mode (stored in readOnlyColumns[0] on frontend)
+      // Filter mode + context params (stored in readOnlyColumns[0] and editableColumns)
       const filterMode = field.dataSource?.readOnlyColumns?.[0] || "";
       if (filterMode) {
-        config.filters = { mode: filterMode };
+        const params: Record<string, string> = {};
+        (field.dataSource?.editableColumns ?? []).forEach((col) => {
+          if (col.name && col.options?.[0]) {
+            params[col.name] = col.options[0];
+          }
+        });
+        config.filters = Object.keys(params).length > 0
+          ? { mode: filterMode, params }
+          : { mode: filterMode };
       }
       // If no dynamic source and no static options, provide empty options array
       if (!sourceKey && !config.options) {
@@ -342,24 +358,32 @@ export function mapUdfFieldToFrontend(udf: ApiUdfField): FormField {
       if (componentFe === "api-select" || componentFe === "list-view") {
         const srcKey = typeof cfg.dataSource === 'string' ? cfg.dataSource : (cfg.sourceKey ?? "");
         const filterMode = cfg.filters?.mode ?? "";
+        const filterParams = cfg.filters?.params ?? {};
+        const editableColumns = Object.entries(filterParams)
+          .filter(([, v]) => typeof v === 'string' && v)
+          .map(([k, v]) => ({ name: k, type: "text" as const, required: false, options: [v as string] }));
         return {
           source: "custom" as const,
           customName: srcKey,
           chainLevels: [],
           filterColumns: [cfg.labelField ?? "", cfg.valueField ?? ""],
           readOnlyColumns: filterMode ? [filterMode] : [],
-          editableColumns: [],
+          editableColumns,
         };
       }
       if (componentFe === "cascading-select" || componentFe === "dependent-dropdown") {
         const filterMode = cfg.filters?.mode ?? "";
+        const filterParams = cfg.filters?.params ?? {};
+        const editableColumns = Object.entries(filterParams)
+          .filter(([, v]) => typeof v === 'string' && v)
+          .map(([k, v]) => ({ name: k, type: "text" as const, required: false, options: [v as string] }));
         return {
           source: "custom" as const,
           customName: cfg.sourceKey ?? "",
           chainLevels: [cfg.dependsOn ?? ""],
           filterColumns: [cfg.valueField ?? "", cfg.parentField ?? ""],
           readOnlyColumns: filterMode ? [filterMode] : [],
-          editableColumns: [],
+          editableColumns,
         };
       }
       return cfg.dataSource && typeof cfg.dataSource === 'object' ? cfg.dataSource : null;
