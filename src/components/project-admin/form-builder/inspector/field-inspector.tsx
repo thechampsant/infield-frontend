@@ -989,6 +989,67 @@ function InspectorContent({
                 </select>
               </div>
             )}
+            {field.dataSource?.customName && field.dataSource?.readOnlyColumns?.[0] && filterModes?.modes && (() => {
+              const selectedMode = filterModes.modes.find((m) => m.key === field.dataSource?.readOnlyColumns?.[0]);
+              const fieldRefParams = Object.entries(selectedMode?.paramsSchema ?? {})
+                .filter(([, schema]) => schema.type === "field_reference");
+              if (!fieldRefParams.length) return null;
+              const allFields = (state.configurations.find((c) => c.id === state.activeConfigId)?.fields ?? [])
+                .filter((f) => f.id !== field.id);
+              return fieldRefParams.map(([paramKey, schema]) => (
+                <div key={paramKey} style={{ padding: "6px 16px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: colors.labelText,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {schema.label || "Context Field"}
+                  </label>
+                  <select
+                    value={field.dataSource?.editableColumns?.find((c) => c.name === paramKey)?.options?.[0] ?? ""}
+                    onChange={(e) => {
+                      const existing = (field.dataSource?.editableColumns ?? []).filter((c) => c.name !== paramKey);
+                      const updated = e.target.value
+                        ? [...existing, { name: paramKey, type: "text" as const, required: false, options: [e.target.value] }]
+                        : existing;
+                      updateField({
+                        dataSource: {
+                          ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                          editableColumns: updated,
+                        },
+                      });
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      fontSize: 13,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: 6,
+                      background: colors.inputBg,
+                      color: colors.inputText,
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <option value="">Select field...</option>
+                    {allFields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label} ({f.id.slice(0, 8)}...)
+                      </option>
+                    ))}
+                  </select>
+                  {schema.description && (
+                    <span style={{ display: "block", fontSize: 11, color: colors.muted, marginTop: 3 }}>
+                      {schema.description}
+                    </span>
+                  )}
+                </div>
+              ));
+            })()}
             <div
               style={{
                 padding: "8px 16px",
@@ -1208,6 +1269,67 @@ function InspectorContent({
                 </select>
               </div>
             )}
+            {field.dataSource?.customName && field.dataSource?.readOnlyColumns?.[0] && filterModes?.modes && (() => {
+              const selectedMode = filterModes.modes.find((m) => m.key === field.dataSource?.readOnlyColumns?.[0]);
+              const fieldRefParams = Object.entries(selectedMode?.paramsSchema ?? {})
+                .filter(([, schema]) => schema.type === "field_reference");
+              if (!fieldRefParams.length) return null;
+              const allFields = (state.configurations.find((c) => c.id === state.activeConfigId)?.fields ?? [])
+                .filter((f) => f.id !== field.id);
+              return fieldRefParams.map(([paramKey, schema]) => (
+                <div key={paramKey} style={{ padding: "6px 16px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: colors.labelText,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {schema.label || "Context Field"}
+                  </label>
+                  <select
+                    value={field.dataSource?.editableColumns?.find((c) => c.name === paramKey)?.options?.[0] ?? ""}
+                    onChange={(e) => {
+                      const existing = (field.dataSource?.editableColumns ?? []).filter((c) => c.name !== paramKey);
+                      const updated = e.target.value
+                        ? [...existing, { name: paramKey, type: "text" as const, required: false, options: [e.target.value] }]
+                        : existing;
+                      updateField({
+                        dataSource: {
+                          ...(field.dataSource ?? { source: "custom", customName: "", chainLevels: [], filterColumns: [], readOnlyColumns: [], editableColumns: [] }),
+                          editableColumns: updated,
+                        },
+                      });
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      fontSize: 13,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: 6,
+                      background: colors.inputBg,
+                      color: colors.inputText,
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <option value="">Select field...</option>
+                    {allFields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label} ({f.id.slice(0, 8)}...)
+                      </option>
+                    ))}
+                  </select>
+                  {schema.description && (
+                    <span style={{ display: "block", fontSize: 11, color: colors.muted, marginTop: 3 }}>
+                      {schema.description}
+                    </span>
+                  )}
+                </div>
+              ));
+            })()}
             <InspectorInput
               label="Dynamic Value Field"
               value={field.dataSource?.filterColumns?.[0] ?? ""}
