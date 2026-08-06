@@ -120,6 +120,10 @@ export interface TypeSpecificConfig {
   minValue?: number;
   maxValue?: number;
   decimals?: number;
+  isMobileNumber?: boolean;
+
+  // Signature
+  signatureFormat?: 'png' | 'jpeg';
 
   // Text (short text, paragraph, alphanumeric)
   minLength?: number;
