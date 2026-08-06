@@ -119,6 +119,7 @@ function InspectorInput({
   description,
   type = "text",
   required,
+  disabled,
 }: {
   label: string;
   value: string | number;
@@ -126,6 +127,7 @@ function InspectorInput({
   description?: string;
   type?: "text" | "number";
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div style={{ padding: "6px 16px" }}>
@@ -134,7 +136,7 @@ function InspectorInput({
           display: "block",
           fontSize: 13,
           fontWeight: 500,
-          color: colors.labelText,
+          color: disabled ? colors.muted : colors.labelText,
           marginBottom: 4,
         }}
       >
@@ -146,6 +148,7 @@ function InspectorInput({
       <input
         type={type}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: "100%",
@@ -153,10 +156,11 @@ function InspectorInput({
           fontSize: 13,
           border: `1px solid ${colors.inputBorder}`,
           borderRadius: 6,
-          background: colors.inputBg,
-          color: colors.inputText,
+          background: disabled ? "#f8fafc" : colors.inputBg,
+          color: disabled ? colors.muted : colors.inputText,
           outline: "none",
           boxSizing: "border-box",
+          cursor: disabled ? "not-allowed" : undefined,
         }}
       />
       {description && (
@@ -422,6 +426,7 @@ function InspectorContent({
     field.type
   );
   const isNumberType = field.type === "number";
+  const isSignatureType = field.type === "signature";
   const isImageType = field.type === "image-capture";
   const isDateType = field.type === "date-picker";
   const isRatingType = field.type === "rating";
@@ -628,8 +633,9 @@ function InspectorContent({
           <>
             <InspectorInput
               label="Min value"
-              value={field.typeConfig.minValue ?? ""}
+              value={field.typeConfig.isMobileNumber ? "" : (field.typeConfig.minValue ?? "")}
               type="number"
+              disabled={field.typeConfig.isMobileNumber === true}
               onChange={(v) =>
                 updateField({
                   typeConfig: {
@@ -641,8 +647,9 @@ function InspectorContent({
             />
             <InspectorInput
               label="Max value"
-              value={field.typeConfig.maxValue ?? ""}
+              value={field.typeConfig.isMobileNumber ? "" : (field.typeConfig.maxValue ?? "")}
               type="number"
+              disabled={field.typeConfig.isMobileNumber === true}
               onChange={(v) =>
                 updateField({
                   typeConfig: {
@@ -652,6 +659,104 @@ function InspectorContent({
                 })
               }
             />
+            {/* Mobile number validation toggle */}
+            <div
+              style={{
+                padding: "8px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: colors.labelText,
+                  }}
+                >
+                  Mobile number validation
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: colors.muted,
+                    marginTop: 2,
+                  }}
+                >
+                  Validate as 10-digit Indian mobile number
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={field.typeConfig.isMobileNumber ?? false}
+                onChange={(e) =>
+                  updateField({
+                    typeConfig: {
+                      ...field.typeConfig,
+                      isMobileNumber: e.target.checked,
+                      // clear min/max when switching to mobile validation
+                      ...(e.target.checked
+                        ? { minValue: undefined, maxValue: undefined }
+                        : {}),
+                    },
+                  })
+                }
+                style={{ width: 16, height: 16, cursor: "pointer" }}
+              />
+            </div>
+          </>
+        )}
+        {isSignatureType && (
+          <>
+            {/* Output format selector */}
+            <div style={{ padding: "6px 16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: colors.labelText,
+                  marginBottom: 6,
+                }}
+              >
+                Output format
+              </label>
+            </div>
+            <SegmentedControl
+              options={[
+                { label: "PNG", value: "png" },
+                { label: "JPEG", value: "jpeg" },
+              ]}
+              value={field.typeConfig.signatureFormat ?? "png"}
+              onChange={(value) =>
+                updateField({
+                  typeConfig: {
+                    ...field.typeConfig,
+                    signatureFormat: value as "png" | "jpeg",
+                  },
+                })
+              }
+            />
+            {/* Mobile integration note */}
+            <div
+              style={{
+                margin: "8px 16px 4px",
+                padding: "8px 10px",
+                background: "#f0f9ff",
+                border: "1px solid #bae6fd",
+                borderRadius: 6,
+                fontSize: 12,
+                color: "#0369a1",
+                lineHeight: 1.5,
+              }}
+            >
+              On mobile, this field opens a signature pad. The captured
+              signature is uploaded and stored as a URL — same as an image
+              field.
+            </div>
           </>
         )}
         {isImageType && (

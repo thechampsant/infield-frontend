@@ -745,7 +745,7 @@ export function UDFConfigModal({
 
                 {field.type === "API_SELECT" && (
                   <div style={{ display: "grid", gap: 12 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 120px", gap: 12 }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Data Source</label>
                         <select
@@ -778,6 +778,17 @@ export function UDFConfigModal({
                           onChange={(e) => updateFieldConfig(index, { valueKey: e.target.value })}
                           placeholder="_id"
                         />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Multiple</label>
+                        <select
+                          className="form-input"
+                          value={String(Boolean((field.config as Record<string, unknown> | undefined)?.multiple))}
+                          onChange={(e) => updateFieldConfig(index, { multiple: e.target.value === "true" })}
+                        >
+                          <option value="false">No</option>
+                          <option value="true">Yes</option>
+                        </select>
                       </div>
                     </div>
 

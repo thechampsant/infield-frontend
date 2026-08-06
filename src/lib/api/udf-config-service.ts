@@ -40,7 +40,9 @@ export type UdfFieldType =
   | "IMAGE"
   | "FILE"
   | "REPEATABLE_GROUP"
-  | "FORMULA";
+  | "FORMULA"
+  /** UI-only type: stored as IMAGE with config.signatureMode=true in the backend */
+  | "SIGNATURE";
 
 export type UdfConfigScope = keyof typeof UDF_ENTITY_TYPES;
 export type UdfEntityType = (typeof UDF_ENTITY_TYPES)[UdfConfigScope] | string;

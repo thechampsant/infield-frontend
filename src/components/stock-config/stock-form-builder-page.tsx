@@ -59,7 +59,12 @@ function normalizeFields(fields: UdfSchemaField[]): UdfSchemaField[] {
     label: field.label.trim(),
     order: index + 1,
     status: field.status ?? true,
-    config: normalizeFieldConfig(field.config),
+    // SIGNATURE is a UI-only type — convert to IMAGE with signatureMode:true before saving
+    type: field.type === "SIGNATURE" ? "IMAGE" : field.type,
+    config:
+      field.type === "SIGNATURE"
+        ? { ...(field.config as Record<string, unknown> ?? {}), signatureMode: true }
+        : normalizeFieldConfig(field.config),
   }));
 }
 

@@ -46,6 +46,7 @@ const FIELD_COMPONENTS: FieldComponent[] = [
   { key: "DATE", label: "Date", icon: "📅" },
   { key: "BOOLEAN", label: "Yes / No", icon: "◉" },
   { key: "IMAGE", label: "Image Upload", icon: "🖼" },
+  { key: "SIGNATURE", label: "Signature", icon: "✍" },
   { key: "FILE", label: "File Upload", icon: "📎" },
 ];
 
@@ -80,13 +81,15 @@ function createField(type: UdfFieldType, order: number): UdfSchemaField {
     CASCADING_SELECT: "Cascading Select",
     REPEATABLE_GROUP: "Repeatable Group",
     FORMULA: "Formula",
+    SIGNATURE: "Signature",
   };
 
   return {
     fieldKey: `field_${order}`,
     label: labels[type] || `Field ${order}`,
+    // SIGNATURE is a UI alias for IMAGE — normalizeFields converts it before saving
     type,
-    required: type === "NUMBER" || type === "IMAGE",
+    required: type === "NUMBER" || type === "IMAGE" || type === "SIGNATURE",
     order,
     status: true,
     summaryKey: false,
@@ -99,13 +102,15 @@ function createField(type: UdfFieldType, order: number): UdfSchemaField {
             ? { dependsOn: "", options: [] }
             : type === "IMAGE"
               ? { source: "Both", multiple: false, maxCount: 1 }
-              : type === "FILE"
-                ? { multiple: false, maxCount: 1, accept: [] }
-                : type === "REPEATABLE_GROUP"
-                  ? { minRows: 1, maxRows: 10, fields: [] }
-                  : type === "FORMULA"
-                    ? { scope: "row", expression: [], precision: 2 }
-                    : undefined,
+              : type === "SIGNATURE"
+                ? { signatureMode: true, format: "png" }
+                : type === "FILE"
+                  ? { multiple: false, maxCount: 1, accept: [] }
+                  : type === "REPEATABLE_GROUP"
+                    ? { minRows: 1, maxRows: 10, fields: [] }
+                    : type === "FORMULA"
+                      ? { scope: "row", expression: [], precision: 2 }
+                      : undefined,
   };
 }
 
@@ -123,6 +128,7 @@ function getFieldTypeLabel(type: UdfFieldType): string {
     CASCADING_SELECT: "CASCADING",
     REPEATABLE_GROUP: "GROUP",
     FORMULA: "FORMULA",
+    SIGNATURE: "SIGNATURE",
   };
   return map[type] || type;
 }
@@ -1671,6 +1677,106 @@ export function ClaimsFormBuilderV2({
                 </label>
               </div>
 
+              {/* NUMBER: min/max range + mobile number validation */}
+              {selectedField.type === "NUMBER" && (
+                <div className="claims-fb-formGroup">
+                  <label style={{ display: "block", marginBottom: 6 }}>
+                    Number Validation
+                  </label>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>
+                        Min value
+                      </label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        disabled={
+                          (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                        }
+                        value={
+                          (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                            ? ""
+                            : String(
+                                (selectedField.config as Record<string, unknown>)?.minValue ?? "",
+                              )
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex!, {
+                            minValue: e.target.value !== "" ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder="No limit"
+                        style={{
+                          opacity:
+                            (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                              ? 0.4
+                              : 1,
+                          cursor:
+                            (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                              ? "not-allowed"
+                              : undefined,
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>
+                        Max value
+                      </label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        disabled={
+                          (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                        }
+                        value={
+                          (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                            ? ""
+                            : String(
+                                (selectedField.config as Record<string, unknown>)?.maxValue ?? "",
+                              )
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex!, {
+                            maxValue: e.target.value !== "" ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder="No limit"
+                        style={{
+                          opacity:
+                            (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                              ? 0.4
+                              : 1,
+                          cursor:
+                            (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                              ? "not-allowed"
+                              : undefined,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="claims-fb-toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (selectedField.config as Record<string, unknown>)?.isMobileNumber === true
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex!, {
+                            isMobileNumber: e.target.checked,
+                            ...(e.target.checked
+                              ? { minValue: undefined, maxValue: undefined }
+                              : {}),
+                          })
+                        }
+                      />
+                      Mobile number validation (10-digit Indian)
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {(selectedField.type === "SELECT" || selectedField.type === "DROPDOWN") && (
                 <div className="claims-fb-formGroup">
                   <label>Options (one per line)</label>
@@ -1931,6 +2037,41 @@ export function ClaimsFormBuilderV2({
                     onChange={(patch) => updateFieldConfig(selectedIndex!, patch)}
                   />
                 </>
+              )}
+
+              {/* SIGNATURE: output format selector + mobile integration note */}
+              {selectedField.type === "SIGNATURE" && (
+                <div className="claims-fb-formGroup">
+                  <label>Output Format</label>
+                  <select
+                    className="form-input"
+                    value={String(
+                      (selectedField.config as Record<string, unknown>)?.format ?? "png",
+                    )}
+                    onChange={(e) =>
+                      updateFieldConfig(selectedIndex!, { format: e.target.value })
+                    }
+                  >
+                    <option value="png">PNG (lossless, larger)</option>
+                    <option value="jpeg">JPEG (smaller file size)</option>
+                  </select>
+                  <p
+                    style={{
+                      marginTop: 8,
+                      padding: "8px 10px",
+                      background: "#f0f9ff",
+                      border: "1px solid #bae6fd",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: "#0369a1",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    On mobile, this field opens a signature pad. The captured
+                    signature is uploaded and stored as a URL — same as an
+                    image field.
+                  </p>
+                </div>
               )}
 
               {selectedField.type === "DATE" && (
