@@ -35,7 +35,7 @@ function buildDefaultConfig(projectId: string): FeatureConfigDto {
     projectId,
     modules: PROJECT_MODULE_CATALOG.map((m) => ({
       key: m.id,
-      isActive: m.comingSoon ? false : m.defaultEnabled,
+      isActive: false,
     })),
   };
 }
@@ -47,9 +47,7 @@ function mergeCatalogWithConfig(config: FeatureConfigDto): ProjectModuleState[] 
 
   return PROJECT_MODULE_CATALOG.map((definition) => {
     const fromApi = byKey.get(definition.id);
-    const enabled = definition.comingSoon
-      ? false
-      : (fromApi ?? definition.defaultEnabled);
+    const enabled = definition.comingSoon ? false : (fromApi ?? false);
     return { definition, enabled };
   });
 }

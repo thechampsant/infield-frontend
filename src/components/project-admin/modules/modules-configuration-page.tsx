@@ -58,6 +58,9 @@ export function ModulesConfigurationPage() {
       const hasActiveTargetConfig = targetConfigs.some((config) =>
         activeKeys.has(targetVsAchievementConfigModuleKey(config.id)),
       );
+      const hasLiveFormBuilderModule = rawConfig.modules.some(
+        (module) => module.isActive && module.key.startsWith("form_builder_"),
+      );
       setModules(
         list.map((module) => {
           if (module.definition.id === "sales") {
@@ -68,6 +71,9 @@ export function ModulesConfigurationPage() {
           }
           if (module.definition.id === "target-vs-achievement") {
             return { ...module, enabled: hasActiveTargetConfig };
+          }
+          if (module.definition.id === "form-builder") {
+            return { ...module, enabled: hasLiveFormBuilderModule };
           }
           return module;
         }),
@@ -81,7 +87,7 @@ export function ModulesConfigurationPage() {
 
   useEffect(() => {
     if (ctxLoading || !projectId) return;
-    load();
+    void Promise.resolve().then(load);
   }, [ctxLoading, projectId, load]);
 
   async function handleToggle(moduleId: string, enabled: boolean) {
@@ -111,6 +117,15 @@ export function ModulesConfigurationPage() {
         type: "success",
         message:
           "Activate individual Target vs Achievement widgets from Target vs Achievement Configurations.",
+      });
+      return;
+    }
+
+    if (moduleId === "form-builder") {
+      setToast({
+        type: "success",
+        message:
+          "Form Builder forms go live from inside Form Builder configuration.",
       });
       return;
     }
@@ -203,13 +218,13 @@ export function ModulesConfigurationPage() {
           <div className="pa-eyebrow">Setup</div>
           <div className="pa-page-title">Module Configuration</div>
           <div className="pa-page-desc">
-            Enable or disable modules for this project
+            Configure each module first, then activate it for this project
           </div>
         </div>
       </div>
 
       <div className="pa-info-banner">
-        Changes take effect immediately.
+        Modules stay disabled until their required configuration is complete.
       </div>
 
       <div className="pa-mod-grid">
