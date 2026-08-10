@@ -117,7 +117,7 @@ export function AddUserModal({
         phoneNumber: form.mobile,
         designationId: form.designation,
         ...(reporteesField ? { reportees } : {}),
-        dateOfJoining: form.doj || undefined,
+        doj: form.doj || undefined,
         udfs: udfValues,
       });
       onSuccess();

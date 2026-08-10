@@ -499,6 +499,7 @@ function normalizeProfile(value: unknown): ProfileData {
       stringValue(raw.contactNumber),
     email: stringValue(raw.email),
     dateOfJoining:
+      stringValue(raw.doj) ||
       stringValue(raw.dateOfJoining) ||
       stringValue(raw.joiningDate) ||
       stringValue(raw.createdAt),

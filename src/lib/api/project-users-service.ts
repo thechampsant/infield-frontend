@@ -28,6 +28,7 @@ interface RawUser {
   isActive?: boolean;
   udfData?: Record<string, unknown>;
   createdAt?: string;
+  doj?: string;
   dateOfJoining?: string;
   dateOfExit?: string;
   reportees?: unknown[];
@@ -38,7 +39,7 @@ interface RawUser {
 const KNOWN_USER_KEYS = new Set([
   "_id", "id", "__v", "email", "firstName", "lastName", "phoneNumber",
   "employeeId", "designation", "status", "isActive", "udfData",
-  "createdAt", "updatedAt", "dateOfJoining", "dateOfExit", "reportees",
+  "createdAt", "updatedAt", "doj", "dateOfJoining", "dateOfExit", "reportees",
   "projectId", "accountId", "accountName", "password", "role",
 ]);
 
@@ -105,7 +106,7 @@ function normalizeUser(raw: RawUser): ProjectUser {
     email: raw.email ?? "",
     designation,
     role,
-    doj: raw.dateOfJoining ?? raw.createdAt?.slice(0, 10) ?? "",
+    doj: raw.doj ?? raw.dateOfJoining ?? raw.createdAt?.slice(0, 10) ?? "",
     doe: raw.dateOfExit ?? "",
     status: normalizeStatus(raw),
     udfs: normalizeUdfData(Object.keys(mergedUdf).length > 0 ? mergedUdf : undefined),
@@ -326,7 +327,7 @@ export interface CreateProjectUserInput {
   phoneNumber: string;
   designationId: string;
   reportees?: string[];
-  dateOfJoining?: string;
+  doj?: string;
   udfs?: Record<string, UDFValue>;
 }
 
@@ -336,6 +337,7 @@ export interface UpdateProjectUserInput {
   email?: string;
   phoneNumber?: string;
   designationId?: string;
+  doj?: string;
   reportees?: string[];
   udfs?: Record<string, UDFValue>;
 }
@@ -475,7 +477,7 @@ export const projectUsersService = {
       email: input.email,
       phoneNumber: input.phoneNumber,
       designation: input.designationId,
-      ...(input.dateOfJoining ? { dateOfJoining: input.dateOfJoining } : {}),
+      ...(input.doj ? { doj: input.doj } : {}),
       ...(input.udfs ?? {}),
       ...(input.reportees !== undefined ? { reportees: input.reportees } : {}),
     };
@@ -490,6 +492,9 @@ export const projectUsersService = {
       ...(input.phoneNumber !== undefined ? { phoneNumber: input.phoneNumber } : {}),
       ...(input.designationId !== undefined
         ? { designation: input.designationId }
+        : {}),
+      ...(input.doj !== undefined
+        ? { doj: input.doj }
         : {}),
       ...(input.udfs ?? {}),
       ...(input.reportees !== undefined ? { reportees: input.reportees } : {}),

@@ -41,6 +41,7 @@ export function EditUserModal({
     mobile: user.mobile,
     email: user.email,
     designation: "",
+    doj: user.doj,
   });
   const [designations, setDesignations] = useState<
     { id: string; name: string }[]
@@ -78,6 +79,7 @@ export function EditUserModal({
         mobile: user.mobile,
         email: user.email,
         designation: "",
+        doj: user.doj,
       });
       setUdfValues(user.udfs);
       setReportees(user.reporteeIds);
@@ -109,6 +111,7 @@ export function EditUserModal({
         email: form.email,
         phoneNumber: form.mobile,
         designationId: form.designation || undefined,
+        doj: form.doj || undefined,
         ...(reporteesField ? { reportees } : {}),
         udfs: udfValues,
       });
@@ -208,6 +211,10 @@ export function EditUserModal({
               </option>
             ))}
           </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Date of Joining</label>
+          <input type="date" {...field("doj")} />
         </div>
       </div>
 
