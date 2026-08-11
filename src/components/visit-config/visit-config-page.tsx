@@ -716,6 +716,7 @@ export function VisitConfigPage({
           onBack={() => setView("config")}
           moduleLabel="Visit Form"
           showSystemFields={false}
+          enableDatasourceFilters
         />
         <If2Toast toast={toast} onDismiss={() => setToast(null)} />
       </>
