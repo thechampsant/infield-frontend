@@ -53,19 +53,27 @@ function normalizeFieldConfig(config: UdfSchemaField["config"]): UdfSchemaField[
 }
 
 function normalizeFields(fields: UdfSchemaField[]): UdfSchemaField[] {
-  return fields.map((field, index) => ({
-    ...field,
-    fieldKey: field.fieldKey.trim(),
-    label: field.label.trim(),
-    order: index + 1,
-    status: field.status ?? true,
-    // SIGNATURE is a UI-only type — convert to IMAGE with signatureMode:true before saving
-    type: field.type === "SIGNATURE" ? "IMAGE" : field.type,
-    config:
+  return fields.map((field, index) => {
+    const normalizedConfig = normalizeFieldConfig(field.config);
+    const configRecord = record(normalizedConfig);
+    const config =
       field.type === "SIGNATURE"
-        ? { ...(field.config as Record<string, unknown> ?? {}), signatureMode: true }
-        : normalizeFieldConfig(field.config),
-  }));
+        ? { ...configRecord, signatureMode: true }
+        : field.type === "SELECT" || field.type === "DROPDOWN"
+          ? { ...configRecord, multiple: configRecord.multiple === true }
+          : normalizedConfig;
+
+    return {
+      ...field,
+      fieldKey: field.fieldKey.trim(),
+      label: field.label.trim(),
+      order: index + 1,
+      status: field.status ?? true,
+      // SIGNATURE is a UI-only type — convert to IMAGE with signatureMode:true before saving
+      type: field.type === "SIGNATURE" ? "IMAGE" : field.type,
+      config,
+    };
+  });
 }
 
 function validateFields(
@@ -106,6 +114,13 @@ function validateFields(
       errors.push(`${label}: field key must start with a letter and use only letters, numbers, and underscores.`);
     }
     if (!field.label.trim()) errors.push(`${label}: label is required.`);
+
+    if (field.type === "SELECT" || field.type === "DROPDOWN") {
+      const options = Array.isArray(config.options) ? config.options : [];
+      if (options.length === 0) {
+        errors.push(`${field.label || label}: add at least one option.`);
+      }
+    }
 
     if (field.type === "API_SELECT") {
       if (!String(config.dataSource ?? config.sourceKey ?? "").trim()) {

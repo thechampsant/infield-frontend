@@ -520,6 +520,22 @@ export function AttendanceConfigEdit({
               />
             </>
           )}
+          <div className="section-divider">Shift management</div>
+          <SettingRow
+            label="Enable Shift Management"
+            hint="Use optional User UDF shiftStartTime and shiftEndTime values when calculating working hours"
+            checked={form.shiftManagementEnabled}
+            onChange={(v) => onChange("shiftManagementEnabled", v)}
+          />
+          {form.shiftManagementEnabled && (
+            <InfoBanner>
+              Add optional User UDF STRING fields with field keys shiftStartTime and
+              shiftEndTime for projects that need user-level shift windows. Values are
+              stored as HH:mm. Leave both blank for default attendance flow, or set both
+              to 00:00 to bypass shift logic for that user. Overnight shifts are not
+              supported, so shiftEndTime must be later than shiftStartTime.
+            </InfoBanner>
+          )}
         </div>
       </Section>
 

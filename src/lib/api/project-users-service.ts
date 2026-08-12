@@ -43,6 +43,8 @@ const KNOWN_USER_KEYS = new Set([
   "projectId", "accountId", "accountName", "password", "role",
 ]);
 
+const STORE_IDS_FIELD_KEY = "storeIds";
+
 interface PaginatedUsers {
   data?: RawUser[];
   meta?: { total?: number; page?: number; pageSize?: number };
@@ -80,6 +82,19 @@ function designationLabel(raw: RawUser): { designation: string; role: string } {
   return { designation: String(raw.designation ?? ""), role: "" };
 }
 
+function normalizeDateInputValue(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const isoDateMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDateMatch) return isoDateMatch[1];
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
 function normalizeUser(raw: RawUser): ProjectUser {
   const { designation, role } = designationLabel(raw);
   const name = `${raw.firstName ?? ""} ${raw.lastName ?? ""}`.trim() || raw.email || "";
@@ -106,8 +121,11 @@ function normalizeUser(raw: RawUser): ProjectUser {
     email: raw.email ?? "",
     designation,
     role,
-    doj: raw.doj ?? raw.dateOfJoining ?? raw.createdAt?.slice(0, 10) ?? "",
-    doe: raw.dateOfExit ?? "",
+    doj:
+      normalizeDateInputValue(raw.doj) ||
+      normalizeDateInputValue(raw.dateOfJoining) ||
+      normalizeDateInputValue(raw.createdAt),
+    doe: normalizeDateInputValue(raw.dateOfExit),
     status: normalizeStatus(raw),
     udfs: normalizeUdfData(Object.keys(mergedUdf).length > 0 ? mergedUdf : undefined),
     reporteeIds: normalizeReferenceIds(raw.reportees),
@@ -217,6 +235,7 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
         values: options,
         mandatory: Boolean(f.required),
       };
+      const isStoreIds = runtimeField.fieldKey === STORE_IDS_FIELD_KEY;
 
       if (Array.isArray(options)) {
         runtimeField.optionItems = options.map((option) => ({
@@ -225,11 +244,14 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
         }));
       }
 
+      if (typeRaw === "DROPDOWN" || typeRaw === "SELECT" || typeRaw === "API_SELECT") {
+        runtimeField.multiple = isStoreIds || config.multiple === true;
+      }
+
       if (typeRaw === "API_SELECT") {
         runtimeField.sourceKey = String(config.sourceKey ?? "") || undefined;
         runtimeField.labelKey = String(config.labelKey ?? "") || undefined;
         runtimeField.valueKey = String(config.valueKey ?? "") || undefined;
-        runtimeField.multiple = Boolean(config.multiple);
       }
 
       return runtimeField;
@@ -242,19 +264,26 @@ function normalizeUdfSchemaFields(payload: unknown): UdfSchemaField[] {
 
   return fields.map((item, index) => {
     const field = item as Record<string, unknown>;
+    const fieldKey = String(field.fieldKey ?? `field_${index + 1}`);
+    const type = String(field.type ?? "STRING").toUpperCase() as UdfSchemaField["type"];
+    const config =
+      field.config && typeof field.config === "object" && !Array.isArray(field.config)
+        ? (field.config as Record<string, unknown>)
+        : {};
+
     return {
-      fieldKey: String(field.fieldKey ?? `field_${index + 1}`),
+      fieldKey,
       label: String(field.label ?? field.fieldKey ?? `Field ${index + 1}`),
-      type: String(field.type ?? "STRING").toUpperCase() as UdfSchemaField["type"],
+      type,
       required: Boolean(field.required),
       status:
         typeof field.status === "boolean" ? field.status : true,
       order:
         typeof field.order === "number" ? field.order : index + 1,
       config:
-        field.config && typeof field.config === "object" && !Array.isArray(field.config)
-          ? (field.config as Record<string, unknown>)
-          : {},
+        type === "API_SELECT" && fieldKey === STORE_IDS_FIELD_KEY
+          ? { ...config, multiple: true }
+          : config,
       summaryKey:
         typeof field.summaryKey === "boolean" ? field.summaryKey : false,
       visibilityRules: Array.isArray(field.visibilityRules)
@@ -373,12 +402,10 @@ function normalizeUserSchemaFieldForSave(
     return {
       ...base,
       config: {
-        ...(config.sourceKey !== undefined ? { sourceKey: config.sourceKey } : {}),
-        ...(config.labelKey !== undefined ? { labelKey: config.labelKey } : {}),
-        ...(config.valueKey !== undefined ? { valueKey: config.valueKey } : {}),
-        ...(config.storeFilterMode !== undefined
-          ? { storeFilterMode: config.storeFilterMode }
-          : {}),
+        ...config,
+        multiple:
+          field.fieldKey === STORE_IDS_FIELD_KEY ||
+          config.multiple === true,
       },
     };
   }

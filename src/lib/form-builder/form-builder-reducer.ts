@@ -41,7 +41,7 @@ function createDefaultField(
     // Validation
     required: "no",
     requiredRules: [],
-    typeConfig: {},
+    typeConfig: componentType === "multi-select" ? { multiple: true } : {},
 
     // Options
     optionsSource: null,

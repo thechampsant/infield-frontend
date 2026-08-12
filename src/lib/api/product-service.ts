@@ -253,11 +253,14 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
         runtimeField.optionItems = options.map((option) => ({ label: option, value: option }));
       }
 
+      if (typeRaw === "DROPDOWN" || typeRaw === "SELECT" || typeRaw === "API_SELECT") {
+        runtimeField.multiple = config.multiple === true;
+      }
+
       if (typeRaw === "API_SELECT") {
         runtimeField.sourceKey = String(config.sourceKey ?? "") || undefined;
         runtimeField.labelKey = String(config.labelKey ?? "") || undefined;
         runtimeField.valueKey = String(config.valueKey ?? "") || undefined;
-        runtimeField.multiple = Boolean(config.multiple);
       }
 
       return runtimeField;

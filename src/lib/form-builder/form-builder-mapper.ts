@@ -131,6 +131,9 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
     if (field.optionsSource) {
       config.options = field.manualOptions;
     }
+    if (field.type === "dropdown" || field.type === "multi-select") {
+      config.multiple = field.typeConfig.multiple ?? (field.type === "multi-select");
+    }
 
     // Pre-fill
     if (field.prefillSource) {
@@ -342,7 +345,14 @@ export function mapUdfFieldToFrontend(udf: ApiUdfField): FormField {
       operator: r.operator ?? "equals",
       value: r.value ?? "",
     })),
-    typeConfig: cfg.validation?.typeConfig ?? cfg.validation ?? {},
+    typeConfig: {
+      ...(cfg.validation?.typeConfig ?? cfg.validation ?? {}),
+      ...((apiComponentTypeToFrontend(componentType) === "dropdown" ||
+        apiComponentTypeToFrontend(componentType) === "multi-select") &&
+      typeof cfg.multiple === "boolean"
+        ? { multiple: cfg.multiple }
+        : {}),
+    },
 
     // Options
     optionsSource: Array.isArray(cfg.options) ? "manual" : (cfg.options?.source ?? null),
@@ -474,6 +484,9 @@ export function mapFrontendFieldToUpdatePayload(changes: Partial<FormField>): Up
       validation.typeConfig = changes.typeConfig;
     }
     payload.validation = validation;
+    if (typeof changes.typeConfig?.multiple === "boolean") {
+      payload.multiple = changes.typeConfig.multiple;
+    }
   }
 
   // Options

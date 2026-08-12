@@ -33,8 +33,8 @@ const FALLBACK_FIELD_TYPES: BuilderFieldTypeOption[] = [
   { key: "NUMBER", label: "Number", description: "Numeric amount or quantity" },
   { key: "DATE", label: "Date", description: "Calendar picker" },
   { key: "BOOLEAN", label: "Yes / No", description: "Boolean choice" },
-  { key: "SELECT", label: "Multi Select", description: "Static multi-select choices" },
-  { key: "DROPDOWN", label: "Dropdown", description: "Static single select" },
+  { key: "SELECT", label: "Select", description: "Static options" },
+  { key: "DROPDOWN", label: "Dropdown", description: "Static options" },
   { key: "API_SELECT", label: "API Select", description: "Source-backed dropdown" },
   { key: "IMAGE", label: "Image", description: "Receipt or image upload" },
   { key: "FILE", label: "File", description: "Document upload field" },
@@ -51,7 +51,7 @@ function createField(index: number, type: UdfFieldType): UdfSchemaField {
     summaryKey: false,
     config:
       type === "SELECT" || type === "DROPDOWN"
-        ? { options: [] }
+        ? { options: [], multiple: false }
         : type === "API_SELECT"
           ? { dataSource: "", labelField: "", valueField: "" }
           : undefined,
@@ -396,7 +396,7 @@ export function ClaimsFormBuilder({
                       type: e.target.value as UdfFieldType,
                       config:
                         e.target.value === "SELECT" || e.target.value === "DROPDOWN"
-                          ? { options: [] }
+                          ? { options: [], multiple: false }
                           : e.target.value === "API_SELECT"
                             ? { dataSource: "", labelField: "", valueField: "" }
                             : undefined,
@@ -439,17 +439,33 @@ export function ClaimsFormBuilder({
               </div>
 
               {selectedField.type === "SELECT" || selectedField.type === "DROPDOWN" ? (
-                <label className="att-form-builder__field">
-                  <span>Options</span>
-                  <textarea
-                    className="form-input att-form-builder__textarea"
-                    value={optionsText(selectedField)}
-                    placeholder={"One option per line"}
-                    onChange={(e) =>
-                      updateFieldConfig(selectedIndex, { options: parseOptions(e.target.value) })
-                    }
-                  />
-                </label>
+                <>
+                  <div className="att-form-builder__toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (selectedField.config as Record<string, unknown> | undefined)?.multiple === true
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex, { multiple: e.target.checked })
+                        }
+                      />
+                      Allow multiple selections
+                    </label>
+                  </div>
+                  <label className="att-form-builder__field">
+                    <span>Options</span>
+                    <textarea
+                      className="form-input att-form-builder__textarea"
+                      value={optionsText(selectedField)}
+                      placeholder={"One option per line"}
+                      onChange={(e) =>
+                        updateFieldConfig(selectedIndex, { options: parseOptions(e.target.value) })
+                      }
+                    />
+                  </label>
+                </>
               ) : null}
 
               {selectedField.type === "API_SELECT" ? (

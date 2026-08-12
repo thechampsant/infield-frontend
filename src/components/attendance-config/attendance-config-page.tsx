@@ -340,7 +340,7 @@ function AttendanceConfigEditor({
     if (formType === "check-out" && !checkOutRequired) {
       return;
     }
-    const fields = schemas[formType];
+    const fields = normalizeStaticOptionMultiple(schemas[formType]);
     const validation = validateAttendanceSchema(fields, {
       remarksRequired,
     });
@@ -359,6 +359,7 @@ function AttendanceConfigEditor({
         ...(configId ? { attendanceConfigId: configId } : {}),
         fields,
       });
+      setSchemas((prev) => ({ ...prev, [formType]: fields }));
       setSavedSchemas((prev) => ({ ...prev, [formType]: fields }));
       const [nextFeatureWizard, nextFeatureConfig] = await Promise.all([
         featureWizardService.getByProject(projectId),
@@ -975,10 +976,10 @@ function validateAttendanceSchema(
         ? (field.config as Record<string, unknown>)
         : {};
 
-    if (field.type === "DROPDOWN") {
+    if (field.type === "DROPDOWN" || field.type === "SELECT") {
       const options = Array.isArray(config.options) ? config.options : [];
       if (options.length === 0) {
-        errors.push(`${label || fieldKey}: add at least one dropdown option.`);
+        errors.push(`${label || fieldKey}: add at least one option.`);
       }
     }
 
@@ -1000,6 +1001,23 @@ function validateAttendanceSchema(
   }
 
   return errors;
+}
+
+function normalizeStaticOptionMultiple(fields: UdfSchemaField[]): UdfSchemaField[] {
+  return fields.map((field) => {
+    if (field.type !== "SELECT" && field.type !== "DROPDOWN") return field;
+    const config =
+      field.config && typeof field.config === "object" && !Array.isArray(field.config)
+        ? (field.config as Record<string, unknown>)
+        : {};
+    return {
+      ...field,
+      config: {
+        ...config,
+        multiple: config.multiple === true,
+      },
+    };
+  });
 }
 
 function ReviewCard({

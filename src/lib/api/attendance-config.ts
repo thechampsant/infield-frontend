@@ -118,6 +118,10 @@ export interface LeaveModuleConfigDto {
   autoWeekOff: boolean;
 }
 
+export interface ShiftManagementConfigDto {
+  isEnabled: boolean;
+}
+
 /** Body shared by create/update (create also carries `projectId`). */
 export interface AttendanceConfigDto {
   name?: string;
@@ -138,6 +142,7 @@ export interface AttendanceConfigDto {
   autoCheckOutTime: string;
   regularization: RegularizationConfigDto;
   leaveModule: LeaveModuleConfigDto;
+  shiftManagement: ShiftManagementConfigDto;
 }
 
 export interface CreateAttendanceConfigDto extends AttendanceConfigDto {
@@ -213,6 +218,7 @@ export interface AttendanceConfigForm {
   halfDayMinHrs: number;
   halfDayMaxHrs: number;
   singlePunchFullDay: boolean;
+  shiftManagementEnabled: boolean;
 
   autoCheckoutEnabled: boolean;
   autoCheckoutTime: string;
@@ -292,6 +298,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   halfDayMinHrs: 4.5,
   halfDayMaxHrs: 9,
   singlePunchFullDay: false,
+  shiftManagementEnabled: false,
 
   autoCheckoutEnabled: false,
   autoCheckoutTime: "23:00",
@@ -397,6 +404,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     halfDayMinHrs: wh?.halfDayLogic?.minHours ?? DEFAULT_CONFIG_FORM.halfDayMinHrs,
     halfDayMaxHrs: wh?.halfDayLogic?.maxHours ?? DEFAULT_CONFIG_FORM.halfDayMaxHrs,
     singlePunchFullDay: Boolean(wh?.enableSinglePunchLogic),
+    shiftManagementEnabled: Boolean(doc.shiftManagement?.isEnabled),
 
     autoCheckoutEnabled: Boolean(doc.isAutoCheckOutEnabled),
     autoCheckoutTime: doc.autoCheckOutTime ?? DEFAULT_CONFIG_FORM.autoCheckoutTime,
@@ -502,6 +510,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       },
     },
     leaveModule: { autoWeekOff: form.autoWeekOffEnabled },
+    shiftManagement: { isEnabled: form.shiftManagementEnabled },
   };
 }
 

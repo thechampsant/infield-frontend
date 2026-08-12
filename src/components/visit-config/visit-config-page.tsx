@@ -12,6 +12,8 @@ import {
   type StoreDetail,
   type UdfSchemaField,
   type UpsertVisitConfigInput,
+  type VisitApprovalApproverType,
+  type VisitApprovalLevel,
   type VisitConfigDocument,
 } from "@/lib/api";
 import { projectAdminBase } from "@/lib/nav/nav";
@@ -39,6 +41,12 @@ interface EditorState {
   fromLocationType: string;
   toLocationType: string;
   calculationMethod: string;
+  daySummaryEnabled: boolean;
+  blockVisitAfterAttendanceCheckout: boolean;
+  approvalWorkflowEnabled: boolean;
+  approvalLevels: VisitApprovalLevel[];
+  claimDistanceCappingEnabled: boolean;
+  claimMaxDistanceKm: string;
   status: "draft" | "published";
   journeyTabs: JourneyTabDocument[];
   landingPageConfig: VisitConfigDocument["landingPageConfig"];
@@ -58,6 +66,12 @@ const EMPTY_EDITOR: EditorState = {
   fromLocationType: "attendance_mark_in",
   toLocationType: "attendance_mark_out",
   calculationMethod: "google_api_random",
+  daySummaryEnabled: false,
+  blockVisitAfterAttendanceCheckout: false,
+  approvalWorkflowEnabled: false,
+  approvalLevels: [],
+  claimDistanceCappingEnabled: false,
+  claimMaxDistanceKm: "0",
   status: "draft",
   journeyTabs: [],
   landingPageConfig: {
@@ -87,6 +101,17 @@ function toEditor(config: VisitConfigDocument): EditorState {
     fromLocationType: config.distanceConfig.fromLocationType || "attendance_mark_in",
     toLocationType: config.distanceConfig.toLocationType || "attendance_mark_out",
     calculationMethod: config.distanceConfig.calculationMethod || "google_api_random",
+    daySummaryEnabled: config.daySummaryEnabled,
+    blockVisitAfterAttendanceCheckout: config.blockVisitAfterAttendanceCheckout,
+    approvalWorkflowEnabled: config.approvalWorkflow.isEnabled,
+    approvalLevels: config.approvalWorkflow.levels.map((level, index) => ({
+      ...level,
+      level: index + 1,
+      approverType: level.approverType ?? "direct_manager",
+      autoRejectDays: level.autoRejectDays || 1,
+    })),
+    claimDistanceCappingEnabled: config.claimDistanceCapping.isEnabled,
+    claimMaxDistanceKm: String(config.claimDistanceCapping.maxDistanceKm),
     status: config.status,
     journeyTabs: [...config.journeyTabs].sort((a, b) => a.order - b.order),
     landingPageConfig: config.landingPageConfig,
@@ -115,6 +140,41 @@ function validate(editor: EditorState): string[] {
     }
     if (Number(editor.perKmRate) <= 0) {
       errors.push("Per-km rate must be positive.");
+    }
+  }
+  if (editor.reimbursementEnabled && editor.approvalWorkflowEnabled) {
+    if (!editor.daySummaryEnabled) {
+      errors.push("Visit Day Summary should be enabled before enabling Visit day approval.");
+    }
+    if (editor.approvalLevels.length === 0) {
+      errors.push("Visit approval workflow must include at least one approval level.");
+    }
+    if (editor.approvalLevels.length > 10) {
+      errors.push("Visit approval workflow supports a maximum of 10 levels.");
+    }
+    editor.approvalLevels.forEach((level, index) => {
+      const levelNumber = index + 1;
+      if (levelNumber < 1 || levelNumber > 10) {
+        errors.push("Visit approval levels must be between 1 and 10.");
+      }
+      if ((level.label ?? "").length > 100) {
+        errors.push(`Approval level ${levelNumber} label must be 100 characters or fewer.`);
+      }
+      if (level.approverType !== "direct_manager" && level.approverType !== "designation") {
+        errors.push(`Approval level ${levelNumber} must use a valid approver type.`);
+      }
+      if (level.approverType === "designation" && !level.approverDesignationId) {
+        errors.push(`Select an approver designation for approval level ${levelNumber}.`);
+      }
+      const autoRejectDays = Number(level.autoRejectDays);
+      if (!Number.isFinite(autoRejectDays) || autoRejectDays < 1 || autoRejectDays > 30) {
+        errors.push("Visit approval auto reject days must be between 1 and 30.");
+      }
+    });
+  }
+  if (editor.reimbursementEnabled && editor.claimDistanceCappingEnabled) {
+    if (Number(editor.claimMaxDistanceKm) <= 0) {
+      errors.push("Visit claim distance capping requires a positive maximum distance.");
     }
   }
   return errors;
@@ -311,6 +371,71 @@ export function VisitConfigPage({
     }));
   }
 
+  function addApprovalLevel() {
+    setEditor((current) => {
+      if (current.approvalLevels.length >= 10) return current;
+      return {
+        ...current,
+        approvalLevels: [
+          ...current.approvalLevels,
+          {
+            level: current.approvalLevels.length + 1,
+            label: current.approvalLevels.length === 0 ? "Manager Approval" : "",
+            approverType: "direct_manager",
+            autoRejectDays: 3,
+          },
+        ],
+      };
+    });
+  }
+
+  function patchApprovalLevel(index: number, patch: Partial<VisitApprovalLevel>) {
+    setEditor((current) => ({
+      ...current,
+      approvalLevels: current.approvalLevels.map((level, levelIndex) =>
+        levelIndex === index
+          ? {
+              ...level,
+              ...patch,
+              approverDesignationId:
+                patch.approverDesignationId ?? level.approverDesignationId,
+            }
+          : level,
+      ),
+    }));
+  }
+
+  function moveApprovalLevel(index: number, direction: -1 | 1) {
+    setEditor((current) => {
+      const next = [...current.approvalLevels];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return {
+        ...current,
+        approvalLevels: next.map((level, levelIndex) => ({ ...level, level: levelIndex + 1 })),
+      };
+    });
+  }
+
+  function removeApprovalLevel(index: number) {
+    setEditor((current) => ({
+      ...current,
+      approvalLevels: current.approvalLevels
+        .filter((_, levelIndex) => levelIndex !== index)
+        .map((level, levelIndex) => ({ ...level, level: levelIndex + 1 })),
+    }));
+  }
+
+  function toggleClaimDistanceCapping(enabled: boolean) {
+    setEditor((current) => ({
+      ...current,
+      claimDistanceCappingEnabled: enabled,
+      claimMaxDistanceKm:
+        enabled && Number(current.claimMaxDistanceKm) <= 0 ? "100" : current.claimMaxDistanceKm,
+    }));
+  }
+
   function startCreate() {
     setScopeMode("single");
     setEditor({ 
@@ -375,6 +500,26 @@ export function VisitConfigPage({
         fromLocationType: editor.fromLocationType,
         toLocationType: editor.toLocationType,
         calculationMethod: editor.calculationMethod,
+      },
+      daySummaryEnabled: editor.reimbursementEnabled && editor.daySummaryEnabled,
+      blockVisitAfterAttendanceCheckout: editor.blockVisitAfterAttendanceCheckout,
+      approvalWorkflow: {
+        isEnabled: editor.reimbursementEnabled && editor.approvalWorkflowEnabled,
+        levels: editor.reimbursementEnabled && editor.approvalWorkflowEnabled
+          ? editor.approvalLevels.map((level, index) => ({
+              level: index + 1,
+              label: level.label?.trim() || undefined,
+              approverType: level.approverType ?? "direct_manager",
+              approverDesignationId: level.approverDesignationId || undefined,
+              autoRejectDays: Number(level.autoRejectDays) || 0,
+            }))
+          : [],
+      },
+      claimDistanceCapping: {
+        isEnabled: editor.reimbursementEnabled && editor.claimDistanceCappingEnabled,
+        maxDistanceKm: Number(editor.claimMaxDistanceKm) || 0,
+        perKmRate: Number(editor.perKmRate) || 0,
+        multiplicationFactor: Number(editor.multiplicationFactor) || 0,
       },
       ...(editor.visitType === "store" && editor.storeMappingMode === "pjp"
         ? { landingPageConfig: editor.landingPageConfig }
@@ -571,7 +716,7 @@ export function VisitConfigPage({
           : []);
       setBuilderFields(fields);
       setSavedBuilderFields(fields);
-    } catch (error) {
+    } catch {
       // If schema doesn't exist yet (404), start with empty form
       setBuilderError(null);
       setBuilderFields([]);
@@ -671,6 +816,12 @@ export function VisitConfigPage({
   }
 
   async function publish() {
+    const validationErrors = validate(editor);
+    if (validationErrors.length) {
+      setErrors(validationErrors);
+      setView("config");
+      return;
+    }
     const activeTabs = editor.journeyTabs.filter((tab) => tab.isActive);
     if (activeTabs.length === 0) {
       setErrors(["Add at least one active journey tab before publishing."]);
@@ -829,6 +980,7 @@ export function VisitConfigPage({
                   <label>Distance from<select value={editor.fromLocationType} onChange={(event) => setEditor((current) => ({ ...current, fromLocationType: event.target.value }))}><option value="attendance_mark_in">Attendance mark-in</option><option value="first_visit_store">First visit store</option><option value="base_location">Base location</option><option value="attendance_mark_in_if_near_base">Attendance mark-in if near base</option></select></label>
                   <label>Distance to<select value={editor.toLocationType} onChange={(event) => setEditor((current) => ({ ...current, toLocationType: event.target.value }))}><option value="attendance_mark_out">Attendance mark-out</option><option value="last_visit_store">Last visit store</option><option value="base_location">Base location</option><option value="attendance_mark_out_if_near_base">Attendance mark-out if near base</option></select></label>
                   <label className="visit-check"><input type="checkbox" checked={editor.mandatoryCheckIn} onChange={(event) => setEditor((current) => ({ ...current, mandatoryCheckIn: event.target.checked }))} /> Require attendance check-in</label>
+                  <label className="visit-check"><input type="checkbox" checked={editor.blockVisitAfterAttendanceCheckout} onChange={(event) => setEditor((current) => ({ ...current, blockVisitAfterAttendanceCheckout: event.target.checked }))} /> Block visit after attendance checkout</label>
                   <label className="visit-check"><input type="checkbox" checked={editor.reimbursementEnabled} onChange={(event) => setEditor((current) => ({ ...current, reimbursementEnabled: event.target.checked }))} /> Enable reimbursement</label>
                   {editor.reimbursementEnabled && <>
                     <label>Multiplication factor<input type="number" value={editor.multiplicationFactor} onChange={(event) => setEditor((current) => ({ ...current, multiplicationFactor: event.target.value }))} /></label>
@@ -837,9 +989,213 @@ export function VisitConfigPage({
                 </div>
               </section>
 
+              {editor.reimbursementEnabled && <section className="visit-section-card">
+                <div className="visit-section-title"><span>4</span> Day summary & claims</div>
+                <div className="visit-config-stack">
+                  <div className="visit-setting-row">
+                    <label className="visit-switch-row">
+                      <input
+                        type="checkbox"
+                        checked={editor.daySummaryEnabled}
+                        onChange={(event) =>
+                          setEditor((current) => ({
+                            ...current,
+                            daySummaryEnabled: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>Enable Visit Day Summary</strong>
+                        <small>Allows mobile users to view daily visit travel legs, total distance, and total amount.</small>
+                      </span>
+                    </label>
+                  </div>
+
+                  <details className="visit-config-details" open={editor.approvalWorkflowEnabled}>
+                    <summary>
+                      <span>
+                        <strong>Approval Workflow</strong>
+                        <small>Allows mobile users to raise approval for the selected day summary amount and distance.</small>
+                      </span>
+                    </summary>
+                    <label className="visit-switch-row">
+                      <input
+                        type="checkbox"
+                        checked={editor.approvalWorkflowEnabled}
+                        onChange={(event) =>
+                          setEditor((current) => ({
+                            ...current,
+                            approvalWorkflowEnabled: event.target.checked,
+                            approvalLevels:
+                              event.target.checked && current.approvalLevels.length === 0
+                                ? [
+                                    {
+                                      level: 1,
+                                      label: "Manager Approval",
+                                      approverType: "direct_manager",
+                                      autoRejectDays: 3,
+                                    },
+                                  ]
+                                : current.approvalLevels,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>Enable Visit Day Approval Workflow</strong>
+                        <small>Approval depends on Visit Day Summary being enabled.</small>
+                      </span>
+                    </label>
+                    {editor.approvalWorkflowEnabled && !editor.daySummaryEnabled && (
+                      <div className="visit-legacy-note">
+                        Visit Day Summary should be enabled before enabling Visit day approval.
+                      </div>
+                    )}
+                    {editor.approvalWorkflowEnabled && (
+                      <>
+                        <div className="visit-approval-list">
+                          {editor.approvalLevels.map((level, index) => (
+                            <div className="visit-approval-row" key={index}>
+                              <span className="visit-tab-order">{index + 1}</span>
+                              <label>
+                                Level Label
+                                <input
+                                  maxLength={100}
+                                  value={level.label ?? ""}
+                                  onChange={(event) =>
+                                    patchApprovalLevel(index, { label: event.target.value })
+                                  }
+                                  placeholder="Manager Approval"
+                                />
+                              </label>
+                              <label>
+                                Approver Type
+                                <select
+                                  value={level.approverType ?? "direct_manager"}
+                                  onChange={(event) =>
+                                    patchApprovalLevel(index, {
+                                      approverType: event.target.value as VisitApprovalApproverType,
+                                    })
+                                  }
+                                >
+                                  <option value="direct_manager">Direct Manager</option>
+                                  <option value="designation">Designation</option>
+                                </select>
+                              </label>
+                              <label>
+                                Approver Designation
+                                <select
+                                  value={level.approverDesignationId ?? ""}
+                                  onChange={(event) =>
+                                    patchApprovalLevel(index, {
+                                      approverDesignationId: event.target.value || undefined,
+                                    })
+                                  }
+                                >
+                                  <option value="">
+                                    {level.approverType === "designation"
+                                      ? "Select designation"
+                                      : "Optional fallback"}
+                                  </option>
+                                  {designations.map((designation) => (
+                                    <option value={designation.id} key={designation.id}>
+                                      {designation.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                Auto Reject Days
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={30}
+                                  value={level.autoRejectDays}
+                                  onChange={(event) =>
+                                    patchApprovalLevel(index, {
+                                      autoRejectDays: Number(event.target.value),
+                                    })
+                                  }
+                                />
+                              </label>
+                              <div className="visit-order-actions">
+                                <button title="Move up" onClick={() => moveApprovalLevel(index, -1)}>↑</button>
+                                <button title="Move down" onClick={() => moveApprovalLevel(index, 1)}>↓</button>
+                              </div>
+                              <button
+                                className="danger"
+                                title="Remove level"
+                                onClick={() => removeApprovalLevel(index)}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="visit-add-tab">
+                          <button
+                            disabled={editor.approvalLevels.length >= 10}
+                            onClick={addApprovalLevel}
+                          >
+                            <Plus size={14} /> Add approval level
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </details>
+
+                  <details className="visit-config-details" open={editor.claimDistanceCappingEnabled}>
+                    <summary>
+                      <span>
+                        <strong>Claim Distance Capping</strong>
+                        <small>Claims process only up to the configured distance; actual distance remains visible in reports.</small>
+                      </span>
+                    </summary>
+                    <label className="visit-switch-row">
+                      <input
+                        type="checkbox"
+                        checked={editor.claimDistanceCappingEnabled}
+                        onChange={(event) => toggleClaimDistanceCapping(event.target.checked)}
+                      />
+                      <span>
+                        <strong>Enable Distance Capping For Visit Claims</strong>
+                        <small>Caps claimable distance and amount while preserving actual travelled distance in Day Summary.</small>
+                      </span>
+                    </label>
+                    {editor.claimDistanceCappingEnabled && (
+                      <>
+                        <div className="visit-fields-grid">
+                          <label>
+                            Maximum Claimable Distance (KM)
+                            <input
+                              type="number"
+                              min={0}
+                              value={editor.claimMaxDistanceKm}
+                              onChange={(event) =>
+                                setEditor((current) => ({
+                                  ...current,
+                                  claimMaxDistanceKm: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="visit-preview-note">
+                          Example: For 126 KM actual distance and a {Number(editor.claimMaxDistanceKm) || 0} KM cap at INR {(Number(editor.perKmRate) || 0).toFixed(2)}/KM, claim amount will be INR {(
+                            Math.min(126, Number(editor.claimMaxDistanceKm) || 0) *
+                            (Number(editor.perKmRate) || 0) *
+                            (Number(editor.multiplicationFactor) || 0)
+                          ).toFixed(2)}.
+                        </div>
+                      </>
+                    )}
+                  </details>
+
+                </div>
+              </section>}
+
               {showLandingForms && (
                 <section className="visit-section-card">
-                  <div className="visit-section-title"><span>4</span> Landing page forms</div>
+                  <div className="visit-section-title"><span>{editor.reimbursementEnabled ? "5" : "4"}</span> Landing page forms</div>
                   <div className="visit-form-links">
                     <button onClick={() => void openLandingBuilder("pjp_only")}><strong>{editor.landingPageConfig.storeTypeToggle.pjpLabel || "PJP Today"}</strong><small>{hasPjpLandingForm ? `${schemaFieldsByKey[pjpSchemaKey]?.length ?? 0} existing fields · Edit or add fields.` : "Create fields shown with today’s planned stores."}</small></button>
                     {(editor.allowAllMappedStores || hasAllStoresLandingForm) && <button onClick={() => void openLandingBuilder("all_mapped")}><strong>{editor.landingPageConfig.storeTypeToggle.allStoresLabel || "All Stores"}</strong><small>{hasAllStoresLandingForm ? `${schemaFieldsByKey[allStoresSchemaKey]?.length ?? 0} existing fields · Edit or add fields.` : "Create separate fields for all mapped stores."}</small></button>}
@@ -894,7 +1250,7 @@ export function VisitConfigPage({
               )}
 
               <section className="visit-section-card">
-                  <div className="visit-section-title"><span>{showLandingForms ? "5" : "4"}</span> Journey tabs</div>
+                  <div className="visit-section-title"><span>{showLandingForms ? editor.reimbursementEnabled ? "6" : "5" : editor.reimbursementEnabled ? "5" : "4"}</span> Journey tabs</div>
                   {!activeDesignationId && (
                     <div className="visit-legacy-note">
                       Add tabs now. They will be created automatically when you save the configuration.

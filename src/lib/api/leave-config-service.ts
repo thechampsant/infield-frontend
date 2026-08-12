@@ -2,6 +2,7 @@ import { ApiError, apiClient } from "./api-client";
 
 const BASE = "/api/v1/leave-config";
 const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
+const MONGO_ID_PATTERN = /^[a-f\d]{24}$/i;
 
 export type LeaveYear = "Calendar" | "Financial";
 export type LeaveEntitlementType = "Annual" | "Monthly";
@@ -23,6 +24,19 @@ export interface LeaveHoliday {
   date: string;
   name: string;
   type: LeaveHolidayType;
+}
+
+export interface LeaveHolidayGroup {
+  fieldValue: string;
+  holidays: LeaveHoliday[];
+}
+
+export interface HolidayGroupingField {
+  fieldKey: string;
+  label: string;
+  source: "STATIC" | "UDF";
+  type: string;
+  options?: string[];
 }
 
 export interface LeaveTypeConfig {
@@ -94,6 +108,9 @@ export interface LeavePolicy {
   applicableDesignations: string[];
   visibility: LeaveVisibility;
   holidays: LeaveHoliday[];
+  groupWiseHolidaysEnabled?: boolean;
+  holidayGroupFieldKey?: string;
+  holidayGroups?: LeaveHolidayGroup[];
   leaveTypes: LeaveTypeConfig[];
 }
 
@@ -179,6 +196,10 @@ function enumText<T extends string>(
 
 function makeId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function validMongoId(value: string | undefined): string | undefined {
+  return value && MONGO_ID_PATTERN.test(value) ? value : undefined;
 }
 
 function normalizeHexColour(value: unknown, fallback = "#2196F3"): string {
@@ -313,6 +334,27 @@ function normalizeHoliday(value: unknown): LeaveHoliday {
   };
 }
 
+function normalizeHolidayGroup(value: unknown): LeaveHolidayGroup {
+  const raw = record(value);
+  return {
+    fieldValue: text(raw.fieldValue),
+    holidays: Array.isArray(raw.holidays)
+      ? raw.holidays.map(normalizeHoliday)
+      : [],
+  };
+}
+
+function normalizeHolidayGroupingField(value: unknown): HolidayGroupingField {
+  const raw = record(value);
+  return {
+    fieldKey: text(raw.fieldKey),
+    label: text(raw.label) || text(raw.fieldKey),
+    source: enumText(raw.source, ["STATIC", "UDF"] as const, "STATIC"),
+    type: text(raw.type),
+    options: Array.isArray(raw.options) ? stringArray(raw.options) : undefined,
+  };
+}
+
 function normalizeLeaveType(value: unknown): LeaveTypeConfig {
   const raw = record(value);
   const cycle = record(raw.attendanceCycle);
@@ -420,6 +462,11 @@ function normalizePolicy(value: unknown): LeavePolicy {
     holidays: Array.isArray(raw.holidays)
       ? raw.holidays.map(normalizeHoliday)
       : [],
+    groupWiseHolidaysEnabled: bool(raw.groupWiseHolidaysEnabled),
+    holidayGroupFieldKey: text(raw.holidayGroupFieldKey) || undefined,
+    holidayGroups: Array.isArray(raw.holidayGroups)
+      ? raw.holidayGroups.map(normalizeHolidayGroup)
+      : [],
     leaveTypes: Array.isArray(raw.leaveTypes)
       ? raw.leaveTypes.map(normalizeLeaveType)
       : [],
@@ -432,6 +479,33 @@ function normalizeConfig(value: unknown, projectId: string): LeaveConfigDocument
     _id: text(raw._id) || text(raw.id) || undefined,
     projectId: text(raw.projectId) || projectId,
     policies: Array.isArray(raw.policies) ? raw.policies.map(normalizePolicy) : [],
+  };
+}
+
+function holidayForSave(holiday: LeaveHoliday): LeaveHoliday {
+  return {
+    ...holiday,
+    _id: validMongoId(holiday._id),
+  };
+}
+
+function leaveTypeForSave(leaveType: LeaveTypeConfig): LeaveTypeConfig {
+  return {
+    ...leaveType,
+    _id: validMongoId(leaveType._id),
+  };
+}
+
+function policyForSave(policy: LeavePolicy): LeavePolicy {
+  return {
+    ...policy,
+    _id: validMongoId(policy._id),
+    holidays: policy.holidays.map(holidayForSave),
+    holidayGroups: (policy.holidayGroups ?? []).map((group) => ({
+      ...group,
+      holidays: group.holidays.map(holidayForSave),
+    })),
+    leaveTypes: policy.leaveTypes.map(leaveTypeForSave),
   };
 }
 
@@ -591,15 +665,41 @@ export const leaveConfigService = {
     return normalizeResponse(raw, projectId);
   },
 
+  async listHolidayGroupingFields(projectId: string): Promise<HolidayGroupingField[]> {
+    if (USE_MOCK_API) {
+      await delay();
+      return [
+        {
+          fieldKey: "state",
+          label: "State",
+          source: "STATIC",
+          type: "select",
+          options: ["Karnataka", "Maharashtra", "Delhi"],
+        },
+        {
+          fieldKey: "zone",
+          label: "Zone",
+          source: "UDF",
+          type: "text",
+        },
+      ];
+    }
+    const raw = await apiClient.get<unknown>(`${BASE}/${projectId}/holiday-grouping-fields`);
+    return Array.isArray(raw) ? raw.map(normalizeHolidayGroupingField) : [];
+  },
+
   async save(projectId: string, policies: LeavePolicy[]): Promise<LeaveConfigResponse> {
+    const payloadPolicies = policies.map(policyForSave);
     if (USE_MOCK_API) {
       await delay();
       const current = ensureMockConfig(projectId);
-      const next = normalizeConfig({ ...current, policies }, projectId);
+      const next = normalizeConfig({ ...current, policies: payloadPolicies }, projectId);
       mockConfigs.set(projectId, next);
       return withMockWarnings(next);
     }
-    const raw = await apiClient.put<unknown>(`${BASE}/${projectId}`, { policies });
+    const raw = await apiClient.put<unknown>(`${BASE}/${projectId}`, {
+      policies: payloadPolicies,
+    });
     return normalizeResponse(raw, projectId);
   },
 
@@ -688,18 +788,36 @@ export const leaveConfigService = {
         ...current,
         policies: current.policies.map((policy) =>
           policy._id === policyId
-            ? {
-                ...policy,
-                holidays: [
-                  ...policy.holidays,
-                  {
-                    _id: makeId("holiday"),
-                    date: "2026-08-15",
-                    name: file.name.replace(/\.[^.]+$/, "") || "Uploaded Holiday",
-                    type: "National" as LeaveHolidayType,
-                  },
-                ],
-              }
+            ? policy.groupWiseHolidaysEnabled
+              ? {
+                  ...policy,
+                  holidayGroups: [
+                    ...(policy.holidayGroups ?? []),
+                    {
+                      fieldValue: "Karnataka",
+                      holidays: [
+                        {
+                          _id: makeId("holiday"),
+                          date: "2026-08-15",
+                          name: file.name.replace(/\.[^.]+$/, "") || "Uploaded Holiday",
+                          type: "National" as LeaveHolidayType,
+                        },
+                      ],
+                    },
+                  ],
+                }
+              : {
+                  ...policy,
+                  holidays: [
+                    ...policy.holidays,
+                    {
+                      _id: makeId("holiday"),
+                      date: "2026-08-15",
+                      name: file.name.replace(/\.[^.]+$/, "") || "Uploaded Holiday",
+                      type: "National" as LeaveHolidayType,
+                    },
+                  ],
+                }
             : policy,
         ),
       };
@@ -722,6 +840,18 @@ export const leaveConfigService = {
       formData,
     );
     return normalizeUploadResponse(raw, projectId);
+  },
+
+  async downloadHolidayTemplate(projectId: string, policyId: string): Promise<Blob> {
+    if (USE_MOCK_API) {
+      await delay();
+      return new Blob(["Group,Date,Name,Type\nKarnataka,2026-08-15,Independence Day,National\n"], {
+        type: "text/csv;charset=utf-8;",
+      });
+    }
+    return apiClient.getBlob(
+      `${BASE}/${projectId}/policies/${policyId}/holidays/template`,
+    );
   },
 
   async reconcileCredits(

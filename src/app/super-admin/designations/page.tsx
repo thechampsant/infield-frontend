@@ -19,6 +19,10 @@ import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DesignationFormModal, DesignationDetailsModal } from "@/components/designations";
 import { getAdminApi, getRoleDesignationApi } from "@/lib/api";
+import {
+  designationService,
+  type PermissionOption,
+} from "@/lib/api/designation-service";
 import { exportToCsv } from "@/lib/utils/export-csv";
 import type {
   Account,
@@ -34,6 +38,7 @@ export default function SuperAdminDesignationsPage() {
   // State
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [permissionOptions, setPermissionOptions] = useState<PermissionOption[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedAccountCode, setSelectedAccountCode] = useState<string>("");
@@ -90,6 +95,7 @@ export default function SuperAdminDesignationsPage() {
     if (!projectId) {
       setDesignations([]);
       setRoles([]);
+      setPermissionOptions([]);
       return;
     }
     setIsLoading(true);
@@ -100,7 +106,11 @@ export default function SuperAdminDesignationsPage() {
         api.getRolesByProject(projectId),
         api.getDesignationsByProject(projectId),
       ]);
+      const permissionsResponse = await designationService
+        .listPermissionOptions(projectId)
+        .catch(() => []);
       setRoles(rolesResponse);
+      setPermissionOptions(permissionsResponse);
       
       // Enrich designations with role names
       const enrichedDesignations = designationsResponse.map((des) => {
@@ -115,6 +125,7 @@ export default function SuperAdminDesignationsPage() {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
       setDesignations([]);
       setRoles([]);
+      setPermissionOptions([]);
     } finally {
       setIsLoading(false);
     }
@@ -137,7 +148,6 @@ export default function SuperAdminDesignationsPage() {
   }, [selectedProjectId, fetchData]);
 
   // Get selected objects
-  const selectedAccount = accounts.find((a) => a.code === selectedAccountCode);
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
 
   // CRUD handlers
@@ -480,6 +490,7 @@ export default function SuperAdminDesignationsPage() {
           designation={selectedDesignation}
           projectId={selectedProjectId}
           roles={roles}
+          permissionOptions={permissionOptions}
           isLoading={isSubmitting}
         />
       )}

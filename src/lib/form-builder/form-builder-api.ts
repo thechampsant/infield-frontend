@@ -103,6 +103,7 @@ export interface UpdateFieldPayload {
   validation?: Record<string, any>;
   options?: string[] | Record<string, any>;
   values?: string[];
+  multiple?: boolean;
   dataSource?: Record<string, any>;
   formula?: Record<string, any>;
   conditionGroups?: Record<string, any>[];

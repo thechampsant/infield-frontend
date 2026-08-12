@@ -121,6 +121,7 @@ export interface UdfFileConfig extends UdfMediaConfig {
 
 export interface UdfOptionListConfig {
   options: string[];
+  multiple?: boolean;
 }
 
 export type UdfFieldConfig =

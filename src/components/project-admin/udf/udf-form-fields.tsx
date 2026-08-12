@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { udfConfigService } from "@/lib/api";
+import { isShiftTimeFieldKey } from "@/lib/project-admin/user-shift-times";
 import type { UDFField, UDFValue } from "@/types/project-admin";
 
 interface UDFFormFieldsProps {
@@ -170,7 +171,36 @@ export function UDFFormFields({
                   {f.mandatory && <span className="req"> *</span>}
                 </label>
 
-                {f.type === "dropdown" ? (
+                {isShiftTimeFieldKey(f.fieldKey) ? (
+                  <>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
+                        type="time"
+                        className={`form-input${hasErr ? " err" : ""}`}
+                        value={stringValue(f.fieldKey)}
+                        onChange={(e) => set(f.fieldKey, e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => set(f.fieldKey, "00:00")}
+                      >
+                        00:00
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => set(f.fieldKey, "")}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                      Leave both shift times blank for default attendance. Use 00:00 for both to bypass shift logic.
+                    </div>
+                  </>
+                ) : f.type === "dropdown" ? (
                   f.multiple ? (
                     <div className="udf-multiSelect">
                       <div

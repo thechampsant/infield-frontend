@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
-import { designationService, type Designation } from "@/lib/api/designation-service";
+import {
+  designationService,
+  type Designation,
+  type PermissionOption,
+} from "@/lib/api/designation-service";
 import { roleService, type BackendRole } from "@/lib/api/role-service";
 import {
   accessForRole,
   accessLabel,
+  defaultPermissionsForAccess,
   HIERARCHY_ROLES_UNAVAILABLE_PAGE,
   permissionsForRole,
   type DesignationAccess,
@@ -29,6 +34,7 @@ interface Props {
 export function DesignationsPage({ projectId, projectName }: Props) {
   const [roles, setRoles] = useState<BackendRole[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
+  const [permissionOptions, setPermissionOptions] = useState<PermissionOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -54,8 +60,12 @@ export function DesignationsPage({ projectId, projectName }: Props) {
         roleService.listByProject(projectId),
         designationService.listByProject(projectId),
       ]);
+      const permissionList = await designationService
+        .listPermissionOptions(projectId)
+        .catch(() => []);
       setRoles(roleList);
       setDesignations(designationList);
+      setPermissionOptions(permissionList);
     } catch (err) {
       setError(formatApiError(err, "Failed to load designations"));
     } finally {
@@ -83,12 +93,17 @@ export function DesignationsPage({ projectId, projectName }: Props) {
         const role = roleById.get(item.roleId);
         const roleName = role?.roleName ?? "";
         const itemAccess = item.access as DesignationAccess | undefined;
+        const access = itemAccess || accessForRole(roleName);
         return {
           projectId,
           name: item.name,
+          externalCode: item.name,
           roleId: item.roleId,
-          permissions: permissionsForRole(roleName),
-          access: itemAccess || accessForRole(roleName),
+          permissions:
+            item.permissions?.length
+              ? item.permissions
+              : permissionsForRole(roleName),
+          access,
         };
       });
       await designationService.create(payload);
@@ -110,13 +125,17 @@ export function DesignationsPage({ projectId, projectName }: Props) {
       if (!editing) return;
       const role = roleById.get(data.roleId);
       const roleName = role?.roleName ?? "";
+      const access = (data.access as DesignationAccess) || accessForRole(roleName);
       await designationService.update([
         {
           id: editing.id,
           name: data.name,
           roleId: data.roleId,
-          permissions: permissionsForRole(roleName),
-          access: (data.access as DesignationAccess) || accessForRole(roleName),
+          permissions:
+            data.permissions.length > 0
+              ? data.permissions
+              : defaultPermissionsForAccess(access),
+          access,
         },
       ]);
       setEditing(null);
@@ -348,6 +367,7 @@ export function DesignationsPage({ projectId, projectName }: Props) {
       <AddDesignationModal
         isOpen={addOpen}
         roles={roles}
+        permissionOptions={permissionOptions}
         onClose={() => setAddOpen(false)}
         onCreate={handleCreate}
       />
@@ -356,6 +376,7 @@ export function DesignationsPage({ projectId, projectName }: Props) {
         isOpen={Boolean(editing)}
         designation={editing}
         roles={roles}
+        permissionOptions={permissionOptions}
         onClose={() => setEditing(null)}
         onSave={handleEdit}
       />
