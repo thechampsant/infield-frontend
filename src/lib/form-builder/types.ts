@@ -156,6 +156,9 @@ export interface TypeSpecificConfig {
   codeType?: "barcode" | "qr" | "any";
   validateAgainstMaster?: boolean;
 
+  // Static option fields
+  multiple?: boolean;
+
   // File Upload
   allowedFileTypes?: string[];
   maxFileSize?: number;

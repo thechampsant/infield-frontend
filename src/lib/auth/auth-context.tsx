@@ -24,7 +24,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (credentials: LoginDto) => Promise<void>;
+  login: (credentials: LoginDto) => Promise<BackendUser>;
   /** Establish a session from a token+user obtained via OTP/passkey flows. */
   establishSession: (accessToken: string, user: BackendUser) => void;
   logout: () => Promise<void>;
@@ -109,6 +109,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated: true,
         isLoading: false,
       });
+
+      return response.user;
     } catch (error) {
       setState({ user: null, isAuthenticated: false, isLoading: false });
       throw error;
@@ -167,4 +169,3 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
-

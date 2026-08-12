@@ -34,6 +34,45 @@ export const DEFAULT_HIERARCHY_ROLE_DEFINITIONS: ReadonlyArray<HierarchyRoleShap
   })),
 ];
 
+export const PROJECT_WEB_ADMIN_PERMISSIONS = [
+  "project:read",
+  "designation:create",
+  "designation:read",
+  "designation:update",
+  "designation:delete",
+  "designation:admin",
+  "user:create",
+  "user:read",
+  "user:update",
+  "user:delete",
+  "user:admin",
+  "store:create",
+  "store:read",
+  "store:update",
+  "store:delete",
+  "store:admin",
+  "product:create",
+  "product:read",
+  "product:update",
+  "product:delete",
+  "product:admin",
+  "sales:create",
+  "sales:read",
+  "sales:update",
+  "sales:delete",
+  "sales:admin",
+  "stock:create",
+  "stock:read",
+  "stock:update",
+  "stock:delete",
+  "stock:admin",
+  "module-config:read",
+  "module-config:update",
+  "bulk:upload",
+  "bulk:export",
+  "audit:read",
+] as const;
+
 /** INF2-1535 AC3: Employee (L1) and Manager 1–10 (L2–L11) only. */
 export function isHierarchyRole(role: HierarchyRoleShape): boolean {
   const kind = classifyRole(role.roleName);
@@ -97,6 +136,15 @@ export function accessForRole(roleName: string): DesignationAccess {
 export function permissionsForRole(roleName: string): string[] {
   if (classifyRole(roleName) === "employee") return ["user:read"];
   return ["user:read", "module-config:read"];
+}
+
+export function defaultPermissionsForAccess(
+  access: DesignationAccess,
+): string[] {
+  if (access === "WEB" || access === "BOTH") {
+    return [...PROJECT_WEB_ADMIN_PERMISSIONS];
+  }
+  return [];
 }
 
 export function accessLabel(access?: DesignationAccess): string {

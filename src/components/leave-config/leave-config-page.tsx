@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Copy,
+  Download,
   FileUp,
   Pencil,
   Plus,
@@ -28,6 +29,7 @@ import {
   formatApiError,
   leaveConfigService,
   type Designation,
+  type HolidayGroupingField,
   type HolidayUploadSummary,
   type LeaveApprovalLevel,
   type LeaveAutoAction,
@@ -71,6 +73,8 @@ const HOLIDAY_TYPES: LeaveHolidayType[] = ["National", "Regional", "Optional"];
 const AUTO_ACTIONS: LeaveAutoAction[] = ["None", "AutoApprove", "AutoReject"];
 const HEX_COLOUR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+type HolidayTableRow = LeaveHoliday & { groupValue: string };
+
 function cloneConfig(config: LeaveConfigDocument): LeaveConfigDocument {
   return JSON.parse(JSON.stringify(config)) as LeaveConfigDocument;
 }
@@ -113,6 +117,8 @@ function defaultPolicy(designations: Designation[]): LeavePolicy {
       showHolidayCalendar: true,
     },
     holidays: [],
+    groupWiseHolidaysEnabled: false,
+    holidayGroups: [],
     leaveTypes: [
       withDefaultApprover(
         leaveConfigService.createCustomLeaveType({
@@ -133,6 +139,39 @@ function defaultHoliday(): LeaveHoliday {
     name: "",
     type: "National",
   };
+}
+
+function defaultGroupValue(field?: HolidayGroupingField): string {
+  return field?.options?.[0] ?? "";
+}
+
+function flattenHolidayGroups(policy: LeavePolicy): HolidayTableRow[] {
+  return (policy.holidayGroups ?? []).flatMap((group) =>
+    group.holidays.map((holiday) => ({
+      ...holiday,
+      groupValue: group.fieldValue,
+    })),
+  );
+}
+
+function buildHolidayGroups(rows: HolidayTableRow[]): LeavePolicy["holidayGroups"] {
+  const groupMap = new Map<string, LeaveHoliday[]>();
+  rows.forEach(({ groupValue, ...holiday }) => {
+    const key = groupValue.trim();
+    const holidays = groupMap.get(key) ?? [];
+    holidays.push(holiday);
+    groupMap.set(key, holidays);
+  });
+  return Array.from(groupMap, ([fieldValue, holidays]) => ({ fieldValue, holidays }));
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function localDateInputValue(date = new Date()): string {
@@ -211,6 +250,17 @@ function validateConfig(config: LeaveConfigDocument): string[] {
         errors.push(`${policyLabel}: holiday ${holidayIndex + 1} needs date, name, and type.`);
       }
     });
+
+    if (policy.groupWiseHolidaysEnabled) {
+      if (!policy.holidayGroupFieldKey) {
+        errors.push(`${policyLabel}: select a holiday grouping field.`);
+      }
+      flattenHolidayGroups(policy).forEach((holiday, holidayIndex) => {
+        if (!holiday.groupValue.trim() || !holiday.date || !holiday.name.trim() || !holiday.type) {
+          errors.push(`${policyLabel}: grouped holiday ${holidayIndex + 1} needs group, date, name, and type.`);
+        }
+      });
+    }
   });
 
   return Array.from(new Set(errors));
@@ -256,6 +306,7 @@ export function LeaveConfigPage({
   const [config, setConfig] = useState<LeaveConfigDocument | null>(null);
   const [savedConfig, setSavedConfig] = useState<LeaveConfigDocument | null>(null);
   const [designations, setDesignations] = useState<Designation[]>([]);
+  const [holidayGroupingFields, setHolidayGroupingFields] = useState<HolidayGroupingField[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [uploadSummary, setUploadSummary] = useState<HolidayUploadSummary | null>(null);
@@ -297,6 +348,10 @@ export function LeaveConfigPage({
         leaveConfigService.initialize(projectId),
       ]);
       setDesignations(designationList);
+      leaveConfigService
+        .listHolidayGroupingFields(projectId)
+        .then(setHolidayGroupingFields)
+        .catch(() => setHolidayGroupingFields([]));
       setIsActive(
         Boolean(featureConfig.modules.find((module) => module.key === "leave")?.isActive),
       );
@@ -471,6 +526,30 @@ export function LeaveConfigPage({
     }
   }
 
+  async function handleDownloadHolidayTemplate(policyIndex: number) {
+    if (!config) return;
+    let workingConfig = config;
+    if (dirty || !config.policies[policyIndex]?._id) {
+      const saved = await saveDraft({ silent: true });
+      if (!saved) return;
+      workingConfig = saved;
+    }
+    const policy = workingConfig.policies[policyIndex];
+    if (!policy?._id) return;
+
+    setSaving(true);
+    try {
+      const blob = await leaveConfigService.downloadHolidayTemplate(projectId, policy._id);
+      const filename = `${(policy.name || "leave-policy").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-holiday-template.xlsx`;
+      downloadBlob(blob, filename);
+      setToast({ type: "success", message: "Holiday template downloaded." });
+    } catch (err) {
+      setToast({ type: "error", message: formatApiError(err, "Template download failed") });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function openReconcileDialog(policyIndex: number) {
     setReconcilePolicyIndex(policyIndex);
     setReconcileDate(localDateInputValue());
@@ -638,6 +717,7 @@ export function LeaveConfigPage({
           policy={currentPolicy}
           policyIndex={view.policyIndex}
           designations={designations}
+          holidayGroupingFields={holidayGroupingFields}
           policies={config.policies}
           onBack={() => setView({ mode: "list" })}
           onOpenType={(typeIndex) =>
@@ -645,6 +725,7 @@ export function LeaveConfigPage({
           }
           onOpenReconcile={isActive ? () => openReconcileDialog(view.policyIndex) : undefined}
           onUpload={(file) => handleUploadHolidays(view.policyIndex, file)}
+          onDownloadTemplate={() => handleDownloadHolidayTemplate(view.policyIndex)}
           onChange={(nextPolicy) =>
             updateConfig((current) => ({
               ...current,
@@ -860,6 +941,10 @@ function PolicyList({
     <div className="leave-policy-list">
       {config.policies.map((policy, index) => {
         const activeTypes = policy.leaveTypes.length;
+        const groupedHolidayCount = (policy.holidayGroups ?? []).reduce(
+          (count, group) => count + group.holidays.length,
+          0,
+        );
         return (
           <article className="leave-policy-card" key={policy._id ?? index}>
             <button type="button" className="leave-policy-main" onClick={() => onEdit(index)}>
@@ -875,7 +960,7 @@ function PolicyList({
                 </p>
                 <div className="leave-policy-meta">
                   <span>{activeTypes} leave types</span>
-                  <span>{policy.holidays.length} holidays</span>
+                  <span>{policy.holidays.length + groupedHolidayCount} holidays</span>
                 </div>
               </div>
             </button>
@@ -906,24 +991,33 @@ function PolicyEditor({
   policy,
   policyIndex,
   designations,
+  holidayGroupingFields,
   policies,
   onBack,
   onOpenType,
   onOpenReconcile,
   onChange,
   onUpload,
+  onDownloadTemplate,
 }: {
   policy: LeavePolicy;
   policyIndex: number;
   designations: Designation[];
+  holidayGroupingFields: HolidayGroupingField[];
   policies: LeavePolicy[];
   onBack: () => void;
   onOpenType: (typeIndex: number) => void;
   onOpenReconcile?: () => void;
   onChange: (policy: LeavePolicy) => void;
   onUpload: (file: File) => void;
+  onDownloadTemplate: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const groupWiseEnabled = Boolean(policy.groupWiseHolidaysEnabled);
+  const selectedGroupingField = holidayGroupingFields.find(
+    (field) => field.fieldKey === policy.holidayGroupFieldKey,
+  );
+  const groupedHolidayRows = useMemo(() => flattenHolidayGroups(policy), [policy]);
 
   const usedDesignations = useMemo(() => {
     const used = new Map<string, string>();
@@ -954,6 +1048,50 @@ function PolicyEditor({
       holidays: policy.holidays.map((holiday, holidayIndex) =>
         holidayIndex === index ? { ...holiday, ...patchValue } : holiday,
       ),
+    });
+  }
+
+  function updateGroupedHoliday(index: number, patchValue: Partial<HolidayTableRow>) {
+    const rows = groupedHolidayRows.map((holiday, holidayIndex) =>
+      holidayIndex === index ? { ...holiday, ...patchValue } : holiday,
+    );
+    patch({ holidayGroups: buildHolidayGroups(rows) });
+  }
+
+  function removeGroupedHoliday(index: number) {
+    patch({
+      holidayGroups: buildHolidayGroups(
+        groupedHolidayRows.filter((_, holidayIndex) => holidayIndex !== index),
+      ),
+    });
+  }
+
+  function addGroupedHoliday() {
+    patch({
+      holidayGroups: buildHolidayGroups([
+        ...groupedHolidayRows,
+        {
+          ...defaultHoliday(),
+          groupValue: defaultGroupValue(selectedGroupingField),
+        },
+      ]),
+    });
+  }
+
+  function setGroupWiseHolidaysEnabled(checked: boolean) {
+    patch({
+      groupWiseHolidaysEnabled: checked,
+      holidayGroupFieldKey: checked
+        ? policy.holidayGroupFieldKey || holidayGroupingFields[0]?.fieldKey
+        : undefined,
+      holidayGroups: checked ? policy.holidayGroups ?? [] : [],
+    });
+  }
+
+  function setHolidayGroupField(fieldKey: string) {
+    patch({
+      holidayGroupFieldKey: fieldKey || undefined,
+      holidayGroups: [],
     });
   }
 
@@ -1058,7 +1196,11 @@ function PolicyEditor({
       <CollapsibleSection
           icon={<CalendarDays size={18} />}
           title="Holiday Calendar"
-          description="Add manual holidays or upload a CSV/XLSX file with Date, Name, Type."
+          description={
+            groupWiseEnabled && selectedGroupingField
+              ? `Add group-wise holidays by ${selectedGroupingField.label}.`
+              : "Add manual holidays or upload a CSV/XLSX file with Date, Name, Type."
+          }
           action={
             policy.visibility.showHolidayCalendar ? (
             <div className="leave-section-actions">
@@ -1076,6 +1218,13 @@ function PolicyEditor({
               <button
                 type="button"
                 className="leave-secondary-btn small"
+                onClick={onDownloadTemplate}
+              >
+                <Download size={14} /> Download Template
+              </button>
+              <button
+                type="button"
+                className="leave-secondary-btn small"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <FileUp size={14} /> Upload
@@ -1083,7 +1232,11 @@ function PolicyEditor({
               <button
                 type="button"
                 className="leave-secondary-btn small"
-                onClick={() => patch({ holidays: [...policy.holidays, defaultHoliday()] })}
+                onClick={() =>
+                  groupWiseEnabled
+                    ? addGroupedHoliday()
+                    : patch({ holidays: [...policy.holidays, defaultHoliday()] })
+                }
               >
                 <Plus size={14} /> Add Holiday
               </button>
@@ -1100,75 +1253,78 @@ function PolicyEditor({
               patch({ visibility: { ...policy.visibility, showHolidayCalendar: checked } })
             }
           />
+          <ToggleRow
+            title="Enable group-wise holidays"
+            description="Configure holidays by a project field, with default holidays used as fallback."
+            checked={groupWiseEnabled}
+            onChange={setGroupWiseHolidaysEnabled}
+          />
+          {groupWiseEnabled && (
+            <label className="leave-field">
+              <span>Holiday Grouping Field</span>
+              <select
+                value={policy.holidayGroupFieldKey ?? ""}
+                onChange={(event) => setHolidayGroupField(event.target.value)}
+              >
+                <option value="">Select grouping field</option>
+                {holidayGroupingFields.map((field) => (
+                  <option value={field.fieldKey} key={field.fieldKey}>
+                    {field.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         {policy.visibility.showHolidayCalendar ? (
-          <div className="leave-table-wrap">
-            <table className="leave-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Holiday</th>
-                  <th>Type</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {policy.holidays.map((holiday, index) => (
-                  <tr key={holiday._id ?? index}>
-                    <td>
-                      <input
-                        type="date"
-                        value={holiday.date}
-                        onChange={(event) => updateHoliday(index, { date: event.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        value={holiday.name}
-                        placeholder="Holiday name"
-                        onChange={(event) => updateHoliday(index, { name: event.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <select
-                        value={holiday.type}
-                        onChange={(event) =>
-                          updateHoliday(index, { type: event.target.value as LeaveHolidayType })
-                        }
-                      >
-                        {HOLIDAY_TYPES.map((type) => (
-                          <option value={type} key={type}>
-                            {type}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="leave-table-remove"
-                        onClick={() =>
-                          patch({
-                            holidays: policy.holidays.filter((_, holidayIndex) => holidayIndex !== index),
-                          })
-                        }
-                        aria-label="Remove holiday"
-                      >
-                        <X size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {!policy.holidays.length && (
-                  <tr>
-                    <td colSpan={4}>
-                      <div className="leave-empty-inline">No holidays configured.</div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {groupWiseEnabled && (
+              <HolidayTable
+                holidays={groupedHolidayRows}
+                groupLabel={selectedGroupingField?.label ?? "Group"}
+                groupOptions={selectedGroupingField?.options}
+                onChange={updateGroupedHoliday}
+                onRemove={removeGroupedHoliday}
+                emptyLabel={
+                  policy.holidayGroupFieldKey
+                    ? "No group-wise holidays configured."
+                    : "Select a grouping field to add group-wise holidays."
+                }
+              />
+            )}
+            <div className="leave-subsection">
+              {groupWiseEnabled && (
+                <div className="leave-subsection-heading">
+                  <strong>Default Holidays</strong>
+                  <small>Used when an employee has no matching holiday group.</small>
+                </div>
+              )}
+              <HolidayTable
+                holidays={policy.holidays}
+                onChange={updateHoliday}
+                onRemove={(index) =>
+                  patch({
+                    holidays: policy.holidays.filter((_, holidayIndex) => holidayIndex !== index),
+                  })
+                }
+                emptyLabel="No holidays configured."
+              />
+              {groupWiseEnabled && (
+                <button
+                  type="button"
+                  className="leave-secondary-btn small"
+                  onClick={() => patch({ holidays: [...policy.holidays, defaultHoliday()] })}
+                >
+                  <Plus size={14} /> Add Default Holiday
+                </button>
+              )}
+            </div>
+            {groupWiseEnabled && selectedGroupingField && (
+              <div className="leave-empty-inline">
+                Upload templates include the {selectedGroupingField.label} column.
+              </div>
+            )}
+          </>
         ) : (
           <div className="leave-empty-inline">
             Holiday calendar is hidden from employees. Enable it to manage visible holidays.
@@ -1239,6 +1395,118 @@ function PolicyEditor({
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+function HolidayTable({
+  holidays,
+  groupLabel,
+  groupOptions,
+  onChange,
+  onRemove,
+  emptyLabel,
+}: {
+  holidays: LeaveHoliday[] | HolidayTableRow[];
+  groupLabel?: string;
+  groupOptions?: string[];
+  onChange: (index: number, patchValue: Partial<HolidayTableRow>) => void;
+  onRemove: (index: number) => void;
+  emptyLabel: string;
+}) {
+  const hasGroupColumn = Boolean(groupLabel);
+  const colSpan = hasGroupColumn ? 5 : 4;
+
+  return (
+    <div className="leave-table-wrap">
+      <table className="leave-table">
+        <thead>
+          <tr>
+            {hasGroupColumn && <th>{groupLabel}</th>}
+            <th>Date</th>
+            <th>Holiday</th>
+            <th>Type</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {holidays.map((holiday, index) => {
+            const groupedHoliday = holiday as HolidayTableRow;
+            return (
+              <tr key={holiday._id ?? `holiday-row-${index}`}>
+                {hasGroupColumn && (
+                  <td>
+                    {groupOptions?.length ? (
+                      <select
+                        value={groupedHoliday.groupValue}
+                        onChange={(event) => onChange(index, { groupValue: event.target.value })}
+                      >
+                        <option value="">Select {groupLabel}</option>
+                        {groupOptions.map((option) => (
+                          <option value={option} key={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={groupedHoliday.groupValue}
+                        placeholder={`${groupLabel} value`}
+                        onChange={(event) => onChange(index, { groupValue: event.target.value })}
+                      />
+                    )}
+                  </td>
+                )}
+                <td>
+                  <input
+                    type="date"
+                    value={holiday.date}
+                    onChange={(event) => onChange(index, { date: event.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    value={holiday.name}
+                    placeholder="Holiday name"
+                    onChange={(event) => onChange(index, { name: event.target.value })}
+                  />
+                </td>
+                <td>
+                  <select
+                    value={holiday.type}
+                    onChange={(event) =>
+                      onChange(index, { type: event.target.value as LeaveHolidayType })
+                    }
+                  >
+                    {HOLIDAY_TYPES.map((type) => (
+                      <option value={type} key={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="leave-table-remove"
+                    onClick={() => onRemove(index)}
+                    aria-label="Remove holiday"
+                  >
+                    <X size={14} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+          {!holidays.length && (
+            <tr>
+              <td colSpan={colSpan}>
+                <div className="leave-empty-inline">{emptyLabel}</div>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

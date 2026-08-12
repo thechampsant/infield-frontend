@@ -69,17 +69,37 @@ export interface LoginDto {
 
 /** Backend user info returned with login / auth flows */
 export interface BackendUser {
+  _id?: string;
   id: string;
   email: string;
   role?: string;
   firstName?: string;
   lastName?: string;
+  projectId?: string | null;
+  projectCode?: string | null;
+  accountId?: string | null;
+  accountCode?: string | null;
+  accountName?: string | null;
   /**
    * Access level inherited from the user's designation->role mapping (INF2-1535
-   * AC6/AC7). Not yet returned by the login or `users/me` payloads; populated
-   * once the backend exposes it. When "MOBILE", the web portal is restricted.
+   * AC6/AC7). When "MOBILE", the web portal is restricted.
    */
-  access?: "WEB" | "MOBILE" | "BOTH";
+  access?: "WEB" | "MOBILE" | "BOTH" | null;
+  designation?: {
+    id: string | null;
+    name: string | null;
+    roleName: string | null;
+    roleLevel: number | null;
+  } | null;
+  projects?: Array<{
+    projectId: string;
+    projectCode: string;
+    projectName: string;
+    accountId: string | null;
+    accountCode: string | null;
+    accountName: string | null;
+    status: string;
+  }>;
 }
 
 /** Client white-label branding for the master shell top bar */
@@ -308,8 +328,9 @@ export interface BackendDesignation {
 export interface CreateDesignationDto {
   projectId: string;
   name: string;
+  externalCode?: string;
   roleId: string;
-  permissions?: string[];
+  permissions: string[];
   access?: AccessLevel;
 }
 

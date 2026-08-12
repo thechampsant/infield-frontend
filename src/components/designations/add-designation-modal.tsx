@@ -2,18 +2,25 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
+import type { PermissionOption } from "@/lib/api/designation-service";
 import type { BackendRole } from "@/lib/api/role-service";
 import { toRoleOptions } from "@/lib/api/role-service";
 import {
   parseDesignationCsv,
   type ParsedDesignationRow,
 } from "@/lib/designations/parse-csv";
-import { HIERARCHY_ROLES_UNAVAILABLE_MODAL } from "@/lib/designations/backend-roles";
+import {
+  defaultPermissionsForAccess,
+  HIERARCHY_ROLES_UNAVAILABLE_MODAL,
+  type DesignationAccess,
+} from "@/lib/designations/backend-roles";
+import { PermissionSelector } from "./permission-selector";
 
 export interface NewDesignationInput {
   name: string;
   roleId: string;
   access?: string;
+  permissions?: string[];
 }
 
 const TEMPLATE_HREF = "/templates/designation-bulk-template.csv";
@@ -21,11 +28,13 @@ const TEMPLATE_HREF = "/templates/designation-bulk-template.csv";
 export function AddDesignationModal({
   isOpen,
   roles,
+  permissionOptions,
   onClose,
   onCreate,
 }: {
   isOpen: boolean;
   roles: BackendRole[];
+  permissionOptions: PermissionOption[];
   onClose: () => void;
   onCreate: (items: NewDesignationInput[]) => Promise<void>;
 }) {
@@ -35,6 +44,9 @@ export function AddDesignationModal({
   const [name, setName] = useState("");
   const [roleId, setRoleId] = useState("");
   const [access, setAccess] = useState<string>("BOTH");
+  const [permissions, setPermissions] = useState<string[]>(
+    defaultPermissionsForAccess("BOTH"),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -50,6 +62,7 @@ export function AddDesignationModal({
       setName("");
       setRoleId("");
       setAccess("BOTH");
+      setPermissions(defaultPermissionsForAccess("BOTH"));
       setErrors({});
       setSubmitting(false);
       setFile(null);
@@ -82,6 +95,9 @@ export function AddDesignationModal({
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = "Designation name is required";
     if (!roleId) next.role = "Role is mandatory";
+    if (permissions.length === 0) {
+      next.permissions = "Select at least one permission.";
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -93,7 +109,7 @@ export function AddDesignationModal({
 
     if (tab === "individual") {
       if (!validateIndividual()) return;
-      items = [{ name: name.trim(), roleId, access }];
+      items = [{ name: name.trim(), roleId, access, permissions }];
     } else {
       if (parsedRows.length === 0) {
         setErrors({ form: "Add a file with at least one valid designation." });
@@ -206,7 +222,11 @@ export function AddDesignationModal({
                 <select
                   className="form-input"
                   value={access}
-                  onChange={(e) => setAccess(e.target.value)}
+                  onChange={(e) => {
+                    const nextAccess = e.target.value as DesignationAccess;
+                    setAccess(nextAccess);
+                    setPermissions(defaultPermissionsForAccess(nextAccess));
+                  }}
                 >
                   <option value="BOTH">App + Web</option>
                   <option value="MOBILE">Mobile Only</option>
@@ -215,6 +235,18 @@ export function AddDesignationModal({
                 <div className="form-hint">
                   Controls which platforms this designation can access.
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  Permissions <span className="req">*</span>
+                </label>
+                <PermissionSelector
+                  options={permissionOptions}
+                  selected={permissions}
+                  onChange={setPermissions}
+                  error={errors.permissions}
+                />
               </div>
             </div>
           ) : (

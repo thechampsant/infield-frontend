@@ -34,3 +34,24 @@
 .visit-store-chip.more{color:var(--blue);font-weight:700;border-color:var(--blue);background:var(--blue-pale)}
 .visit-store-name{font-weight:600;color:var(--text)}
 .visit-store-code{color:var(--text-muted);font-size:9px}
+.visit-config-stack{display:flex;flex-direction:column;gap:10px}
+.visit-setting-row,.visit-config-details{border:1px solid var(--border);border-radius:8px;background:var(--surface2)}
+.visit-setting-row{padding:12px}
+.visit-switch-row{display:flex;align-items:flex-start;gap:10px;font-size:11px;color:var(--text);text-transform:none;font-weight:600}
+.visit-switch-row input{margin-top:2px}
+.visit-switch-row strong,.visit-config-details summary strong{display:block;font-size:12px;color:var(--text);margin-bottom:3px}
+.visit-switch-row small,.visit-config-details summary small{display:block;font-size:10px;line-height:1.5;color:var(--text-muted);font-weight:500}
+.visit-config-details{padding:0}.visit-config-details[open]{padding-bottom:12px}
+.visit-config-details summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;cursor:pointer;list-style:none}
+.visit-config-details summary::-webkit-details-marker{display:none}
+.visit-config-details summary::after{content:"+";width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text-mid);font-size:14px;font-weight:800}
+.visit-config-details[open] summary::after{content:"-"}
+.visit-config-details>.visit-switch-row,.visit-config-details>.visit-fields-grid,.visit-config-details>.visit-legacy-note,.visit-config-details>.visit-preview-note,.visit-config-details>.visit-approval-list,.visit-config-details>.visit-add-tab{margin-left:12px;margin-right:12px}
+.visit-approval-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.visit-approval-row{display:grid;grid-template-columns:28px minmax(130px,1fr) minmax(130px,1fr) minmax(150px,1fr) 115px 58px 34px;align-items:end;gap:8px;padding:9px;border:1px solid var(--border);border-radius:8px;background:#fff}
+.visit-approval-row label{font-size:9px;font-weight:800;text-transform:uppercase;color:var(--text-mid)}
+.visit-approval-row input,.visit-approval-row select{display:block;width:100%;margin-top:5px;min-height:36px;padding:8px 9px;border:1px solid var(--border);border-radius:7px;background:#fff;font:inherit;color:var(--text)}
+.visit-approval-row button{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid var(--border);background:#fff;border-radius:6px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}
+.visit-approval-row .danger{color:var(--red);border-color:var(--red-mid);background:var(--red-light)}
+.visit-preview-note{margin-top:10px;padding:10px 11px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-muted);font-size:10px;font-weight:600}
+@media(max-width:800px){.visit-approval-row{grid-template-columns:25px 1fr 34px}.visit-approval-row label{grid-column:span 3}.visit-approval-row .visit-order-actions{grid-column:span 2}.visit-config-details>.visit-fields-grid{grid-template-columns:1fr}}

@@ -103,6 +103,10 @@ export type {
   StoreMappingMode,
   StoresForTypeResponse,
   UpsertVisitConfigInput,
+  VisitApprovalApproverType,
+  VisitApprovalLevel,
+  VisitApprovalWorkflowConfig,
+  VisitClaimDistanceCappingConfig,
   VisitConfigDocument,
   VisitConfigStatus,
   VisitSessionConfig,
@@ -188,6 +192,7 @@ export type {
 } from "./target-vs-achievement-service";
 export { leaveConfigService } from "./leave-config-service";
 export type {
+  HolidayGroupingField,
   HolidayUploadResponse,
   HolidayUploadSummary,
   LeaveApprovalLevel,
@@ -199,6 +204,7 @@ export type {
   LeaveCreditRuleType,
   LeaveEntitlementType,
   LeaveHoliday,
+  LeaveHolidayGroup,
   LeaveHolidayType,
   LeavePolicy,
   LeaveTypeConfig,

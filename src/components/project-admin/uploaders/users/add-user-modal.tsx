@@ -8,6 +8,7 @@ import {
   getRuntimeStaticField,
   projectUsersService,
 } from "@/lib/api/project-users-service";
+import { validateUserShiftTimes } from "@/lib/project-admin/user-shift-times";
 import type {
   UDFField,
   UDFValue,
@@ -83,6 +84,7 @@ export function AddUserModal({
 
   const handleSubmit = async () => {
     const errs: string[] = [];
+    setSubmitError(null);
     if (!form.id) errs.push("id");
     if (!form.firstName) errs.push("firstName");
     if (!form.lastName) errs.push("lastName");
@@ -100,13 +102,17 @@ export function AddUserModal({
         (Array.isArray(value) && value.length === 0);
       if (f.mandatory && missing) errs.push(`udf_${f.id}`);
     });
+    const shiftValidation = validateUserShiftTimes(udfFields, udfValues);
+    if (shiftValidation) {
+      errs.push(...shiftValidation.errorKeys);
+      setSubmitError(shiftValidation.message);
+    }
     if (errs.length) {
       setErrors(errs);
       return;
     }
 
     setSubmitting(true);
-    setSubmitError(null);
     try {
       await projectUsersService.create({
         projectId,

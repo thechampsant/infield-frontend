@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { BRAND_ASSETS } from "@/lib/brand/assets";
 import { useAuth } from "@/lib/auth/auth-context";
+import {
+  landingRouteForUser,
+  isWebPortalRestricted,
+  WEB_ACCESS_RESTRICTED_MESSAGE,
+} from "@/lib/auth/role-routing";
 
 export default function PasswordLoginPage() {
   const router = useRouter();
-  const { login, isLoading } = useAuth();
+  const { login, logout, isLoading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,14 +21,26 @@ export default function PasswordLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    if (search.get("restricted") !== "web") return;
+    setError(WEB_ACCESS_RESTRICTED_MESSAGE);
+    void logout();
+  }, [logout]);
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
-      await login({ email, password });
-      router.replace("/");
+      const user = await login({ email, password });
+      if (isWebPortalRestricted(user)) {
+        setError(WEB_ACCESS_RESTRICTED_MESSAGE);
+        await logout();
+        return;
+      }
+      router.replace(landingRouteForUser(user));
     } catch (err) {
       setError(
         err instanceof Error

@@ -39,6 +39,28 @@ export interface LandingFieldSet {
   udfSchemaKey: string;
 }
 
+export type VisitApprovalApproverType = "direct_manager" | "designation";
+
+export interface VisitApprovalLevel {
+  level: number;
+  label?: string;
+  approverType?: VisitApprovalApproverType;
+  approverDesignationId?: string;
+  autoRejectDays: number;
+}
+
+export interface VisitApprovalWorkflowConfig {
+  isEnabled: boolean;
+  levels: VisitApprovalLevel[];
+}
+
+export interface VisitClaimDistanceCappingConfig {
+  isEnabled: boolean;
+  maxDistanceKm: number;
+  perKmRate: number;
+  multiplicationFactor: number;
+}
+
 export interface VisitConfigDocument {
   id: string;
   projectId: string;
@@ -59,6 +81,10 @@ export interface VisitConfigDocument {
     toLocationType: string;
     calculationMethod: string;
   };
+  daySummaryEnabled: boolean;
+  blockVisitAfterAttendanceCheckout: boolean;
+  approvalWorkflow: VisitApprovalWorkflowConfig;
+  claimDistanceCapping: VisitClaimDistanceCappingConfig;
   landingPageConfig: {
     udfSchemaKey: string;
     storeTypeToggle: {
@@ -97,6 +123,10 @@ export interface UpsertVisitConfigInput {
     toLocationType: string;
     calculationMethod: string;
   };
+  daySummaryEnabled?: boolean;
+  blockVisitAfterAttendanceCheckout?: boolean;
+  approvalWorkflow?: VisitApprovalWorkflowConfig;
+  claimDistanceCapping?: VisitClaimDistanceCappingConfig;
   landingPageConfig?: {
     udfSchemaKey?: string;
     storeTypeToggle?: {
@@ -141,6 +171,8 @@ export function normalizeVisitConfig(
   const geo = record(raw.geoFenceConfig);
   const reimbursement = record(raw.reimbursementConfig);
   const distance = record(raw.distanceConfig);
+  const approvalWorkflow = record(raw.approvalWorkflow);
+  const claimDistanceCapping = record(raw.claimDistanceCapping);
   const landing = record(raw.landingPageConfig);
   const toggle = record(landing.storeTypeToggle);
   const fieldSets = record(landing.fieldSets);
@@ -175,6 +207,36 @@ export function normalizeVisitConfig(
       fromLocationType: text(distance.fromLocationType),
       toLocationType: text(distance.toLocationType),
       calculationMethod: text(distance.calculationMethod),
+    },
+    daySummaryEnabled: bool(raw.daySummaryEnabled),
+    blockVisitAfterAttendanceCheckout: bool(raw.blockVisitAfterAttendanceCheckout),
+    approvalWorkflow: {
+      isEnabled: bool(approvalWorkflow.isEnabled),
+      levels: (Array.isArray(approvalWorkflow.levels) ? approvalWorkflow.levels : []).map(
+        (item, index) => {
+          const level = record(item);
+          const approverType = text(level.approverType);
+          return {
+            level: num(level.level, index + 1),
+            label: text(level.label),
+            approverType:
+              approverType === "designation" || approverType === "direct_manager"
+                ? approverType
+                : "direct_manager",
+            approverDesignationId: text(level.approverDesignationId) || undefined,
+            autoRejectDays: num(level.autoRejectDays, 1),
+          };
+        },
+      ),
+    },
+    claimDistanceCapping: {
+      isEnabled: bool(claimDistanceCapping.isEnabled),
+      maxDistanceKm: num(claimDistanceCapping.maxDistanceKm),
+      perKmRate: num(claimDistanceCapping.perKmRate, num(reimbursement.perKmRate)),
+      multiplicationFactor: num(
+        claimDistanceCapping.multiplicationFactor,
+        num(reimbursement.multiplicationFactor, 1),
+      ),
     },
     landingPageConfig: {
       udfSchemaKey: text(landing.udfSchemaKey),

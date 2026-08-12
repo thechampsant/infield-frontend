@@ -370,6 +370,23 @@ function validateSchema(fields: UdfSchemaField[]): string[] {
   return errors;
 }
 
+function normalizeStaticOptionMultiple(fields: UdfSchemaField[]): UdfSchemaField[] {
+  return fields.map((field) => {
+    if (field.type !== "SELECT" && field.type !== "DROPDOWN") return field;
+    const config =
+      field.config && typeof field.config === "object" && !Array.isArray(field.config)
+        ? (field.config as Record<string, unknown>)
+        : {};
+    return {
+      ...field,
+      config: {
+        ...config,
+        multiple: config.multiple === true,
+      },
+    };
+  });
+}
+
 export function ClaimsConfigPage({
   projectId,
   projectName,
@@ -867,7 +884,8 @@ export function ClaimsConfigPage({
 
   async function handleSaveSchema() {
     if (!selectedClaimType) return;
-    const validation = validateSchema(selectedSchema);
+    const fieldsToSave = normalizeStaticOptionMultiple(selectedSchema);
+    const validation = validateSchema(fieldsToSave);
     if (validation.length > 0) {
       setSchemaValidation((prev) => ({ ...prev, [selectedClaimType.id]: validation }));
       return;
@@ -882,9 +900,10 @@ export function ClaimsConfigPage({
       await claimsConfigService.saveUdfSchema({
         projectId,
         schemaKey,
-        fields: selectedSchema,
+        fields: fieldsToSave,
       });
-      setSavedSchemasByClaimTypeId((prev) => ({ ...prev, [selectedClaimType.id]: selectedSchema }));
+      setSchemasByClaimTypeId((prev) => ({ ...prev, [selectedClaimType.id]: fieldsToSave }));
+      setSavedSchemasByClaimTypeId((prev) => ({ ...prev, [selectedClaimType.id]: fieldsToSave }));
       setToast({ message: `${selectedClaimType.name || "Claim"} form saved.`, type: "success" });
     } catch (err) {
       setSchemaErrors((prev) => ({

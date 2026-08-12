@@ -1508,6 +1508,34 @@ function InspectorContent({
         {hasOptions && (
           <>
             <SectionHeader title="Options" />
+            {(field.type === "dropdown" || field.type === "multi-select") && (
+              <div
+                style={{
+                  padding: "8px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: colors.labelText }}>
+                    Allow multiple selections
+                  </div>
+                  <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                    Save selected values as an array
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={field.typeConfig.multiple ?? (field.type === "multi-select")}
+                  onChange={(checked) =>
+                    updateField({
+                      typeConfig: { ...field.typeConfig, multiple: checked },
+                    })
+                  }
+                />
+              </div>
+            )}
             <div style={{ padding: "6px 16px" }}>
               <label
                 style={{

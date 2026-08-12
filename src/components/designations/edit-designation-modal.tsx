@@ -2,27 +2,36 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatApiError } from "@/lib/api";
+import type { PermissionOption } from "@/lib/api/designation-service";
 import type { BackendRole } from "@/lib/api/role-service";
 import { toRoleOptions } from "@/lib/api/role-service";
 import type { Designation } from "@/lib/api/designation-service";
-import { HIERARCHY_ROLES_UNAVAILABLE_MODAL } from "@/lib/designations/backend-roles";
+import {
+  defaultPermissionsForAccess,
+  HIERARCHY_ROLES_UNAVAILABLE_MODAL,
+  type DesignationAccess,
+} from "@/lib/designations/backend-roles";
+import { PermissionSelector } from "./permission-selector";
 
 export interface EditDesignationValues {
   name: string;
   roleId: string;
   access: string;
+  permissions: string[];
 }
 
 export function EditDesignationModal({
   isOpen,
   designation,
   roles,
+  permissionOptions,
   onClose,
   onSave,
 }: {
   isOpen: boolean;
   designation: Designation | null;
   roles: BackendRole[];
+  permissionOptions: PermissionOption[];
   onClose: () => void;
   onSave: (data: EditDesignationValues) => Promise<void>;
 }) {
@@ -31,6 +40,7 @@ export function EditDesignationModal({
   const [name, setName] = useState("");
   const [roleId, setRoleId] = useState("");
   const [access, setAccess] = useState("BOTH");
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,7 +48,13 @@ export function EditDesignationModal({
     if (isOpen && designation) {
       setName(designation.name);
       setRoleId(designation.roleId);
-      setAccess(designation.access || "BOTH");
+      const nextAccess = designation.access || "BOTH";
+      setAccess(nextAccess);
+      setPermissions(
+        designation.permissions?.length
+          ? designation.permissions
+          : defaultPermissionsForAccess(nextAccess),
+      );
       setErrors({});
       setSubmitting(false);
     }
@@ -52,6 +68,9 @@ export function EditDesignationModal({
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = "Designation name is required";
     if (!roleId) next.role = "Role is mandatory";
+    if (permissions.length === 0) {
+      next.permissions = "Select at least one permission.";
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -61,7 +80,7 @@ export function EditDesignationModal({
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await onSave({ name: name.trim(), roleId, access });
+      await onSave({ name: name.trim(), roleId, access, permissions });
     } catch (err) {
       setErrors({ form: formatApiError(err, "Failed to update designation") });
     } finally {
@@ -139,7 +158,11 @@ export function EditDesignationModal({
             <select
               className="form-input"
               value={access}
-              onChange={(e) => setAccess(e.target.value)}
+              onChange={(e) => {
+                const nextAccess = e.target.value as DesignationAccess;
+                setAccess(nextAccess);
+                setPermissions(defaultPermissionsForAccess(nextAccess));
+              }}
             >
               <option value="BOTH">App + Web</option>
               <option value="MOBILE">Mobile Only</option>
@@ -148,6 +171,18 @@ export function EditDesignationModal({
             <div className="form-hint">
               Controls which platforms this designation can access.
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">
+              Permissions <span className="req">*</span>
+            </label>
+            <PermissionSelector
+              options={permissionOptions}
+              selected={permissions}
+              onChange={setPermissions}
+              error={errors.permissions}
+            />
           </div>
         </div>
 

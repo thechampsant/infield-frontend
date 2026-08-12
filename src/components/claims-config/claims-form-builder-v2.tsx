@@ -95,7 +95,7 @@ function createField(type: UdfFieldType, order: number): UdfSchemaField {
     summaryKey: false,
     config:
       type === "SELECT" || type === "DROPDOWN"
-        ? { options: [] }
+        ? { options: [], multiple: false }
         : type === "API_SELECT"
           ? { dataSource: "", sourceKey: "", labelField: "", valueField: "", multiple: false }
           : type === "CASCADING_SELECT"
@@ -964,23 +964,39 @@ export function ClaimsFormBuilderV2({
         </div>
 
         {(selectedChildField.type === "SELECT" || selectedChildField.type === "DROPDOWN") && (
-          <div className="claims-fb-formGroup">
-            <label>Options (one per line)</label>
-            <textarea
-              className="form-input"
-              rows={6}
-              value={Array.isArray(childConfig.options) ? childConfig.options.join("\n") : ""}
-              placeholder={"Option 1\nOption 2"}
-              onChange={(event) =>
-                patchRepeatableChildConfig(parentIndex, childIndex, {
-                  options: event.target.value
-                    .split("\n")
-                    .map((value) => value.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
-          </div>
+          <>
+            <div className="claims-fb-toggles">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={childConfig.multiple === true}
+                  onChange={(event) =>
+                    patchRepeatableChildConfig(parentIndex, childIndex, {
+                      multiple: event.target.checked,
+                    })
+                  }
+                />
+                Allow multiple selections
+              </label>
+            </div>
+            <div className="claims-fb-formGroup">
+              <label>Options (one per line)</label>
+              <textarea
+                className="form-input"
+                rows={6}
+                value={Array.isArray(childConfig.options) ? childConfig.options.join("\n") : ""}
+                placeholder={"Option 1\nOption 2"}
+                onChange={(event) =>
+                  patchRepeatableChildConfig(parentIndex, childIndex, {
+                    options: event.target.value
+                      .split("\n")
+                      .map((value) => value.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
+            </div>
+          </>
         )}
 
         {selectedChildField.type === "API_SELECT" && (
@@ -1778,37 +1794,53 @@ export function ClaimsFormBuilderV2({
               )}
 
               {(selectedField.type === "SELECT" || selectedField.type === "DROPDOWN") && (
-                <div className="claims-fb-formGroup">
-                  <label>Options (one per line)</label>
-                  <textarea
-                    className="form-input"
-                    rows={6}
-                    value={optionsDraft !== null ? optionsDraft : optionsText(selectedField)}
-                    onChange={(e) => {
-                      // Only update local draft — don't parse yet, preserves newlines while typing
-                      setOptionsDraft(e.target.value);
-                    }}
-                    onBlur={(e) => {
-                      // Commit to real state only when user leaves the textarea
-                      const options = e.target.value
-                        .split('\n')
-                        .map(v => v.trim())
-                        .filter(Boolean);
-                      updateFieldConfig(selectedIndex!, { options });
-                      setOptionsDraft(null);
-                    }}
-                    placeholder={`Option 1\nOption 2\nOption 3`}
-                    style={{
-                      fontFamily: 'monospace',
-                      lineHeight: '1.6',
-                      resize: 'vertical',
-                    }}
-                    spellCheck={false}
-                  />
-                  <p style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                    Type each option on a new line, then click elsewhere to save.
-                  </p>
-                </div>
+                <>
+                  <div className="claims-fb-toggles">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (selectedField.config as Record<string, unknown>)?.multiple === true
+                        }
+                        onChange={(e) =>
+                          updateFieldConfig(selectedIndex!, { multiple: e.target.checked })
+                        }
+                      />
+                      Allow multiple selections
+                    </label>
+                  </div>
+                  <div className="claims-fb-formGroup">
+                    <label>Options (one per line)</label>
+                    <textarea
+                      className="form-input"
+                      rows={6}
+                      value={optionsDraft !== null ? optionsDraft : optionsText(selectedField)}
+                      onChange={(e) => {
+                        // Only update local draft — don't parse yet, preserves newlines while typing
+                        setOptionsDraft(e.target.value);
+                      }}
+                      onBlur={(e) => {
+                        // Commit to real state only when user leaves the textarea
+                        const options = e.target.value
+                          .split('\n')
+                          .map(v => v.trim())
+                          .filter(Boolean);
+                        updateFieldConfig(selectedIndex!, { options });
+                        setOptionsDraft(null);
+                      }}
+                      placeholder={`Option 1\nOption 2\nOption 3`}
+                      style={{
+                        fontFamily: 'monospace',
+                        lineHeight: '1.6',
+                        resize: 'vertical',
+                      }}
+                      spellCheck={false}
+                    />
+                    <p style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                      Type each option on a new line, then click elsewhere to save.
+                    </p>
+                  </div>
+                </>
               )}
 
               {selectedField.type === "API_SELECT" && (

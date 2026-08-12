@@ -13,6 +13,7 @@
  */
 
 import { apiClient } from "./api-client";
+import { udfConfigService } from "./udf-config-service";
 import type { DesignationAccess } from "@/lib/designations/backend-roles";
 
 const BASE = "/api/v1/designation";
@@ -21,6 +22,7 @@ const BASE = "/api/v1/designation";
 export interface DesignationDto {
   projectId: string;
   name: string;
+  externalCode?: string;
   roleId: string;
   permissions: string[];
   access?: DesignationAccess;
@@ -45,6 +47,11 @@ export interface Designation {
   projectId?: string;
   permissions?: string[];
   access?: DesignationAccess;
+}
+
+export interface PermissionOption {
+  name: string;
+  key: string;
 }
 
 interface RawRoleRef {
@@ -82,7 +89,7 @@ function normalizeDesignation(raw: RawDesignation): Designation {
     roleName: roleRef?.roleName ?? roleRef?.name,
     roleLevel: typeof roleRef?.level === "number" ? roleRef.level : undefined,
     projectId: raw.projectId,
-    permissions: raw.permissions,
+    permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
     access: raw.access,
   };
 }
@@ -105,6 +112,19 @@ export const designationService = {
 
   async create(designations: DesignationDto[]): Promise<void> {
     await apiClient.post(`${BASE}/createDesignations`, { designations });
+  },
+
+  async listPermissionOptions(projectId: string): Promise<PermissionOption[]> {
+    const items = await udfConfigService.previewSource("PERMISSION", {
+      projectId,
+    });
+    return items
+      .map((item) => {
+        const key = String(item.key ?? "").trim();
+        const name = String(item.name ?? item.label ?? key).trim();
+        return key ? { key, name: name || key } : null;
+      })
+      .filter((item): item is PermissionOption => Boolean(item));
   },
 
   async update(designations: UpdateDesignationDto[]): Promise<void> {

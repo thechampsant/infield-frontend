@@ -737,6 +737,28 @@
   overflow-x: auto;
 }
 
+.leave-subsection {
+  display: grid;
+  gap: 10px;
+}
+
+.leave-subsection-heading {
+  display: grid;
+  gap: 2px;
+}
+
+.leave-subsection-heading strong {
+  color: var(--leave-navy);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.leave-subsection-heading small {
+  color: var(--leave-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .leave-table {
   width: 100%;
   min-width: 620px;

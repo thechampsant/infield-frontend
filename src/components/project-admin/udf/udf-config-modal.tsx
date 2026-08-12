@@ -27,6 +27,10 @@ function createEmptyField(index: number, type: UdfFieldType = "STRING"): UdfSche
     order: index + 1,
     status: true,
     summaryKey: false,
+    config:
+      type === "SELECT" || type === "DROPDOWN"
+        ? { options: [], multiple: false }
+        : undefined,
   };
 }
 
@@ -123,6 +127,10 @@ function sourcePreviewKeys(rows: UdfSourcePreviewItem[]): string[] {
     Object.keys(row).forEach((key) => keys.add(key));
   });
   return Array.from(keys);
+}
+
+function isStoreIdsField(field: UdfSchemaField): boolean {
+  return field.fieldKey === "storeIds";
 }
 
 /**
@@ -357,6 +365,28 @@ export function UDFConfigModal({
     }));
   }
 
+  function normalizedFieldForSave(field: UdfSchemaField, index: number): UdfSchemaField {
+    const currentConfig =
+      field.config && typeof field.config === "object" && !Array.isArray(field.config)
+        ? (field.config as Record<string, unknown>)
+        : {};
+    const config =
+      field.type === "SELECT" || field.type === "DROPDOWN" || field.type === "API_SELECT"
+        ? {
+            ...currentConfig,
+            multiple: isStoreIdsField(field) || currentConfig.multiple === true,
+          }
+        : field.config;
+
+    return {
+      ...field,
+      fieldKey: field.fieldKey.trim(),
+      label: field.label.trim(),
+      order: field.order ?? index + 1,
+      ...(config !== undefined ? { config } : {}),
+    };
+  }
+
   async function loadSourcePreview(index: number, sourceKey: string) {
     if (!sourceKey.trim()) {
       setSourcePreviewByField((prev) => ({ ...prev, [index]: [] }));
@@ -493,12 +523,7 @@ export function UDFConfigModal({
 
     setSaving(true);
     setError(null);
-    const normalizedFields = schema.fields.map((field, index) => ({
-      ...field,
-      fieldKey: field.fieldKey.trim(),
-      label: field.label.trim(),
-      order: field.order ?? index + 1,
-    }));
+    const normalizedFields = schema.fields.map(normalizedFieldForSave);
     try {
       if (scope === "user") {
         await projectUsersService.saveUserSchema({
@@ -555,6 +580,14 @@ export function UDFConfigModal({
           Configure schema-driven UDF fields for {scopeLabel.toLowerCase()} data in project{" "}
           <strong>{projectId}</strong>. This editor saves the backend UDF schema and the user add/edit forms will consume compatible fields automatically.
         </div>
+
+        {scope === "user" && (
+          <div className="pa-info-banner">
+            For attendance shift timing, projects can optionally add STRING UDF fields with
+            field keys <strong>shiftStartTime</strong> and <strong>shiftEndTime</strong>.
+            User create/edit forms will render these as HH:mm time inputs.
+          </div>
+        )}
 
         {error && (
           <div className="if2-banner error">{error}</div>
@@ -671,7 +704,10 @@ export function UDFConfigModal({
                       onChange={(e) =>
                         updateField(index, {
                           type: e.target.value as UdfFieldType,
-                          config: undefined,
+                          config:
+                            e.target.value === "SELECT" || e.target.value === "DROPDOWN"
+                              ? { options: [], multiple: false }
+                              : undefined,
                         })
                       }
                     >
@@ -726,20 +762,30 @@ export function UDFConfigModal({
                 </div>
 
                 {(field.type === "SELECT" || field.type === "DROPDOWN") && (
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Options</label>
-                    <OptionsTextarea
-                      value={
-                        (() => {
-                          const config = field.config && typeof field.config === "object"
-                            ? (field.config as Record<string, unknown>).options
-                            : undefined;
-                          return Array.isArray(config) ? config.map(String) : [];
-                        })()
-                      }
-                      onChange={(options) => updateFieldConfig(index, { options })}
-                      placeholder="One option per line"
-                    />
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={(field.config as Record<string, unknown> | undefined)?.multiple === true}
+                        onChange={(e) => updateFieldConfig(index, { multiple: e.target.checked })}
+                      />
+                      Allow multiple selections
+                    </label>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Options</label>
+                      <OptionsTextarea
+                        value={
+                          (() => {
+                            const config = field.config && typeof field.config === "object"
+                              ? (field.config as Record<string, unknown>).options
+                              : undefined;
+                            return Array.isArray(config) ? config.map(String) : [];
+                          })()
+                        }
+                        onChange={(options) => updateFieldConfig(index, { options })}
+                        placeholder="One option per line"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -780,15 +826,24 @@ export function UDFConfigModal({
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Multiple</label>
-                        <select
-                          className="form-input"
-                          value={String(Boolean((field.config as Record<string, unknown> | undefined)?.multiple))}
-                          onChange={(e) => updateFieldConfig(index, { multiple: e.target.value === "true" })}
-                        >
-                          <option value="false">No</option>
-                          <option value="true">Yes</option>
-                        </select>
+                        <label className="form-label">Selection</label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 38, fontSize: 12 }}>
+                          <input
+                            type="checkbox"
+                            checked={
+                              isStoreIdsField(field) ||
+                              (field.config as Record<string, unknown> | undefined)?.multiple === true
+                            }
+                            disabled={isStoreIdsField(field)}
+                            onChange={(e) => updateFieldConfig(index, { multiple: e.target.checked })}
+                          />
+                          Allow multiple selections
+                        </label>
+                        {isStoreIdsField(field) && (
+                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                            storeIds is always multi-select for user-store mapping.
+                          </div>
+                        )}
                       </div>
                     </div>
 
