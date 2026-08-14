@@ -85,6 +85,7 @@ export interface WorkingHoursConfigDto {
   absentLogic: LogicThresholdDto;
   halfDayLogic: HalfDayLogicDto;
   enableSinglePunchLogic: boolean;
+  enableTimerLimit?: boolean;
 }
 
 export type RegWindowType = "Days" | "Date Range";
@@ -219,6 +220,7 @@ export interface AttendanceConfigForm {
   halfDayMaxHrs: number;
   singlePunchFullDay: boolean;
   shiftManagementEnabled: boolean;
+  maxWorkingHoursTimerLimitEnabled: boolean;
 
   autoCheckoutEnabled: boolean;
   autoCheckoutTime: string;
@@ -299,6 +301,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   halfDayMaxHrs: 9,
   singlePunchFullDay: false,
   shiftManagementEnabled: false,
+  maxWorkingHoursTimerLimitEnabled: false,
 
   autoCheckoutEnabled: false,
   autoCheckoutTime: "23:00",
@@ -405,6 +408,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     halfDayMaxHrs: wh?.halfDayLogic?.maxHours ?? DEFAULT_CONFIG_FORM.halfDayMaxHrs,
     singlePunchFullDay: Boolean(wh?.enableSinglePunchLogic),
     shiftManagementEnabled: Boolean(doc.shiftManagement?.isEnabled),
+    maxWorkingHoursTimerLimitEnabled: Boolean(wh?.enableTimerLimit),
 
     autoCheckoutEnabled: Boolean(doc.isAutoCheckOutEnabled),
     autoCheckoutTime: doc.autoCheckOutTime ?? DEFAULT_CONFIG_FORM.autoCheckoutTime,
@@ -484,6 +488,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
         maxHours: form.halfDayMaxHrs,
       },
       enableSinglePunchLogic: form.singlePunchFullDay,
+      enableTimerLimit: form.maxWorkingHoursTimerLimitEnabled,
     },
     isAutoCheckOutEnabled: form.autoCheckoutEnabled,
     autoCheckOutTime: form.autoCheckoutTime,

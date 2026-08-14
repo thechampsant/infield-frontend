@@ -8,6 +8,8 @@ import {
   designationService,
   formatApiError,
   type Designation,
+  type DocumentAcknowledgementReport,
+  type DocumentRecord,
   type DocumentTargetModule,
   type DocumentsListResponse,
 } from "@/lib/api";
@@ -44,6 +46,8 @@ export function DocumentsPage({
   const [filterFromDate, setFilterFromDate] = useState("");
   const [filterToDate, setFilterToDate] = useState("");
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [ackReport, setAckReport] = useState<DocumentAcknowledgementReport | null>(null);
+  const [loadingAckReport, setLoadingAckReport] = useState(false);
 
   // ─── Initial data load ────────────────────────────────────────
 
@@ -128,6 +132,18 @@ export function DocumentsPage({
     setFilterToDate("");
     loadDocuments();
   }, [loadDocuments]);
+
+  const handleViewAcknowledgements = useCallback(async (doc: DocumentRecord) => {
+    setLoadingAckReport(true);
+    try {
+      const report = await documentsService.getAcknowledgementReport(doc._id);
+      setAckReport(report);
+    } catch (err) {
+      setToast({ message: formatApiError(err), type: "error" });
+    } finally {
+      setLoadingAckReport(false);
+    }
+  }, []);
 
   // ─── Derived ──────────────────────────────────────────────────
 
@@ -215,8 +231,69 @@ export function DocumentsPage({
           onFilterLoad={handleFilterLoad}
           onFilterClear={handleFilterClear}
           onStatusToggle={handleStatusToggle}
+          onViewAcknowledgements={handleViewAcknowledgements}
         />
       </section>
+
+      {(ackReport || loadingAckReport) && (
+        <div className="doc-modal-backdrop" role="presentation">
+          <div className="doc-modal" role="dialog" aria-modal="true">
+            <div className="doc-modal-head">
+              <div>
+                <h3>Acknowledgement Status</h3>
+                <p>
+                  {ackReport
+                    ? `${ackReport.document.title} · v${ackReport.document.documentVersion}`
+                    : "Loading..."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="doc-btn doc-btn-secondary doc-btn-sm"
+                onClick={() => setAckReport(null)}
+              >
+                Close
+              </button>
+            </div>
+            {loadingAckReport ? (
+              <div className="doc-table-loading">Loading acknowledgements...</div>
+            ) : ackReport ? (
+              <>
+                <div className="doc-table-info">
+                  Total {ackReport.summary.totalUsers} · Acknowledged{" "}
+                  {ackReport.summary.acknowledged} · Pending {ackReport.summary.pending}
+                </div>
+                <div className="doc-table-wrapper">
+                  <table className="doc-table">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Acknowledged At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ackReport.users.map((user) => (
+                        <tr key={user.userId}>
+                          <td>{user.name || user.userId}</td>
+                          <td>{user.email || "—"}</td>
+                          <td>{user.status}</td>
+                          <td>
+                            {user.acknowledgedAt
+                              ? JSON.stringify(user.acknowledgedAt)
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
