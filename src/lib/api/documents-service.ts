@@ -34,6 +34,11 @@ export interface DocumentRecord {
   gcsPath: string;
   originalFileName: string;
   fileSize: number;
+  acknowledgementRequired?: boolean;
+  acknowledgementStatus?: "NotRequired" | "Pending" | "Acknowledged";
+  acknowledgedAt?: string | null;
+  documentVersion?: number;
+  documentGroupId?: string;
   fromDate: string | null;
   toDate: string | null;
   status: DocumentStatus;
@@ -62,7 +67,35 @@ export interface UploadDocumentInput {
   description?: string;
   fromDate?: string;
   toDate?: string;
+  acknowledgementRequired?: boolean;
   file: File;
+}
+
+export interface DocumentAcknowledgementUser {
+  userId: string;
+  firstName?: string;
+  lastName?: string;
+  name: string;
+  email?: string;
+  designationId: string;
+  status: "Acknowledged" | "Pending";
+  acknowledgedAt: unknown | null;
+}
+
+export interface DocumentAcknowledgementReport {
+  document: {
+    _id: string;
+    title: string;
+    documentVersion: number;
+    documentGroupId: string;
+    acknowledgementRequired: boolean;
+  };
+  summary: {
+    totalUsers: number;
+    acknowledged: number;
+    pending: number;
+  };
+  users: DocumentAcknowledgementUser[];
 }
 
 export interface DocumentsListResponse {
@@ -146,6 +179,7 @@ export const documentsService = {
     if (input.toDate) {
       formData.append("toDate", input.toDate);
     }
+    formData.append("acknowledgementRequired", String(Boolean(input.acknowledgementRequired)));
 
     return apiClient.postFormData<DocumentRecord>(`${DOCUMENTS_BASE}/upload`, formData);
   },
@@ -181,6 +215,12 @@ export const documentsService = {
     return apiClient.patch<DocumentRecord>(
       `${DOCUMENTS_BASE}/${encodeURIComponent(documentId)}/status`,
       { status },
+    );
+  },
+
+  async getAcknowledgementReport(documentId: string): Promise<DocumentAcknowledgementReport> {
+    return apiClient.get<DocumentAcknowledgementReport>(
+      `${DOCUMENTS_BASE}/${encodeURIComponent(documentId)}/acknowledgements`,
     );
   },
 };

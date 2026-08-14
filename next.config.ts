@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  experimental: {
+    proxyClientMaxBodySize: "100mb",
+  },
   async rewrites() {
     return [
       {

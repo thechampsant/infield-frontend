@@ -16,6 +16,7 @@ interface Props {
   onFilterLoad: () => void;
   onFilterClear: () => void;
   onStatusToggle: (docId: string, newStatus: DocumentStatus) => void;
+  onViewAcknowledgements?: (doc: DocumentRecord) => void;
 }
 
 /**
@@ -54,6 +55,7 @@ export function DocumentsTable({
   onFilterLoad,
   onFilterClear,
   onStatusToggle,
+  onViewAcknowledgements,
 }: Props) {
   const designationMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -129,6 +131,8 @@ export function DocumentsTable({
                   <th>Designation</th>
                   <th>Timeline</th>
                   <th>Size</th>
+                  <th>Ack</th>
+                  <th>Version</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -147,6 +151,8 @@ export function DocumentsTable({
                       {formatDate(doc.fromDate)} — {formatDate(doc.toDate)}
                     </td>
                     <td>{formatFileSize(doc.fileSize)}</td>
+                    <td>{doc.acknowledgementRequired ? "Required" : "No"}</td>
+                    <td>v{doc.documentVersion ?? 1}</td>
                     <td>
                       <span
                         className={`doc-status-badge ${doc.status === "Active" ? "badge-active" : "badge-inactive"}`}
@@ -178,6 +184,15 @@ export function DocumentsTable({
                         <Download size={12} />
                         Download
                       </a>
+                      {doc.acknowledgementRequired && onViewAcknowledgements && (
+                        <button
+                          type="button"
+                          className="doc-btn doc-btn-sm doc-btn-secondary"
+                          onClick={() => onViewAcknowledgements(doc)}
+                        >
+                          Ack Status
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

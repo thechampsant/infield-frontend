@@ -518,6 +518,11 @@ export function AttendanceConfigEdit({
                 checked={form.singlePunchFullDay}
                 onChange={(v) => onChange("singlePunchFullDay", v)}
               />
+              <SettingRow
+                label="Maximum working hours timer limit"
+                checked={form.maxWorkingHoursTimerLimitEnabled}
+                onChange={(v) => onChange("maxWorkingHoursTimerLimitEnabled", v)}
+              />
             </>
           )}
           <div className="section-divider">Shift management</div>

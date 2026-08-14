@@ -194,6 +194,48 @@
   background: #ffe5e3;
 }
 
+.documents-page .doc-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.documents-page .doc-modal {
+  width: min(920px, 100%);
+  max-height: min(720px, 90vh);
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border, #dde6f0);
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+}
+
+.documents-page .doc-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border, #dde6f0);
+}
+
+.documents-page .doc-modal-head h3 {
+  margin: 0;
+  color: var(--text, #102033);
+  font-size: 18px;
+}
+
+.documents-page .doc-modal-head p {
+  margin: 4px 0 0;
+  color: var(--muted, #6b7c93);
+  font-size: 13px;
+}
+
 /* ─── Designation Selector ────────────────────────────────── */
 
 .doc-designation-selector {

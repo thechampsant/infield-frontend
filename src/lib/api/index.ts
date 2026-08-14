@@ -261,6 +261,8 @@ export type {
 
 export { documentsService } from "./documents-service";
 export type {
+  DocumentAcknowledgementReport,
+  DocumentAcknowledgementUser,
   DocumentRecord,
   DocumentStatus,
   DocumentTargetModule,

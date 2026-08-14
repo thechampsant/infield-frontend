@@ -35,6 +35,7 @@ interface CardState {
   description: string;
   fromDate: string;
   toDate: string;
+  acknowledgementRequired: boolean;
   file: File | null;
 }
 
@@ -45,6 +46,7 @@ const INITIAL_STATE: CardState = {
   description: "",
   fromDate: "",
   toDate: "",
+  acknowledgementRequired: false,
   file: null,
 };
 
@@ -107,6 +109,7 @@ export function DesignationCard({
         description: state.description.trim() || undefined,
         fromDate: state.fromDate || undefined,
         toDate: state.toDate || undefined,
+        acknowledgementRequired: state.acknowledgementRequired,
         file: state.file,
       };
       await documentsService.uploadDocument(input);
@@ -283,6 +286,23 @@ export function DesignationCard({
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="doc-field">
+            <label className="doc-label">Acknowledgement Required</label>
+            <select
+              className="doc-select"
+              value={state.acknowledgementRequired ? "yes" : "no"}
+              onChange={(e) =>
+                setState((prev) => ({
+                  ...prev,
+                  acknowledgementRequired: e.target.value === "yes",
+                }))
+              }
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
           </div>
 
           {/* Actions */}
