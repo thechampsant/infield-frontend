@@ -16,6 +16,8 @@ import type {
   ReportDataScope,
   ReportOutputSettings,
   CreateReportConfigInput,
+  ReportDynamicUdfConfig,
+  ReportDateFilterConfig,
 } from "@/lib/api/report-config-service";
 import type { Designation } from "@/lib/api";
 import { SectionReportDetails } from "./section-report-details";
@@ -104,6 +106,12 @@ export function ReportBuilderPage({
     fileFormat: "xls",
     exportBehaviour: "load-then-export",
   });
+  const [dynamicUdf, setDynamicUdf] = useState<ReportDynamicUdfConfig>({
+    enabled: false,
+    schemaKeyField: "default",
+    valueField: "udfFields",
+  });
+  const [dateFilter, setDateFilter] = useState<ReportDateFilterConfig>({});
 
   // Fields fetched from API
   const [primaryFields, setPrimaryFields] = useState<ReportFieldMetadata[]>([]);
@@ -167,10 +175,13 @@ export function ReportBuilderPage({
       return;
     }
     reportConfigService
-      .getSourceFields(primarySourceKey, projectId || '')
+      .getSourceFields(primarySourceKey, projectId || '', dynamicUdf.enabled ? {
+        schemaKey: dynamicUdf.schemaKeyField,
+        valueField: dynamicUdf.valueField,
+      } : {})
       .then(setPrimaryFields)
       .catch(() => setPrimaryFields([]));
-  }, [primarySourceKey]);
+  }, [primarySourceKey, projectId, dynamicUdf.enabled, dynamicUdf.schemaKeyField, dynamicUdf.valueField]);
 
   useEffect(() => {
     if (!secondaryEnabled || !secondarySourceKey) {
@@ -178,10 +189,13 @@ export function ReportBuilderPage({
       return;
     }
     reportConfigService
-      .getSourceFields(secondarySourceKey, projectId || '')
+      .getSourceFields(secondarySourceKey, projectId || '', dynamicUdf.enabled ? {
+        schemaKey: dynamicUdf.schemaKeyField,
+        valueField: dynamicUdf.valueField,
+      } : {})
       .then(setSecondaryFields)
       .catch(() => setSecondaryFields([]));
-  }, [secondaryEnabled, secondarySourceKey]);
+  }, [secondaryEnabled, secondarySourceKey, projectId, dynamicUdf.enabled, dynamicUdf.schemaKeyField, dynamicUdf.valueField]);
 
   // ─── Mark unsaved on changes ──────────────────────────────────────────────
   useEffect(() => {
@@ -201,6 +215,8 @@ export function ReportBuilderPage({
     calculatedFields,
     filters,
     outputSettings,
+    dynamicUdf,
+    dateFilter,
   ]);
 
   // ─── Populate form from existing config ───────────────────────────────────
@@ -226,6 +242,8 @@ export function ReportBuilderPage({
         headerName: col.headerName,
         fieldType: col.fieldType,
         displayName: col.headerName,
+        referenceDisplay: col.referenceDisplay,
+        formatter: col.formatter,
       })),
     );
 
@@ -241,6 +259,14 @@ export function ReportBuilderPage({
         exportBehaviour: "load-then-export",
       },
     );
+    setDynamicUdf(
+      config.dynamicUdf || {
+        enabled: false,
+        schemaKeyField: "default",
+        valueField: "udfFields",
+      },
+    );
+    setDateFilter(config.dateFilter || {});
 
     setAutoSaveStatus("saved");
   }, []);
@@ -350,10 +376,14 @@ export function ReportBuilderPage({
         headerName: col.headerName,
         order: index + 1,
         fieldType: col.fieldType,
+        referenceDisplay: col.referenceDisplay,
+        formatter: col.formatter,
       })),
       calculatedFields: calculatedFieldsEnabled ? calculatedFields : [],
       filters,
       outputSettings,
+      dateFilter: dateFilter.fieldKey ? dateFilter : null,
+      dynamicUdf,
       status,
     }),
     [
@@ -373,6 +403,8 @@ export function ReportBuilderPage({
       calculatedFields,
       filters,
       outputSettings,
+      dateFilter,
+      dynamicUdf,
     ],
   );
 
@@ -574,6 +606,8 @@ export function ReportBuilderPage({
             secondarySourceKey={secondarySourceKey}
             joinConfig={joinConfig}
             dataScope={dataScope}
+            dynamicUdf={dynamicUdf}
+            dateFilter={dateFilter}
             primaryFields={primaryFields}
             secondaryFields={secondaryFields}
             onPrimarySourceChange={handlePrimarySourceChange}
@@ -581,6 +615,8 @@ export function ReportBuilderPage({
             onSecondarySourceChange={handleSecondarySourceChange}
             onJoinConfigChange={setJoinConfig}
             onDataScopeChange={setDataScope}
+            onDynamicUdfChange={setDynamicUdf}
+            onDateFilterChange={setDateFilter}
             errors={errors}
           />
         </SectionCard>
