@@ -10,6 +10,9 @@ export interface ReportDataSource {
   collectionName: string;
   featureKey: string | null;
   entityType: string;
+  primaryDateField?: string;
+  referenceFields?: Record<string, ReportReferenceDisplayConfig>;
+  formatterHints?: Record<string, ReportValueFormatterConfig>;
 }
 
 export interface ReportFieldMetadata {
@@ -17,6 +20,33 @@ export interface ReportFieldMetadata {
   displayName: string;
   fieldType: string; // 'TXT' | 'NUM' | 'DATE' | 'BOOL' | 'IMAGE' | 'LOCATION'
   source: "schema" | "udf";
+  valueKind?: "raw" | "reference" | "dateTimeObject" | "image" | "location" | "computed";
+  isRef?: boolean;
+  refModel?: string;
+  refCollection?: string;
+  refDisplayField?: string;
+  refLocalField?: string;
+  refForeignField?: string;
+  refDisplayFields?: string[];
+  storagePath?: string;
+  formatter?: ReportValueFormatterConfig;
+}
+
+export interface ReportReferenceDisplayConfig {
+  enabled?: boolean;
+  targetSourceKey?: string;
+  collectionName?: string;
+  localField?: string;
+  foreignField?: string;
+  displayField?: string;
+  displayFields?: string[];
+  separator?: string;
+}
+
+export interface ReportValueFormatterConfig {
+  type?: "text" | "number" | "boolean" | "date" | "time" | "datetime" | "image" | "location";
+  timezone?: string;
+  format?: string;
 }
 
 export interface ReportSelectedColumn {
@@ -25,6 +55,8 @@ export interface ReportSelectedColumn {
   headerName: string;
   order: number;
   fieldType: string;
+  referenceDisplay?: ReportReferenceDisplayConfig;
+  formatter?: ReportValueFormatterConfig;
 }
 
 export interface ReportCalculatedField {
@@ -45,6 +77,29 @@ export interface ReportFilter {
 export interface ReportOutputSettings {
   fileFormat: "xls" | "csv";
   exportBehaviour: "direct" | "load-then-export";
+  auditLogSheet?: boolean;
+  fileNamePattern?: string;
+}
+
+export interface ReportDateFilterConfig {
+  fieldKey?: string;
+  sourceKey?: string;
+  valueType?: "date" | "number" | "istDateInfo";
+  timezone?: string;
+}
+
+export interface ReportEnrichmentGroup {
+  groupKey: string;
+  enabled: boolean;
+  order: number;
+  options?: Record<string, unknown>;
+}
+
+export interface ReportDynamicUdfConfig {
+  enabled?: boolean;
+  schemaKeyField?: string;
+  valueField?: string;
+  includeInactiveFields?: boolean;
 }
 
 export interface ReportJoinConfig {
@@ -75,6 +130,9 @@ export interface ReportConfigDocument {
   calculatedFields: ReportCalculatedField[];
   filters: ReportFilter[];
   outputSettings: ReportOutputSettings;
+  dateFilter?: ReportDateFilterConfig | null;
+  enrichmentGroups?: ReportEnrichmentGroup[];
+  dynamicUdf?: ReportDynamicUdfConfig | null;
   status: "draft" | "published" | "inactive";
   createdBy?: string;
   favorites?: string[];
@@ -95,6 +153,9 @@ export interface CreateReportConfigInput {
   calculatedFields: ReportCalculatedField[];
   filters: ReportFilter[];
   outputSettings: ReportOutputSettings;
+  dateFilter?: ReportDateFilterConfig | null;
+  enrichmentGroups?: ReportEnrichmentGroup[];
+  dynamicUdf?: ReportDynamicUdfConfig | null;
   status: "draft" | "published";
 }
 
@@ -148,9 +209,16 @@ export const reportConfigService = {
   },
 
   /** Get fields for a specific data source */
-  async getSourceFields(sourceKey: string, projectId: string): Promise<ReportFieldMetadata[]> {
+  async getSourceFields(
+    sourceKey: string,
+    projectId: string,
+    options: { schemaKey?: string; valueField?: string } = {},
+  ): Promise<ReportFieldMetadata[]> {
+    const params = new URLSearchParams({ projectId });
+    if (options.schemaKey) params.set("schemaKey", options.schemaKey);
+    if (options.valueField) params.set("valueField", options.valueField);
     return apiClient.get<ReportFieldMetadata[]>(
-      `${BASE}/data-sources/${encodeURIComponent(sourceKey)}/fields?projectId=${encodeURIComponent(projectId)}`,
+      `${BASE}/data-sources/${encodeURIComponent(sourceKey)}/fields?${params.toString()}`,
     );
   },
 

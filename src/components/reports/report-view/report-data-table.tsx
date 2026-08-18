@@ -13,7 +13,14 @@ interface ReportDataTableProps {
   onPageChange: (page: number) => void;
 }
 
-function formatCellValue(value: unknown, fieldType: string): React.ReactNode {
+function toFileUrl(value: string): string {
+  if (/^https?:\/\//i.test(value) || value.startsWith("/api/")) return value;
+  return `/api/v1/gcs/file?path=${encodeURIComponent(value)}`;
+}
+
+function formatCellValue(value: unknown, column: ReportSelectedColumn): React.ReactNode {
+  const fieldType = column.fieldType;
+  const formatterType = column.formatter?.type;
   // Null/missing → dash
   if (value === null || value === undefined || value === "") {
     return <span className="text-[#7a95b5]">-</span>;
@@ -24,12 +31,13 @@ function formatCellValue(value: unknown, fieldType: string): React.ReactNode {
     return value.toFixed(2);
   }
 
-  // Image → thumbnail
-  if (fieldType === "IMAGE" && typeof value === "string") {
+  // Image/file → thumbnail or file link. Stored GCS paths are converted to the file endpoint.
+  if ((fieldType === "IMAGE" || formatterType === "image") && typeof value === "string") {
+    const href = toFileUrl(value);
     return (
-      <a href={value} target="_blank" rel="noopener noreferrer" className="inline-block">
+      <a href={href} target="_blank" rel="noopener noreferrer" className="inline-block" title="Open file">
         <img
-          src={value}
+          src={href}
           alt=""
           className="h-12 w-12 rounded-md object-cover"
           onError={(e) => {
@@ -40,6 +48,18 @@ function formatCellValue(value: unknown, fieldType: string): React.ReactNode {
         />
         <ImageIcon className="fallback-icon hidden h-12 w-12 rounded-md border border-[#dde6f0] p-2 text-[#7a95b5]" />
       </a>
+    );
+  }
+
+  if ((fieldType === "IMAGE" || formatterType === "image") && Array.isArray(value)) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {value.map((entry, index) => (
+          <span key={`${String(entry)}-${index}`}>
+            {formatCellValue(String(entry), column)}
+          </span>
+        ))}
+      </div>
     );
   }
 
@@ -196,7 +216,7 @@ export function ReportDataTable({
                     key={col.fieldKey}
                     className="whitespace-nowrap px-4 py-3 text-sm text-[#3a5272]"
                   >
-                    {formatCellValue(row[col.headerName], col.fieldType)}
+                    {formatCellValue(row[col.headerName], col)}
                   </td>
                 ))}
               </tr>

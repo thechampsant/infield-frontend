@@ -84,6 +84,35 @@ export function SectionOutputSettings({
           </button>
         </div>
       </div>
+
+      <div>
+        <h4 className="text-sm font-medium text-gray-700 mb-3">Export Details</h4>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={!!outputSettings.auditLogSheet}
+              onChange={(e) =>
+                onChange({ ...outputSettings, auditLogSheet: e.target.checked })
+              }
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            Include approval audit log sheet
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            File Name Pattern
+            <input
+              type="text"
+              value={outputSettings.fileNamePattern || ""}
+              onChange={(e) =>
+                onChange({ ...outputSettings, fileNamePattern: e.target.value })
+              }
+              placeholder="{reportName}_{date}"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </label>
+        </div>
+      </div>
     </div>
   );
 }

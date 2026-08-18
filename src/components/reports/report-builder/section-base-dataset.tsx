@@ -6,6 +6,8 @@ import type {
   ReportFieldMetadata,
   ReportJoinConfig,
   ReportDataScope,
+  ReportDynamicUdfConfig,
+  ReportDateFilterConfig,
 } from "@/lib/api/report-config-service";
 
 interface SectionBaseDatasetProps {
@@ -15,6 +17,8 @@ interface SectionBaseDatasetProps {
   secondarySourceKey: string;
   joinConfig: ReportJoinConfig | null;
   dataScope: ReportDataScope;
+  dynamicUdf: ReportDynamicUdfConfig;
+  dateFilter: ReportDateFilterConfig;
   primaryFields: ReportFieldMetadata[];
   secondaryFields: ReportFieldMetadata[];
   onPrimarySourceChange: (sourceKey: string, collectionName: string) => void;
@@ -22,6 +26,8 @@ interface SectionBaseDatasetProps {
   onSecondarySourceChange: (sourceKey: string, collectionName: string) => void;
   onJoinConfigChange: (config: ReportJoinConfig | null) => void;
   onDataScopeChange: (scope: ReportDataScope) => void;
+  onDynamicUdfChange: (config: ReportDynamicUdfConfig) => void;
+  onDateFilterChange: (config: ReportDateFilterConfig) => void;
   errors?: Record<string, string>;
 }
 
@@ -32,6 +38,8 @@ export function SectionBaseDataset({
   secondarySourceKey,
   joinConfig,
   dataScope,
+  dynamicUdf,
+  dateFilter,
   primaryFields,
   secondaryFields,
   onPrimarySourceChange,
@@ -39,11 +47,17 @@ export function SectionBaseDataset({
   onSecondarySourceChange,
   onJoinConfigChange,
   onDataScopeChange,
+  onDynamicUdfChange,
+  onDateFilterChange,
   errors = {},
 }: SectionBaseDatasetProps) {
   const secondaryOptions = dataSources.filter(
     (ds) => ds.sourceKey !== primarySourceKey,
   );
+  const dateFields = primaryFields.filter((field) => {
+    const formatterType = field.formatter?.type;
+    return field.fieldType === "DATE" || formatterType === "date" || formatterType === "datetime" || formatterType === "time" || field.valueKind === "dateTimeObject";
+  });
 
   const handlePrimaryChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -227,6 +241,94 @@ export function SectionBaseDataset({
           )}
         </div>
       )}
+
+      {/* Dynamic UDF Source */}
+      <div className="border-t border-gray-100 pt-4">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!dynamicUdf.enabled}
+            onChange={(e) =>
+              onDynamicUdfChange({
+                ...dynamicUdf,
+                enabled: e.target.checked,
+                schemaKeyField: dynamicUdf.schemaKeyField || "default",
+                valueField: dynamicUdf.valueField || "udfFields",
+              })
+            }
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-sm font-medium text-gray-700">
+            Configure Dynamic Form Fields
+          </span>
+        </label>
+
+        {dynamicUdf.enabled && (
+          <div className="mt-3 grid grid-cols-2 gap-4">
+            <label className="text-sm font-medium text-gray-700">
+              Schema Key
+              <input
+                type="text"
+                value={dynamicUdf.schemaKeyField || ""}
+                onChange={(e) =>
+                  onDynamicUdfChange({
+                    ...dynamicUdf,
+                    schemaKeyField: e.target.value,
+                  })
+                }
+                placeholder="default or configured form schema key"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              Submitted Values Path
+              <input
+                type="text"
+                value={dynamicUdf.valueField || ""}
+                onChange={(e) =>
+                  onDynamicUdfChange({
+                    ...dynamicUdf,
+                    valueField: e.target.value,
+                  })
+                }
+                placeholder="udfFields"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Date Filter Field */}
+      <div className="border-t border-gray-100 pt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Date Range Filter Field
+        </label>
+        <select
+          value={dateFilter.fieldKey || ""}
+          onChange={(e) => {
+            const field = primaryFields.find((item) => item.fieldKey === e.target.value);
+            onDateFilterChange(
+              field
+                ? {
+                    fieldKey: field.fieldKey,
+                    sourceKey: primarySourceKey,
+                    valueType: field.valueKind === "dateTimeObject" ? "istDateInfo" : undefined,
+                    timezone: field.formatter?.timezone || "Asia/Kolkata",
+                  }
+                : {},
+            );
+          }}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Use source default date</option>
+          {dateFields.map((field) => (
+            <option key={field.fieldKey} value={field.fieldKey}>
+              {field.displayName}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Data Scope */}
       <div className="border-t border-gray-100 pt-4">

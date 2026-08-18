@@ -3,6 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { GripVertical, Search, X } from "lucide-react";
 import type { ReportFieldMetadata } from "@/lib/api/report-config-service";
+import type {
+  ReportReferenceDisplayConfig,
+  ReportValueFormatterConfig,
+} from "@/lib/api/report-config-service";
 
 // ─── Field type badge color mapping ─────────────────────────────────────────
 
@@ -24,6 +28,27 @@ function FieldTypeBadge({ type }: { type: string }) {
   );
 }
 
+function isTechnicalColumnField(field: ReportFieldMetadata): boolean {
+  if (field.fieldKey === "_id") return true;
+  if (/(^|\.)(projectId|userId|designationId|attendanceConfigId|createdBy|updatedBy)$/i.test(field.fieldKey)) {
+    return true;
+  }
+  if (
+    [
+      "attendanceDate",
+      "checkIn",
+      "checkOut",
+      "actualCheckOut",
+      "effectiveCheckOut",
+      "insertedAt",
+      "updatedAtInfo",
+    ].includes(field.fieldKey)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // ─── Selected item type ─────────────────────────────────────────────────────
 
 export interface SelectedField {
@@ -32,6 +57,8 @@ export interface SelectedField {
   headerName: string;
   fieldType: string;
   displayName: string;
+  referenceDisplay?: ReportReferenceDisplayConfig;
+  formatter?: ReportValueFormatterConfig;
 }
 
 // ─── Props ──────────────────────────────────────────────────────────────────
@@ -79,11 +106,13 @@ export function FieldPickerPanel({
 
   // Combine primary + secondary fields
   const allAvailable = useMemo(() => {
-    const primary = availableFields.map((f) => ({ ...f, sourceKey }));
+    const primary = availableFields
+      .filter((field) => !isTechnicalColumnField(field))
+      .map((f) => ({ ...f, sourceKey }));
     const secondary = secondaryFields.map((f) => ({
       ...f,
       sourceKey: secondarySourceKey || "",
-    }));
+    })).filter((field) => !isTechnicalColumnField(field));
     return [...primary, ...secondary];
   }, [availableFields, sourceKey, secondaryFields, secondarySourceKey]);
 
@@ -130,6 +159,18 @@ export function FieldPickerPanel({
             headerName: field.displayName,
             fieldType: field.fieldType,
             displayName: field.displayName,
+            referenceDisplay: field.isRef
+              ? {
+                  enabled: true,
+                  collectionName: field.refCollection,
+                  localField: field.refLocalField || field.fieldKey,
+                  foreignField: field.refForeignField || "_id",
+                  displayField: field.refDisplayField,
+                  displayFields: field.refDisplayFields,
+                  separator: " ",
+                }
+              : undefined,
+            formatter: field.formatter,
           },
         ]);
       }
@@ -147,6 +188,18 @@ export function FieldPickerPanel({
         headerName: f.displayName,
         fieldType: f.fieldType,
         displayName: f.displayName,
+        referenceDisplay: f.isRef
+          ? {
+              enabled: true,
+              collectionName: f.refCollection,
+              localField: f.refLocalField || f.fieldKey,
+              foreignField: f.refForeignField || "_id",
+              displayField: f.refDisplayField,
+              displayFields: f.refDisplayFields,
+              separator: " ",
+            }
+          : undefined,
+        formatter: f.formatter,
       }));
     const merged = [...selectedFields, ...newFields];
     const limited = maxItems ? merged.slice(0, maxItems) : merged;
@@ -176,6 +229,58 @@ export function FieldPickerPanel({
       next[index] = {
         ...next[index],
         headerName: newName.trim() || next[index].displayName,
+      };
+      onSelectionChange(next);
+    },
+    [selectedFields, onSelectionChange],
+  );
+
+  const updateFormatter = useCallback(
+    (index: number, type: string) => {
+      const next = [...selectedFields];
+      next[index] = {
+        ...next[index],
+        formatter: type
+          ? {
+              ...(next[index].formatter || {}),
+              type: type as ReportValueFormatterConfig["type"],
+              timezone: next[index].formatter?.timezone || "Asia/Kolkata",
+            }
+          : undefined,
+      };
+      onSelectionChange(next);
+    },
+    [selectedFields, onSelectionChange],
+  );
+
+  const updateReferenceEnabled = useCallback(
+    (index: number, enabled: boolean) => {
+      const next = [...selectedFields];
+      next[index] = {
+        ...next[index],
+        referenceDisplay: {
+          ...(next[index].referenceDisplay || {}),
+          enabled,
+          localField: next[index].referenceDisplay?.localField || next[index].fieldKey,
+          foreignField: next[index].referenceDisplay?.foreignField || "_id",
+        },
+      };
+      onSelectionChange(next);
+    },
+    [selectedFields, onSelectionChange],
+  );
+
+  const updateReferenceField = useCallback(
+    (index: number, key: keyof ReportReferenceDisplayConfig, value: string) => {
+      const next = [...selectedFields];
+      const existing = next[index].referenceDisplay || {};
+      next[index] = {
+        ...next[index],
+        referenceDisplay: {
+          ...existing,
+          [key]: value,
+          enabled: existing.enabled ?? true,
+        },
       };
       onSelectionChange(next);
     },
@@ -308,42 +413,115 @@ export function FieldPickerPanel({
             selectedFields.map((field, index) => (
               <div
                 key={`${field.sourceKey}-${field.fieldKey}`}
-                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 group"
+                className="rounded px-2 py-2 hover:bg-gray-50 group"
                 draggable={showDragHandles}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(index)}
               >
-                {showDragHandles && (
-                  <GripVertical className="h-3.5 w-3.5 text-gray-400 cursor-grab" />
-                )}
-                <span className="text-xs text-gray-400 w-5">{index + 1}</span>
-                {showEditableHeaders ? (
-                  <input
-                    type="text"
-                    value={field.headerName}
-                    onChange={(e) => updateHeaderName(index, e.target.value)}
-                    onBlur={(e) => {
-                      if (!e.target.value.trim()) {
-                        updateHeaderName(index, "");
-                      }
-                    }}
-                    maxLength={50}
-                    className="flex-1 text-sm border border-transparent hover:border-gray-300 focus:border-blue-500 rounded px-1 py-0.5 focus:outline-none"
-                  />
-                ) : (
-                  <span className="text-sm text-gray-700 flex-1 truncate">
-                    {field.headerName}
-                  </span>
-                )}
-                <span className="text-xs text-gray-400">{field.sourceKey}</span>
-                <button
-                  type="button"
-                  onClick={() => removeField(index)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-50 rounded"
-                >
-                  <X className="h-3.5 w-3.5 text-red-500" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {showDragHandles && (
+                    <GripVertical className="h-3.5 w-3.5 text-gray-400 cursor-grab" />
+                  )}
+                  <span className="text-xs text-gray-400 w-5">{index + 1}</span>
+                  {showEditableHeaders ? (
+                    <input
+                      type="text"
+                      value={field.headerName}
+                      onChange={(e) => updateHeaderName(index, e.target.value)}
+                      onBlur={(e) => {
+                        if (!e.target.value.trim()) {
+                          updateHeaderName(index, "");
+                        }
+                      }}
+                      maxLength={50}
+                      className="flex-1 text-sm border border-transparent hover:border-gray-300 focus:border-blue-500 rounded px-1 py-0.5 focus:outline-none"
+                    />
+                  ) : (
+                    <span className="text-sm text-gray-700 flex-1 truncate">
+                      {field.headerName}
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-400">{field.sourceKey}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeField(index)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-50 rounded"
+                  >
+                    <X className="h-3.5 w-3.5 text-red-500" />
+                  </button>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2 pl-10">
+                  <label className="text-xs text-gray-500">
+                    Format
+                    <select
+                      value={field.formatter?.type || ""}
+                      onChange={(e) => updateFormatter(index, e.target.value)}
+                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                    >
+                      <option value="">Auto</option>
+                      <option value="text">Text</option>
+                      <option value="number">Number</option>
+                      <option value="boolean">Boolean</option>
+                      <option value="date">Date</option>
+                      <option value="time">Time</option>
+                      <option value="datetime">Date & Time</option>
+                      <option value="image">Image/File Links</option>
+                      <option value="location">Location</option>
+                    </select>
+                  </label>
+
+                  <label className="flex items-end gap-2 text-xs text-gray-500">
+                    <input
+                      type="checkbox"
+                      checked={!!field.referenceDisplay?.enabled}
+                      onChange={(e) => updateReferenceEnabled(index, e.target.checked)}
+                      className="mb-1 h-4 w-4 rounded border-gray-300 text-blue-600"
+                    />
+                    Resolve ID/UUID
+                  </label>
+
+                  {field.referenceDisplay?.enabled && (
+                    <>
+                      <input
+                        type="text"
+                        value={field.referenceDisplay.collectionName || ""}
+                        onChange={(e) => updateReferenceField(index, "collectionName", e.target.value)}
+                        placeholder="Target collection"
+                        className="rounded border border-gray-300 px-2 py-1 text-xs"
+                      />
+                      <input
+                        type="text"
+                        value={field.referenceDisplay.foreignField || "_id"}
+                        onChange={(e) => updateReferenceField(index, "foreignField", e.target.value)}
+                        placeholder="Foreign field"
+                        className="rounded border border-gray-300 px-2 py-1 text-xs"
+                      />
+                      <input
+                        type="text"
+                        value={(field.referenceDisplay.displayFields || []).join(",")}
+                        onChange={(e) => {
+                          const next = [...selectedFields];
+                          next[index] = {
+                            ...next[index],
+                            referenceDisplay: {
+                              ...(next[index].referenceDisplay || {}),
+                              enabled: true,
+                              displayFields: e.target.value
+                                .split(",")
+                                .map((part) => part.trim())
+                                .filter(Boolean),
+                            },
+                          };
+                          onSelectionChange(next);
+                        }}
+                        placeholder="Display fields comma separated"
+                        className="col-span-2 rounded border border-gray-300 px-2 py-1 text-xs"
+                      />
+                    </>
+                  )}
+                </div>
               </div>
             ))
           )}
