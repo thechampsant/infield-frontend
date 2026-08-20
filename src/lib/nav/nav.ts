@@ -112,7 +112,7 @@ export function projectAdminBase(accountCode: string, projectCode: string): stri
   return `/project-admin/${accountCode}/${projectCode}`;
 }
 
-/** Design-spec drawer nav: Uploaders, Modules, Form Builder, Reports. */
+/** Design-spec drawer nav: Uploaders, Modules, Web Modules, Form Builder, Reports. */
 export function projectAdminDrawerNav(
   accountCode: string,
   projectCode: string,
@@ -121,6 +121,7 @@ export function projectAdminDrawerNav(
   return [
     { label: "Uploaders", href: `${base}/uploaders/designations`, icon: "users" },
     { label: "Modules", href: `${base}/modules`, icon: "settings" },
+    { label: "Web Modules", href: `${base}/web-modules`, icon: "settings" },
     { label: "Form Builder", href: `${base}/form-builder`, icon: "fileText" },
     { label: "Reports", href: `${base}/reports`, icon: "pieChart" },
   ];

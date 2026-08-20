@@ -69,6 +69,7 @@ function ProjectAdminShellInner({ children }: { children: ReactNode }) {
       <ProjectAdminDrawer
         accountCode={ctx.accountCode}
         projectCode={ctx.projectCode}
+        projectId={ctx.projectId}
         projectName={ctx.projectName}
         accountName={ctx.accountName}
         backHref={ctx.backHref}
