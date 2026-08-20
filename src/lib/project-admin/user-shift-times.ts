@@ -18,9 +18,10 @@ function timeToMinutes(value: string): number {
   return hours * 60 + minutes;
 }
 
-export function validateUserShiftTimes(
+export function validateShiftTimes(
   fields: UDFField[],
   values: Record<string, UDFValue>,
+  entityLabel = "user",
 ): { errorKeys: string[]; message: string } | null {
   const startField = fields.find((field) => field.fieldKey === SHIFT_START_FIELD_KEY);
   const endField = fields.find((field) => field.fieldKey === SHIFT_END_FIELD_KEY);
@@ -56,7 +57,7 @@ export function validateUserShiftTimes(
       ? null
       : {
           errorKeys,
-          message: "Use 00:00 for both shift timings to bypass shift logic for a user.",
+          message: `Use 00:00 for both shift timings to bypass shift logic for a ${entityLabel}.`,
         };
   }
 
@@ -68,4 +69,11 @@ export function validateUserShiftTimes(
   }
 
   return null;
+}
+
+export function validateUserShiftTimes(
+  fields: UDFField[],
+  values: Record<string, UDFValue>,
+): { errorKeys: string[]; message: string } | null {
+  return validateShiftTimes(fields, values, "user");
 }

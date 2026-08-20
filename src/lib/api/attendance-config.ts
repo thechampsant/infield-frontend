@@ -37,11 +37,13 @@ export interface AttendanceTypeDto {
   isCustom: boolean;
   colour?: string;
   color?: string;
+  isImageRecognitionEnabled?: boolean;
 }
 
 export interface GeoFencingConfigDto {
   isEnabled: boolean;
   radius?: number;
+  bypassWhenStoreUnavailable?: boolean;
 }
 
 export type PhotoDirection = "Front" | "Back" | "Both";
@@ -119,7 +121,16 @@ export interface LeaveModuleConfigDto {
   autoWeekOff: boolean;
 }
 
+export type ShiftAssignmentMode = "USER_MASTER" | "STORE_MASTER";
+
 export interface ShiftManagementConfigDto {
+  isEnabled: boolean;
+  assignmentMode: ShiftAssignmentMode;
+  zeroHoursBypassEnabled: boolean;
+  bypassAttendanceTypes: string[];
+}
+
+export interface ImageRecognitionConfigDto {
   isEnabled: boolean;
 }
 
@@ -144,6 +155,7 @@ export interface AttendanceConfigDto {
   regularization: RegularizationConfigDto;
   leaveModule: LeaveModuleConfigDto;
   shiftManagement: ShiftManagementConfigDto;
+  imageRecognition: ImageRecognitionConfigDto;
 }
 
 export interface CreateAttendanceConfigDto extends AttendanceConfigDto {
@@ -175,6 +187,7 @@ export interface AttendanceTypeForm {
   geoFenced: boolean;
   photoRequired: boolean;
   colour: string;
+  imageRecognitionEnabled: boolean;
 }
 
 export interface ApprovalLevelForm {
@@ -200,6 +213,7 @@ export interface AttendanceConfigForm {
   types: AttendanceTypeForm[];
 
   geoFenceRadius: number;
+  geoFenceBypassWhenStoreUnavailable: boolean;
 
   photoDirection: PhotoDirection;
   photoSource: PhotoSource;
@@ -220,7 +234,11 @@ export interface AttendanceConfigForm {
   halfDayMaxHrs: number;
   singlePunchFullDay: boolean;
   shiftManagementEnabled: boolean;
+  shiftAssignmentMode: ShiftAssignmentMode;
+  zeroHoursBypassEnabled: boolean;
+  shiftBypassAttendanceTypes: string[];
   maxWorkingHoursTimerLimitEnabled: boolean;
+  imageRecognitionEnabled: boolean;
 
   autoCheckoutEnabled: boolean;
   autoCheckoutTime: string;
@@ -256,13 +274,13 @@ function normalizeTypeColour(value: string | undefined): string {
 
 /** Seven default attendance types per AC4. */
 export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
-  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR },
-  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR },
-  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR },
-  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR },
-  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR },
-  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR },
-  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR },
+  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
+  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
+  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
+  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
+  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
+  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
+  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
 ];
 
 export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
@@ -281,6 +299,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   types: DEFAULT_ATTENDANCE_TYPES.map((t) => ({ ...t })),
 
   geoFenceRadius: 100,
+  geoFenceBypassWhenStoreUnavailable: false,
 
   photoDirection: "Both",
   photoSource: "Both",
@@ -301,7 +320,11 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   halfDayMaxHrs: 9,
   singlePunchFullDay: false,
   shiftManagementEnabled: false,
+  shiftAssignmentMode: "USER_MASTER",
+  zeroHoursBypassEnabled: true,
+  shiftBypassAttendanceTypes: [],
   maxWorkingHoursTimerLimitEnabled: false,
+  imageRecognitionEnabled: false,
 
   autoCheckoutEnabled: false,
   autoCheckoutTime: "23:00",
@@ -356,6 +379,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
 
   const wh = doc.workingHours;
   const reg = doc.regularization;
+  const rootIrEnabled = Boolean(doc.imageRecognition?.isEnabled);
 
   const types: AttendanceTypeForm[] =
     Array.isArray(doc.attendanceTypes) && doc.attendanceTypes.length
@@ -367,6 +391,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
           geoFenced: Boolean(t.isGeoFenced),
           photoRequired: Boolean(t.isPhotoRequired),
           colour: normalizeTypeColour(t.colour ?? t.color),
+          imageRecognitionEnabled: rootIrEnabled && Boolean(t.isImageRecognitionEnabled),
         }))
       : DEFAULT_ATTENDANCE_TYPES.map((t) => ({ ...t }));
 
@@ -388,6 +413,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     types,
 
     geoFenceRadius: doc.geoFencing?.radius ?? DEFAULT_CONFIG_FORM.geoFenceRadius,
+    geoFenceBypassWhenStoreUnavailable: Boolean(doc.geoFencing?.bypassWhenStoreUnavailable),
 
     photoDirection: doc.photoCapture?.direction ?? DEFAULT_CONFIG_FORM.photoDirection,
     photoSource: doc.photoCapture?.source ?? DEFAULT_CONFIG_FORM.photoSource,
@@ -408,7 +434,15 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     halfDayMaxHrs: wh?.halfDayLogic?.maxHours ?? DEFAULT_CONFIG_FORM.halfDayMaxHrs,
     singlePunchFullDay: Boolean(wh?.enableSinglePunchLogic),
     shiftManagementEnabled: Boolean(doc.shiftManagement?.isEnabled),
+    shiftAssignmentMode: doc.shiftManagement?.assignmentMode ?? DEFAULT_CONFIG_FORM.shiftAssignmentMode,
+    zeroHoursBypassEnabled:
+      doc.shiftManagement?.zeroHoursBypassEnabled ??
+      DEFAULT_CONFIG_FORM.zeroHoursBypassEnabled,
+    shiftBypassAttendanceTypes: Array.isArray(doc.shiftManagement?.bypassAttendanceTypes)
+      ? doc.shiftManagement.bypassAttendanceTypes.filter(Boolean)
+      : [],
     maxWorkingHoursTimerLimitEnabled: Boolean(wh?.enableTimerLimit),
+    imageRecognitionEnabled: rootIrEnabled,
 
     autoCheckoutEnabled: Boolean(doc.isAutoCheckOutEnabled),
     autoCheckoutTime: doc.autoCheckOutTime ?? DEFAULT_CONFIG_FORM.autoCheckoutTime,
@@ -448,6 +482,9 @@ function label(value: string, fallback: string): LabelConfigDto {
 
 export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
   const anyGeoFenced = form.types.some((t) => t.geoFenced);
+  const activeTypeNames = new Set(
+    form.types.filter((t) => t.active).map((t) => t.name.trim()).filter(Boolean),
+  );
 
   return {
     name: form.name.trim() || undefined,
@@ -467,8 +504,14 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       isPhotoRequired: t.photoRequired,
       isCustom: t.isCustom,
       colour: normalizeTypeColour(t.colour),
+      isImageRecognitionEnabled:
+        form.imageRecognitionEnabled && t.active && t.photoRequired && t.imageRecognitionEnabled,
     })),
-    geoFencing: { isEnabled: anyGeoFenced, radius: form.geoFenceRadius },
+    geoFencing: {
+      isEnabled: anyGeoFenced,
+      radius: form.geoFenceRadius,
+      bypassWhenStoreUnavailable: form.geoFenceBypassWhenStoreUnavailable,
+    },
     photoCapture: { direction: form.photoDirection, source: form.photoSource },
     remarks: { isEnabled: form.remarksEnabled, isMandatory: form.remarksMandatory },
     checkInCutOff: { isEnabled: form.cutoffEnabled, time: form.cutoffTime },
@@ -515,7 +558,15 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       },
     },
     leaveModule: { autoWeekOff: form.autoWeekOffEnabled },
-    shiftManagement: { isEnabled: form.shiftManagementEnabled },
+    shiftManagement: {
+      isEnabled: form.shiftManagementEnabled,
+      assignmentMode: form.shiftAssignmentMode,
+      zeroHoursBypassEnabled: form.zeroHoursBypassEnabled,
+      bypassAttendanceTypes: form.shiftBypassAttendanceTypes
+        .map((name) => name.trim())
+        .filter((name, index, names) => Boolean(name) && activeTypeNames.has(name) && names.indexOf(name) === index),
+    },
+    imageRecognition: { isEnabled: form.imageRecognitionEnabled },
   };
 }
 

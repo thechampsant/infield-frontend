@@ -631,7 +631,16 @@
   gap: 9px;
 }
 
-.leave-designation-option {
+.leave-choice-grid,
+.leave-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 9px;
+}
+
+.leave-designation-option,
+.leave-choice-option,
+.leave-check-option {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 9px;
@@ -646,25 +655,58 @@
   font-weight: 800;
 }
 
+.leave-choice-option input,
+.leave-check-option input {
+  accent-color: var(--leave-teal);
+}
+
 .leave-designation-option input {
   accent-color: var(--leave-blue);
 }
 
-.leave-designation-option small {
+.leave-designation-option small,
+.leave-check-option small {
   grid-column: 2;
   color: var(--leave-muted);
   font-size: 9px;
   font-weight: 700;
 }
 
-.leave-designation-option.selected {
+.leave-designation-option.selected,
+.leave-choice-option.selected,
+.leave-check-option.selected {
   border-color: rgba(30, 95, 168, 0.32);
   background: var(--leave-blue-soft);
   color: var(--leave-blue);
 }
 
-.leave-designation-option.disabled {
+.leave-designation-option.disabled,
+.leave-check-option.disabled {
   opacity: 0.52;
+}
+
+.leave-check-option.disabled {
+  cursor: not-allowed;
+}
+
+.leave-setup-note strong,
+.leave-setup-note span {
+  display: block;
+}
+
+.leave-setup-note span {
+  margin-top: 3px;
+}
+
+.leave-setup-note {
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-radius: 12px;
+  background: var(--leave-amber-soft);
+  color: #92400e;
+  padding: 12px 13px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .leave-setting-list {
@@ -849,6 +891,14 @@
 
 .leave-type-card p {
   margin: 5px 0 0;
+}
+
+.leave-mode-badge {
+  width: fit-content;
+  margin-top: 8px;
+  border-color: rgba(0, 168, 122, 0.22) !important;
+  background: var(--leave-teal-soft) !important;
+  color: var(--leave-teal-dark) !important;
 }
 
 .leave-closing-editor {

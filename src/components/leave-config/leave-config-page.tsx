@@ -28,6 +28,7 @@ import {
   featureConfigService,
   formatApiError,
   leaveConfigService,
+  udfConfigService,
   type Designation,
   type HolidayGroupingField,
   type HolidayUploadSummary,
@@ -39,9 +40,13 @@ import {
   type LeaveHoliday,
   type LeaveHolidayType,
   type LeavePolicy,
+  type LeaveSpecialTemplate,
   type LeaveTypeConfig,
+  type LeaveTypeMode,
   type LeaveYear,
+  type UdfSchemaField,
 } from "@/lib/api";
+import { projectUsersService } from "@/lib/api/project-users-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 
 interface LeaveConfigPageProps {
@@ -72,8 +77,24 @@ const CREDIT_RULES: LeaveCreditRuleType[] = [
 const HOLIDAY_TYPES: LeaveHolidayType[] = ["National", "Regional", "Optional"];
 const AUTO_ACTIONS: LeaveAutoAction[] = ["None", "AutoApprove", "AutoReject"];
 const HEX_COLOUR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const SPECIAL_TEMPLATES: LeaveSpecialTemplate[] = ["Maternity", "Paternity", "CompOff"];
+const DEFAULT_COMP_OFF_ATTENDANCE_TYPES = [
+  "National / Compliance Holiday",
+  "Festival / Optional Holiday",
+  "Weekly Off",
+];
+const CHILD_LIMIT_LABELS: Record<string, string> = {
+  FirstOrSecondChild: "1st or 2nd child",
+  ThirdOrMoreChild: "3rd child or more",
+};
+const PARENTAL_CHILD_CATEGORIES = ["FirstOrSecondChild", "ThirdOrMoreChild"] as const;
 
 type HolidayTableRow = LeaveHoliday & { groupValue: string };
+type AddLeaveTypeMode = "Custom" | LeaveSpecialTemplate;
+type GenderUdfState =
+  | { status: "ready"; options: string[] }
+  | { status: "missing" }
+  | { status: "load-error"; message: string };
 
 function cloneConfig(config: LeaveConfigDocument): LeaveConfigDocument {
   return JSON.parse(JSON.stringify(config)) as LeaveConfigDocument;
@@ -91,6 +112,58 @@ function colourForPicker(value: string): string {
     return `#${shortMatch[1]}${shortMatch[1]}${shortMatch[2]}${shortMatch[2]}${shortMatch[3]}${shortMatch[3]}`;
   }
   return /^#[0-9A-F]{6}$/.test(colour) ? colour : "#2196F3";
+}
+
+function getLeaveTypeMode(leaveType: LeaveTypeConfig): LeaveTypeMode {
+  return leaveType.leaveTypeMode ?? "Periodic";
+}
+
+function leaveTypeModeLabel(mode: LeaveTypeMode): string {
+  switch (mode) {
+    case "Maternity":
+      return "Maternity";
+    case "Paternity":
+      return "Paternity";
+    case "CompOff":
+      return "Compensatory Off";
+    default:
+      return "Periodic";
+  }
+}
+
+function isParentalLeaveMode(mode: LeaveTypeMode): boolean {
+  return mode === "Maternity" || mode === "Paternity";
+}
+
+function genderStateFromUserSchema(fields: UdfSchemaField[]): GenderUdfState {
+  const genderField = fields.find((field) => field.fieldKey === "gender");
+  if (!genderField || !["SELECT", "DROPDOWN"].includes(genderField.type)) return { status: "missing" };
+  const config = genderField.config;
+  if (!config || typeof config !== "object" || Array.isArray(config)) return { status: "missing" };
+  const rawConfig = config as Record<string, unknown>;
+  if (rawConfig.multiple === true) return { status: "missing" };
+  const options = Array.isArray(rawConfig.options)
+    ? rawConfig.options.map((option) => String(option)).filter(Boolean)
+    : [];
+  return options.length ? { status: "ready", options } : { status: "missing" };
+}
+
+function genderSetupMessage(state: GenderUdfState): string {
+  if (state.status === "load-error") return state.message;
+  return "Please configure the gender field in User UDF Config to proceed.";
+}
+
+async function loadGenderUdfState(projectId: string): Promise<GenderUdfState> {
+  const userFormConfig = await projectUsersService.getFormFieldsConfig(projectId);
+  if (userFormConfig) {
+    return genderStateFromUserSchema(userFormConfig.udfFields);
+  }
+
+  const schema = await udfConfigService.getSchema({
+    projectId,
+    entityType: udfConfigService.entityTypeForScope("user"),
+  });
+  return genderStateFromUserSchema(schema?.fields ?? []);
 }
 
 function withDefaultApprover(leaveType: LeaveTypeConfig, approverRole: string | undefined): LeaveTypeConfig {
@@ -222,6 +295,19 @@ function validateConfig(config: LeaveConfigDocument): string[] {
       if (leaveType.totalLeavesPerYear < 0 || leaveType.totalLeavesPerYear > 365) {
         errors.push(`${typeLabel}: total leaves must be between 0 and 365.`);
       }
+      if (
+        (getLeaveTypeMode(leaveType) === "Maternity" || getLeaveTypeMode(leaveType) === "Paternity") &&
+        leaveType.entitlementType !== "OneTime"
+      ) {
+        errors.push(`${typeLabel}: entitlement type must be OneTime.`);
+      }
+      if (
+        getLeaveTypeMode(leaveType) !== "Maternity" &&
+        getLeaveTypeMode(leaveType) !== "Paternity" &&
+        leaveType.entitlementType === "OneTime"
+      ) {
+        errors.push(`${typeLabel}: OneTime entitlement is only available for ML/PTL.`);
+      }
       if (!dayInRange(leaveType.attendanceCycle.startDay) || !dayInRange(leaveType.attendanceCycle.endDay)) {
         errors.push(`${typeLabel}: attendance cycle days must be between 1 and 31.`);
       }
@@ -230,6 +316,37 @@ function validateConfig(config: LeaveConfigDocument): string[] {
       }
       if (leaveType.approvalWorkflow.levels.length > 10) {
         errors.push(`${typeLabel}: approval workflow can have at most 10 levels.`);
+      }
+      if (getLeaveTypeMode(leaveType) === "Maternity") {
+        const childLimits = leaveType.maternityRules?.childLimits ?? [];
+        if (!childLimits.some((limit) => limit.category === "FirstOrSecondChild" && limit.maxDays >= 0)) {
+          errors.push(`${typeLabel}: add a max day limit for 1st or 2nd child.`);
+        }
+        if (!childLimits.some((limit) => limit.category === "ThirdOrMoreChild" && limit.maxDays >= 0)) {
+          errors.push(`${typeLabel}: add a max day limit for 3rd child or more.`);
+        }
+      }
+      if (getLeaveTypeMode(leaveType) === "Paternity") {
+        const childLimits = leaveType.paternityRules?.childLimits ?? [];
+        if (!childLimits.some((limit) => limit.category === "FirstOrSecondChild" && limit.maxDays >= 0)) {
+          errors.push(`${typeLabel}: add a max day limit for 1st or 2nd child.`);
+        }
+        if (!childLimits.some((limit) => limit.category === "ThirdOrMoreChild" && limit.maxDays >= 0)) {
+          errors.push(`${typeLabel}: add a max day limit for 3rd child or more.`);
+        }
+      }
+      if (getLeaveTypeMode(leaveType) === "Maternity" || getLeaveTypeMode(leaveType) === "Paternity") {
+        if (!leaveType.genderEligibility?.eligibleValues?.length) {
+          errors.push(`${typeLabel}: select at least one eligible gender value.`);
+        }
+      }
+      if (getLeaveTypeMode(leaveType) === "CompOff") {
+        if (!leaveType.compOffRules?.sourceAttendanceTypes?.length) {
+          errors.push(`${typeLabel}: select at least one comp off source attendance type.`);
+        }
+        if ((leaveType.compOffRules?.lookbackDays ?? 0) < 0) {
+          errors.push(`${typeLabel}: comp off lookback days must be 0 or more.`);
+        }
       }
       if (
         leaveType.applicationRules.applicationClosingDate.isEnabled &&
@@ -306,6 +423,7 @@ export function LeaveConfigPage({
   const [config, setConfig] = useState<LeaveConfigDocument | null>(null);
   const [savedConfig, setSavedConfig] = useState<LeaveConfigDocument | null>(null);
   const [designations, setDesignations] = useState<Designation[]>([]);
+  const [genderUdfState, setGenderUdfState] = useState<GenderUdfState>({ status: "missing" });
   const [holidayGroupingFields, setHolidayGroupingFields] = useState<HolidayGroupingField[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -321,6 +439,11 @@ export function LeaveConfigPage({
   const [reconcilePolicyIndex, setReconcilePolicyIndex] = useState<number | null>(null);
   const [reconcileDate, setReconcileDate] = useState(localDateInputValue);
   const [reconciling, setReconciling] = useState(false);
+  const [addTypePolicyIndex, setAddTypePolicyIndex] = useState<number | null>(null);
+  const [addTypeMode, setAddTypeMode] = useState<AddLeaveTypeMode>("Custom");
+  const [eligibleGenderValues, setEligibleGenderValues] = useState<string[]>([]);
+  const [addingType, setAddingType] = useState(false);
+  const [loadingGenderUdf, setLoadingGenderUdf] = useState(false);
   const reconcileDateInputRef = useRef<HTMLInputElement | null>(null);
 
   const dirty = useMemo(() => {
@@ -352,6 +475,18 @@ export function LeaveConfigPage({
         .listHolidayGroupingFields(projectId)
         .then(setHolidayGroupingFields)
         .catch(() => setHolidayGroupingFields([]));
+      loadGenderUdfState(projectId)
+        .then(setGenderUdfState)
+        .catch((err) => {
+          setGenderUdfState(
+            process.env.NEXT_PUBLIC_USE_MOCK_API === "true"
+              ? { status: "ready", options: ["Female", "Male", "Other"] }
+              : {
+                  status: "load-error",
+                  message: formatApiError(err, "Could not load User UDF gender options."),
+                },
+          );
+        });
       setIsActive(
         Boolean(featureConfig.modules.find((module) => module.key === "leave")?.isActive),
       );
@@ -582,6 +717,139 @@ export function LeaveConfigPage({
     }
   }
 
+  async function refreshGenderUdfState(): Promise<GenderUdfState> {
+    setLoadingGenderUdf(true);
+    try {
+      const nextState = await loadGenderUdfState(projectId);
+      setGenderUdfState(nextState);
+      return nextState;
+    } catch (err) {
+      const nextState: GenderUdfState =
+        process.env.NEXT_PUBLIC_USE_MOCK_API === "true"
+          ? { status: "ready", options: ["Female", "Male", "Other"] }
+          : {
+              status: "load-error",
+              message: formatApiError(err, "Could not load User UDF gender options."),
+            };
+      setGenderUdfState(nextState);
+      return nextState;
+    } finally {
+      setLoadingGenderUdf(false);
+    }
+  }
+
+  function openAddTypeDialog(policyIndex: number) {
+    const genderOptions = genderUdfState.status === "ready" ? genderUdfState.options : [];
+    setAddTypePolicyIndex(policyIndex);
+    setAddTypeMode("Custom");
+    setEligibleGenderValues(genderOptions.length ? [genderOptions[0]] : []);
+    void refreshGenderUdfState().then((nextState) => {
+      if (nextState.status === "ready") {
+        setEligibleGenderValues((current) => current.length ? current : [nextState.options[0]]);
+      }
+    });
+  }
+
+  function closeAddTypeDialog(force = false) {
+    if (addingType && !force) return;
+    setAddTypePolicyIndex(null);
+    setAddTypeMode("Custom");
+    setEligibleGenderValues([]);
+  }
+
+  function selectedEligibleGenderValues(): string[] {
+    return genderUdfState.status === "ready" ? eligibleGenderValues : [];
+  }
+
+  async function confirmAddLeaveType() {
+    if (!config || addTypePolicyIndex === null) return;
+    const policy = config.policies[addTypePolicyIndex];
+    if (!policy) return;
+
+    if (addTypeMode === "Custom") {
+      const typeIndex = policy.leaveTypes.length;
+      updateConfig((current) => ({
+        ...current,
+        policies: current.policies.map((item, index) =>
+          index === addTypePolicyIndex
+            ? {
+                ...item,
+                leaveTypes: [
+                  ...item.leaveTypes,
+                  withDefaultApprover(
+                    leaveConfigService.createCustomLeaveType({
+                      name: "Custom Leave",
+                      shortCode: `L${item.leaveTypes.length + 1}`,
+                      totalLeavesPerYear: 0,
+                      entitlementType: "Annual",
+                    }),
+                    designations[0]?.id,
+                  ),
+                ],
+              }
+            : item,
+        ),
+      }));
+      setView({ mode: "type", policyIndex: addTypePolicyIndex, typeIndex });
+      closeAddTypeDialog();
+      return;
+    }
+
+    const selectedGenders = selectedEligibleGenderValues();
+    if ((addTypeMode === "Maternity" || addTypeMode === "Paternity") && genderUdfState.status !== "ready") {
+      setToast({ type: "error", message: genderSetupMessage(genderUdfState) });
+      return;
+    }
+    if ((addTypeMode === "Maternity" || addTypeMode === "Paternity") && selectedGenders.length === 0) {
+      setToast({ type: "error", message: "Select at least one eligible gender value." });
+      return;
+    }
+
+    setAddingType(true);
+    try {
+      let workingConfig = config;
+      if (dirty || !policy._id) {
+        const saved = await saveDraft({ silent: true });
+        if (!saved) return;
+        workingConfig = saved;
+      }
+
+      const savedPolicy = workingConfig.policies[addTypePolicyIndex];
+      if (!savedPolicy?._id) {
+        setToast({ type: "error", message: "Save this leave policy before adding a special leave type." });
+        return;
+      }
+
+      const beforeIds = new Set(savedPolicy.leaveTypes.map((leaveType) => leaveType._id).filter(Boolean));
+      const response = await leaveConfigService.addSpecialLeaveTypeTemplate(
+        projectId,
+        savedPolicy._id,
+        {
+          template: addTypeMode,
+          eligibleGenderValues: addTypeMode === "CompOff" ? undefined : selectedGenders,
+        },
+      );
+      applyResponse(response.config, response.warnings);
+      const nextPolicy = response.config.policies[addTypePolicyIndex];
+      const newTypeIndex = nextPolicy?.leaveTypes.findIndex(
+        (leaveType) => leaveType._id && !beforeIds.has(leaveType._id),
+      );
+      setView({
+        mode: "type",
+        policyIndex: addTypePolicyIndex,
+        typeIndex: newTypeIndex !== undefined && newTypeIndex >= 0
+          ? newTypeIndex
+          : Math.max(0, (nextPolicy?.leaveTypes.length ?? 1) - 1),
+      });
+      setToast({ type: "success", message: `${leaveTypeModeLabel(addTypeMode)} leave type added.` });
+      closeAddTypeDialog(true);
+    } catch (err) {
+      setToast({ type: "error", message: formatApiError(err, "Failed to add special leave type") });
+    } finally {
+      setAddingType(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="leave-config-page">
@@ -723,6 +991,7 @@ export function LeaveConfigPage({
           onOpenType={(typeIndex) =>
             setView({ mode: "type", policyIndex: view.policyIndex, typeIndex })
           }
+          onAddType={() => openAddTypeDialog(view.policyIndex)}
           onOpenReconcile={isActive ? () => openReconcileDialog(view.policyIndex) : undefined}
           onUpload={(file) => handleUploadHolidays(view.policyIndex, file)}
           onDownloadTemplate={() => handleDownloadHolidayTemplate(view.policyIndex)}
@@ -740,7 +1009,10 @@ export function LeaveConfigPage({
       {view.mode === "type" && currentPolicy && currentType && (
         <LeaveTypeEditor
           leaveType={currentType}
+          policyLeaveTypes={currentPolicy.leaveTypes}
+          typeIndex={view.typeIndex}
           designations={designations}
+          genderUdfState={genderUdfState}
           onBack={() => setView({ mode: "policy", policyIndex: view.policyIndex })}
           onChange={(nextType) =>
             updateConfig((current) => ({
@@ -800,6 +1072,91 @@ export function LeaveConfigPage({
         variant="danger"
         isLoading={saving}
       />
+
+      <Modal
+        isOpen={addTypePolicyIndex !== null}
+        onClose={() => closeAddTypeDialog()}
+        title="Add Leave Type"
+        size="md"
+        showCloseButton={!addingType}
+      >
+        <div className="leave-setting-list">
+          <div className="leave-choice-grid">
+            {(["Custom", ...SPECIAL_TEMPLATES] as AddLeaveTypeMode[]).map((mode) => (
+              <label className={`leave-choice-option ${addTypeMode === mode ? "selected" : ""}`} key={mode}>
+                <input
+                  type="radio"
+                  name="add-leave-type-mode"
+                  checked={addTypeMode === mode}
+                  onChange={() => {
+                    setAddTypeMode(mode);
+                    if ((mode === "Maternity" || mode === "Paternity") && genderUdfState.status === "ready") {
+                      setEligibleGenderValues((current) =>
+                        current.length ? current : [genderUdfState.options[0]],
+                      );
+                    }
+                  }}
+                  disabled={addingType}
+                />
+                <span>{mode === "Custom" ? "Custom / Periodic" : leaveTypeModeLabel(mode)}</span>
+              </label>
+            ))}
+          </div>
+
+          {(addTypeMode === "Maternity" || addTypeMode === "Paternity") && (
+            <div className="leave-setting-list">
+              {loadingGenderUdf ? (
+                <div className="leave-setup-note">Checking User UDF gender configuration...</div>
+              ) : genderUdfState.status === "ready" ? (
+                <div className="leave-field">
+                  <span>Eligible Gender</span>
+                  <div className="leave-check-grid">
+                    {genderUdfState.options.map((option) => {
+                      const checked = eligibleGenderValues.includes(option);
+                      return (
+                        <label className={`leave-check-option ${checked ? "selected" : ""}`} key={option}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setEligibleGenderValues((current) =>
+                                checked
+                                  ? current.filter((value) => value !== option)
+                                  : [...current, option],
+                              )
+                            }
+                            disabled={addingType}
+                          />
+                          <span>{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="leave-setup-note">{genderSetupMessage(genderUdfState)}</div>
+              )}
+            </div>
+          )}
+        </div>
+        <ModalFooter>
+          <Button type="button" variant="secondary" onClick={() => closeAddTypeDialog()} disabled={addingType}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={confirmAddLeaveType}
+            disabled={
+              addingType ||
+              loadingGenderUdf ||
+              ((addTypeMode === "Maternity" || addTypeMode === "Paternity") &&
+                genderUdfState.status !== "ready")
+            }
+          >
+            {addingType ? "Adding..." : "Add Leave Type"}
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       <Modal
         isOpen={reconcilePolicyIndex !== null}
@@ -995,6 +1352,7 @@ function PolicyEditor({
   policies,
   onBack,
   onOpenType,
+  onAddType,
   onOpenReconcile,
   onChange,
   onUpload,
@@ -1007,6 +1365,7 @@ function PolicyEditor({
   policies: LeavePolicy[];
   onBack: () => void;
   onOpenType: (typeIndex: number) => void;
+  onAddType: () => void;
   onOpenReconcile?: () => void;
   onChange: (policy: LeavePolicy) => void;
   onUpload: (file: File) => void;
@@ -1341,22 +1700,7 @@ function PolicyEditor({
             <button
               type="button"
               className="leave-secondary-btn small"
-              onClick={() =>
-                patch({
-                  leaveTypes: [
-                    ...policy.leaveTypes,
-                    withDefaultApprover(
-                      leaveConfigService.createCustomLeaveType({
-                        name: "Custom Leave",
-                        shortCode: `L${policy.leaveTypes.length + 1}`,
-                        totalLeavesPerYear: 0,
-                        entitlementType: "Annual",
-                      }),
-                      designations[0]?.id,
-                    ),
-                  ],
-                })
-              }
+              onClick={onAddType}
             >
               <Plus size={14} /> Add Type
             </button>
@@ -1378,6 +1722,9 @@ function PolicyEditor({
                   {leaveType.leaveYear} · Cycle {leaveType.attendanceCycle.startDay}-
                   {leaveType.attendanceCycle.endDay}
                 </p>
+                {getLeaveTypeMode(leaveType) !== "Periodic" && (
+                  <span className="leave-mode-badge">{leaveTypeModeLabel(getLeaveTypeMode(leaveType))}</span>
+                )}
               </button>
               <button
                 type="button"
@@ -1513,16 +1860,25 @@ function HolidayTable({
 
 function LeaveTypeEditor({
   leaveType,
+  policyLeaveTypes,
+  typeIndex,
   designations,
+  genderUdfState,
   onBack,
   onChange,
 }: {
   leaveType: LeaveTypeConfig;
+  policyLeaveTypes: LeaveTypeConfig[];
+  typeIndex: number;
   designations: Designation[];
+  genderUdfState: GenderUdfState;
   onBack: () => void;
   onChange: (leaveType: LeaveTypeConfig) => void;
 }) {
   const defaultApproverRole = designations[0]?.id ?? "";
+  const leaveTypeMode = getLeaveTypeMode(leaveType);
+  const isParentalLeave = isParentalLeaveMode(leaveTypeMode);
+  const otherLeaveTypes = policyLeaveTypes.filter((_, index) => index !== typeIndex);
 
   useEffect(() => {
     if (!defaultApproverRole) return;
@@ -1556,6 +1912,112 @@ function LeaveTypeEditor({
         levels: leaveType.approvalWorkflow.levels.map((level, levelIndex) =>
           levelIndex === index ? { ...level, ...patchValue } : level,
         ),
+      },
+    });
+  }
+
+  function toggleEligibleGender(value: string) {
+    const current = leaveType.genderEligibility?.eligibleValues ?? [];
+    const exists = current.includes(value);
+    patch({
+      genderEligibility: {
+        ...(leaveType.genderEligibility ?? { fieldKey: "gender" }),
+        fieldKey: leaveType.genderEligibility?.fieldKey ?? "gender",
+        eligibleValues: exists
+          ? current.filter((item) => item !== value)
+          : [...current, value],
+      },
+    });
+  }
+
+  function childLimitValue(category: string): number {
+    const limits =
+      leaveTypeMode === "Paternity"
+        ? leaveType.paternityRules?.childLimits
+        : leaveType.maternityRules?.childLimits;
+    return limits?.find((limit) => limit.category === category)?.maxDays ?? 0;
+  }
+
+  function updateParentalChildLimit(category: string, maxDays: number) {
+    const current =
+      leaveTypeMode === "Paternity"
+        ? leaveType.paternityRules?.childLimits ?? []
+        : leaveType.maternityRules?.childLimits ?? [];
+    const exists = current.some((limit) => limit.category === category);
+    const childLimits = exists
+      ? current.map((limit) =>
+          limit.category === category ? { ...limit, maxDays } : limit,
+        )
+      : [...current, { category, maxDays }];
+    const totalLeavesPerYear = Math.max(
+      0,
+      ...childLimits.map((limit) => Number(limit.maxDays) || 0),
+    );
+
+    if (leaveTypeMode === "Paternity") {
+      patch({
+        entitlementType: "OneTime",
+        totalLeavesPerYear,
+        paternityRules: {
+          ...(leaveType.paternityRules ?? {}),
+          childLimits,
+        },
+      });
+      return;
+    }
+
+    patch({
+      entitlementType: "OneTime",
+      totalLeavesPerYear,
+      maternityRules: {
+        ...(leaveType.maternityRules ?? {}),
+        childLimits,
+      },
+    });
+  }
+
+  function updatePregnancyIllnessExtension(
+    patchValue: Partial<{ isAllowed: boolean; durationWeeks: number }>,
+  ) {
+    const current = leaveType.maternityRules?.pregnancyIllnessExtension ?? {
+      isAllowed: false,
+      durationWeeks: 6,
+    };
+    patch({
+      maternityRules: {
+        ...(leaveType.maternityRules ?? { childLimits: [] }),
+        childLimits: leaveType.maternityRules?.childLimits ?? [],
+        pregnancyIllnessExtension: {
+          ...current,
+          ...patchValue,
+        },
+      },
+    });
+  }
+
+  function toggleClubbedLeaveType(leaveTypeId: string) {
+    const current = leaveType.clubbingRules?.allowedLeaveTypeIds ?? [];
+    const exists = current.includes(leaveTypeId);
+    patch({
+      clubbingRules: {
+        ...(leaveType.clubbingRules ?? {}),
+        allowedLeaveTypeIds: exists
+          ? current.filter((id) => id !== leaveTypeId)
+          : [...current, leaveTypeId],
+      },
+    });
+  }
+
+  function toggleCompOffSource(value: string) {
+    const current = leaveType.compOffRules?.sourceAttendanceTypes ?? [];
+    const exists = current.includes(value);
+    patch({
+      compOffRules: {
+        ...(leaveType.compOffRules ?? { lookbackDays: 30 }),
+        sourceAttendanceTypes: exists
+          ? current.filter((item) => item !== value)
+          : [...current, value],
+        lookbackDays: leaveType.compOffRules?.lookbackDays ?? 30,
       },
     });
   }
@@ -1605,148 +2067,320 @@ function LeaveTypeEditor({
               />
             </div>
           </label>
-        </div>
-      </section>
-
-      <section className="leave-section">
-        <SectionHeader title="2. Leave Year & Attendance Cycle" description="Defines the leave calculation year and cycle days." />
-        <div className="leave-form-grid">
           <label className="leave-field">
-            <span>Leave Year</span>
-            <select
-              value={leaveType.leaveYear}
-              onChange={(event) => patch({ leaveYear: event.target.value as LeaveYear })}
-            >
-              {LEAVE_YEARS.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="leave-field">
-            <span>Cycle Start Day</span>
-            <input
-              type="number"
-              min={1}
-              max={31}
-              value={leaveType.attendanceCycle.startDay}
-              onChange={(event) =>
-                patch({
-                  attendanceCycle: {
-                    ...leaveType.attendanceCycle,
-                    startDay: Number(event.target.value),
-                  },
-                })
-              }
-            />
-          </label>
-          <label className="leave-field">
-            <span>Cycle End Day</span>
-            <input
-              type="number"
-              min={1}
-              max={31}
-              value={leaveType.attendanceCycle.endDay}
-              onChange={(event) =>
-                patch({
-                  attendanceCycle: {
-                    ...leaveType.attendanceCycle,
-                    endDay: Number(event.target.value),
-                  },
-                })
-              }
-            />
+            <span>Leave Type Mode</span>
+            <input value={leaveTypeModeLabel(leaveTypeMode)} disabled />
           </label>
         </div>
       </section>
 
-      <section className="leave-section">
-        <SectionHeader title="3. Entitlement & Credit Rule" description="Controls how leave is credited to employees." />
-        <div className="leave-form-grid">
-          <label className="leave-field">
-            <span>Entitlement Type</span>
-            <select
-              value={leaveType.entitlementType}
-              onChange={(event) =>
-                patch({ entitlementType: event.target.value as LeaveEntitlementType })
-              }
-            >
-              {ENTITLEMENT_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="leave-field">
-            <span>Total Leaves Per Year</span>
-            <input
-              type="number"
-              min={0}
-              max={365}
-              value={leaveType.totalLeavesPerYear}
-              onChange={(event) => patch({ totalLeavesPerYear: Number(event.target.value) })}
-            />
-          </label>
-          <label className="leave-field">
-            <span>Credit Rule</span>
-            <select
-              value={leaveType.creditRule.type}
-              onChange={(event) =>
-                patch({
-                  creditRule: {
-                    ...leaveType.creditRule,
-                    type: event.target.value as LeaveCreditRuleType,
-                  },
-                })
-              }
-            >
-              {CREDIT_RULES.map((rule) => (
-                <option key={rule} value={rule}>
-                  {creditRuleLabel(rule)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {leaveType.creditRule.type === "FixedDateOfMonth" && (
+      {!isParentalLeave && (
+        <section className="leave-section">
+          <SectionHeader title="2. Leave Year & Attendance Cycle" description="Defines the leave calculation year and cycle days." />
+          <div className="leave-form-grid">
             <label className="leave-field">
-              <span>Fixed Credit Date</span>
+              <span>Leave Year</span>
+              <select
+                value={leaveType.leaveYear}
+                onChange={(event) => patch({ leaveYear: event.target.value as LeaveYear })}
+              >
+                {LEAVE_YEARS.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="leave-field">
+              <span>Cycle Start Day</span>
               <input
                 type="number"
                 min={1}
                 max={31}
-                value={leaveType.creditRule.fixedDate}
+                value={leaveType.attendanceCycle.startDay}
                 onChange={(event) =>
                   patch({
-                    creditRule: {
-                      ...leaveType.creditRule,
-                      fixedDate: Number(event.target.value),
+                    attendanceCycle: {
+                      ...leaveType.attendanceCycle,
+                      startDay: Number(event.target.value),
                     },
                   })
                 }
               />
             </label>
+            <label className="leave-field">
+              <span>Cycle End Day</span>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={leaveType.attendanceCycle.endDay}
+                onChange={(event) =>
+                  patch({
+                    attendanceCycle: {
+                      ...leaveType.attendanceCycle,
+                      endDay: Number(event.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+          </div>
+        </section>
+      )}
+
+      {leaveTypeMode !== "Periodic" && (
+        <section className="leave-section">
+          <SectionHeader
+            title="Special Leave Settings"
+            description="Mode-specific settings used by employee leave requests."
+          />
+          {(leaveTypeMode === "Maternity" || leaveTypeMode === "Paternity") && (
+            <div className="leave-setting-list">
+              <div className="leave-field">
+                <span>Eligible Gender</span>
+                {genderUdfState.status === "ready" ? (
+                  <div className="leave-check-grid">
+                    {genderUdfState.options.map((option) => {
+                      const checked = leaveType.genderEligibility?.eligibleValues?.includes(option) ?? false;
+                      return (
+                        <label className={`leave-check-option ${checked ? "selected" : ""}`} key={option}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleEligibleGender(option)}
+                          />
+                          <span>{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="leave-setup-note">{genderSetupMessage(genderUdfState)}</div>
+                )}
+              </div>
+            </div>
           )}
-          <label className="leave-field">
-            <span>Minimum Working Days</span>
-            <input
-              type="number"
-              min={0}
-              max={31}
-              value={leaveType.creditRule.minimumWorkingDays}
-              onChange={(event) =>
-                patch({
-                  creditRule: {
-                    ...leaveType.creditRule,
-                    minimumWorkingDays: Number(event.target.value),
-                  },
-                })
+
+          {leaveTypeMode === "CompOff" && (
+            <div className="leave-setting-list">
+              <div className="leave-field">
+                <span>Accrual Source</span>
+                <div className="leave-check-grid">
+                  {DEFAULT_COMP_OFF_ATTENDANCE_TYPES.map((option) => {
+                    const checked = leaveType.compOffRules?.sourceAttendanceTypes?.includes(option) ?? false;
+                    return (
+                      <label className={`leave-check-option ${checked ? "selected" : ""}`} key={option}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCompOffSource(option)}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <label className="leave-field compact">
+                <span>Lookback Days</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={leaveType.compOffRules?.lookbackDays ?? 30}
+                  onChange={(event) =>
+                    patch({
+                      compOffRules: {
+                        ...(leaveType.compOffRules ?? { sourceAttendanceTypes: [] }),
+                        sourceAttendanceTypes: leaveType.compOffRules?.sourceAttendanceTypes ?? [],
+                        lookbackDays: Number(event.target.value),
+                      },
+                    })
+                  }
+                />
+              </label>
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="leave-section">
+        <SectionHeader
+          title="3. Entitlement & Credit Rule"
+          description={
+            isParentalLeave
+              ? "Configure child-category leave limits and eligibility gate."
+              : "Controls how leave is credited to employees."
+          }
+        />
+        {isParentalLeave ? (
+          <div className="leave-form-grid">
+            <label className="leave-field">
+              <span>Entitlement Type</span>
+              <input value="OneTime" disabled />
+            </label>
+            {PARENTAL_CHILD_CATEGORIES.map((category) => (
+              <label className="leave-field" key={category}>
+                <span>{CHILD_LIMIT_LABELS[category]}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={365}
+                  value={childLimitValue(category)}
+                  onChange={(event) =>
+                    updateParentalChildLimit(category, Number(event.target.value))
+                  }
+                />
+              </label>
+            ))}
+            <label className="leave-field">
+              <span>Minimum Working Days</span>
+              <input
+                type="number"
+                min={0}
+                max={365}
+                value={leaveType.creditRule.minimumWorkingDays}
+                onChange={(event) =>
+                  patch({
+                    creditRule: {
+                      ...leaveType.creditRule,
+                      minimumWorkingDays: Number(event.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="leave-form-grid">
+            <label className="leave-field">
+              <span>Entitlement Type</span>
+              <select
+                value={leaveType.entitlementType}
+                onChange={(event) =>
+                  patch({ entitlementType: event.target.value as LeaveEntitlementType })
+                }
+              >
+                {ENTITLEMENT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="leave-field">
+              <span>Total Leaves Per Year</span>
+              <input
+                type="number"
+                min={0}
+                max={365}
+                value={leaveType.totalLeavesPerYear}
+                onChange={(event) => patch({ totalLeavesPerYear: Number(event.target.value) })}
+              />
+            </label>
+            <label className="leave-field">
+              <span>Credit Rule</span>
+              <select
+                value={leaveType.creditRule.type}
+                onChange={(event) =>
+                  patch({
+                    creditRule: {
+                      ...leaveType.creditRule,
+                      type: event.target.value as LeaveCreditRuleType,
+                    },
+                  })
+                }
+              >
+                {CREDIT_RULES.map((rule) => (
+                  <option key={rule} value={rule}>
+                    {creditRuleLabel(rule)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {leaveType.creditRule.type === "FixedDateOfMonth" && (
+              <label className="leave-field">
+                <span>Fixed Credit Date</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={leaveType.creditRule.fixedDate}
+                  onChange={(event) =>
+                    patch({
+                      creditRule: {
+                        ...leaveType.creditRule,
+                        fixedDate: Number(event.target.value),
+                      },
+                    })
+                  }
+                />
+              </label>
+            )}
+            <label className="leave-field">
+              <span>Minimum Working Days</span>
+              <input
+                type="number"
+                min={0}
+                max={31}
+                value={leaveType.creditRule.minimumWorkingDays}
+                onChange={(event) =>
+                  patch({
+                    creditRule: {
+                      ...leaveType.creditRule,
+                      minimumWorkingDays: Number(event.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+          </div>
+        )}
+      </section>
+
+      {leaveTypeMode === "Maternity" && (
+        <section className="leave-section">
+          <SectionHeader
+            title="Medical Extension"
+            description="Additional leave for illness from pregnancy, delivery, premature birth, or miscarriage."
+          />
+          <div className="leave-setting-list">
+            <ToggleRow
+              title="Pregnancy Illness Extension"
+              description="Additional leave for illness from pregnancy, delivery, premature birth, or miscarriage."
+              checked={leaveType.maternityRules?.pregnancyIllnessExtension?.isAllowed ?? false}
+              onChange={(checked) =>
+                updatePregnancyIllnessExtension({ isAllowed: checked })
               }
             />
-          </label>
-        </div>
-      </section>
+            {leaveType.maternityRules?.pregnancyIllnessExtension?.isAllowed && (
+              <>
+                <label className="leave-field compact">
+                  <span>Extension Duration in Weeks</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={52}
+                    value={leaveType.maternityRules?.pregnancyIllnessExtension?.durationWeeks ?? 6}
+                    onChange={(event) =>
+                      updatePregnancyIllnessExtension({
+                        durationWeeks: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <div className="leave-setup-note">
+                  <strong>Rule</strong>
+                  <span>
+                    Additional {leaveType.maternityRules?.pregnancyIllnessExtension?.durationWeeks ?? 6} weeks granted on medical evidence.
+                    Total possible: 26+{leaveType.maternityRules?.pregnancyIllnessExtension?.durationWeeks ?? 6} = {26 + (leaveType.maternityRules?.pregnancyIllnessExtension?.durationWeeks ?? 6)} weeks for 1st/2nd child.
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="leave-section">
         <SectionHeader title="4. New Joiner Rules" description="Pro-rating, DOJ credit, and minimum tenure." />
@@ -1844,6 +2478,42 @@ function LeaveTypeEditor({
           )}
         </div>
       </section>
+
+      {otherLeaveTypes.length > 0 && (
+        <section className="leave-section">
+          <SectionHeader
+            title="Clubbing Rules"
+            description="Allow this leave type to be taken immediately before or after selected leave types."
+          />
+          <div className="leave-setting-list">
+            <div className="leave-check-grid">
+              {otherLeaveTypes.map((otherType, index) => {
+                const checked = Boolean(
+                  otherType._id &&
+                    leaveType.clubbingRules?.allowedLeaveTypeIds?.includes(otherType._id),
+                );
+                return (
+                  <label
+                    className={`leave-check-option ${checked ? "selected" : ""} ${!otherType._id ? "disabled" : ""}`}
+                    key={otherType._id ?? `${otherType.shortCode}-${index}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={!otherType._id}
+                      onChange={() => {
+                        if (otherType._id) toggleClubbedLeaveType(otherType._id);
+                      }}
+                    />
+                    <span>{otherType.name || otherType.shortCode || "Leave Type"}</span>
+                    {!otherType._id && <small>Save this leave type first</small>}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="leave-section">
         <SectionHeader title="6. Application Rules" description="Backdated, future leave, monthly limits, and closing dates." />

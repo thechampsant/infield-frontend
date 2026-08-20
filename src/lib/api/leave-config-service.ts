@@ -5,13 +5,16 @@ const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 const MONGO_ID_PATTERN = /^[a-f\d]{24}$/i;
 
 export type LeaveYear = "Calendar" | "Financial";
-export type LeaveEntitlementType = "Annual" | "Monthly";
+export type LeaveEntitlementType = "Annual" | "Monthly" | "OneTime";
 export type LeaveCreditRuleType =
   | "LeaveYearStart"
   | "AttendanceCycleStart"
   | "FixedDateOfMonth";
 export type LeaveHolidayType = "National" | "Regional" | "Optional";
 export type LeaveAutoAction = "None" | "AutoApprove" | "AutoReject";
+export type LeaveTypeMode = "Periodic" | "Maternity" | "Paternity" | "CompOff";
+export type LeaveSpecialTemplate = "Maternity" | "Paternity" | "CompOff";
+export type ParentalChildCategory = "FirstOrSecondChild" | "ThirdOrMoreChild";
 
 export interface LeaveVisibility {
   showLeaveBalance: boolean;
@@ -40,11 +43,13 @@ export interface HolidayGroupingField {
 }
 
 export interface LeaveTypeConfig {
+  [key: string]: unknown;
   _id?: string;
   name: string;
   shortCode: string;
   colour: string;
   isCustom: boolean;
+  leaveTypeMode?: LeaveTypeMode;
   leaveYear: LeaveYear;
   attendanceCycle: {
     startDay: number;
@@ -93,6 +98,33 @@ export interface LeaveTypeConfig {
     isApprovalRequired: boolean;
     levels: LeaveApprovalLevel[];
   };
+  genderEligibility?: {
+    fieldKey: "gender" | string;
+    eligibleValues: string[];
+  };
+  maternityRules?: {
+    childLimits: Array<{
+      category: ParentalChildCategory | string;
+      maxDays: number;
+    }>;
+    pregnancyIllnessExtension?: {
+      isAllowed: boolean;
+      durationWeeks: number;
+    };
+  };
+  paternityRules?: {
+    childLimits: Array<{
+      category: ParentalChildCategory | string;
+      maxDays: number;
+    }>;
+  };
+  compOffRules?: {
+    sourceAttendanceTypes: string[];
+    lookbackDays: number;
+  };
+  clubbingRules?: {
+    allowedLeaveTypeIds: string[];
+  };
 }
 
 export interface LeaveApprovalLevel {
@@ -103,6 +135,7 @@ export interface LeaveApprovalLevel {
 }
 
 export interface LeavePolicy {
+  [key: string]: unknown;
   _id?: string;
   name: string;
   applicableDesignations: string[];
@@ -115,6 +148,7 @@ export interface LeavePolicy {
 }
 
 export interface LeaveConfigDocument {
+  [key: string]: unknown;
   _id?: string;
   projectId: string;
   policies: LeavePolicy[];
@@ -152,10 +186,20 @@ export interface LeaveCreditReconcileResponse {
   failed: number;
 }
 
+export interface AddSpecialLeaveTypeTemplateInput {
+  template: LeaveSpecialTemplate;
+  eligibleGenderValues?: string[];
+}
+
 type RawRecord = Record<string, unknown>;
 
 const mockConfigs = new Map<string, LeaveConfigDocument>();
 const mockActive = new Set<string>();
+const DEFAULT_COMP_OFF_ATTENDANCE_TYPES = [
+  "National / Compliance Holiday",
+  "Festival / Optional Holiday",
+  "Weekly Off",
+];
 
 function delay(ms = 250): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -289,6 +333,82 @@ function createDefaultLeaveType(
   return { ...base, ...overrides };
 }
 
+function createSpecialLeaveType(
+  template: LeaveSpecialTemplate,
+  eligibleGenderValues: string[] = [],
+): LeaveTypeConfig {
+  if (template === "Maternity") {
+    return createDefaultLeaveType("Maternity Leave", "ML", 182, {
+      colour: "#E91E63",
+      isCustom: false,
+      leaveTypeMode: "Maternity",
+      entitlementType: "OneTime",
+      creditRule: {
+        type: "LeaveYearStart",
+        fixedDate: 1,
+        minimumWorkingDays: 0,
+      },
+      reasons: ["Maternity", "Medical Extension"],
+      genderEligibility: {
+        fieldKey: "gender",
+        eligibleValues: eligibleGenderValues,
+      },
+      maternityRules: {
+        childLimits: [
+          { category: "FirstOrSecondChild", maxDays: 182 },
+          { category: "ThirdOrMoreChild", maxDays: 84 },
+        ],
+        pregnancyIllnessExtension: {
+          isAllowed: false,
+          durationWeeks: 6,
+        },
+      },
+    });
+  }
+
+  if (template === "Paternity") {
+    return createDefaultLeaveType("Paternity Leave", "PTL", 2, {
+      colour: "#7E57C2",
+      isCustom: false,
+      leaveTypeMode: "Paternity",
+      entitlementType: "OneTime",
+      creditRule: {
+        type: "LeaveYearStart",
+        fixedDate: 1,
+        minimumWorkingDays: 0,
+      },
+      reasons: ["Paternity"],
+      genderEligibility: {
+        fieldKey: "gender",
+        eligibleValues: eligibleGenderValues,
+      },
+      paternityRules: {
+        childLimits: [
+          { category: "FirstOrSecondChild", maxDays: 2 },
+          { category: "ThirdOrMoreChild", maxDays: 2 },
+        ],
+      },
+    });
+  }
+
+  return createDefaultLeaveType("Compensatory Off", "CO", 5, {
+    colour: "#FF9800",
+    isCustom: false,
+    leaveTypeMode: "CompOff",
+    entitlementType: "Annual",
+    creditRule: {
+      type: "LeaveYearStart",
+      fixedDate: 1,
+      minimumWorkingDays: 0,
+    },
+    reasons: ["Comp Off"],
+    compOffRules: {
+      sourceAttendanceTypes: DEFAULT_COMP_OFF_ATTENDANCE_TYPES,
+      lookbackDays: 30,
+    },
+  });
+}
+
 function createDefaultConfig(projectId: string): LeaveConfigDocument {
   return {
     _id: makeId("leave_config"),
@@ -369,23 +489,48 @@ function normalizeLeaveType(value: unknown): LeaveTypeConfig {
   const levels = Array.isArray(approvalWorkflow.levels)
     ? approvalWorkflow.levels
     : [];
+  const rawLeaveTypeMode = text(raw.leaveTypeMode);
+  const leaveTypeMode = rawLeaveTypeMode
+    ? enumText(
+        raw.leaveTypeMode,
+        ["Periodic", "Maternity", "Paternity", "CompOff"] as const,
+        "Periodic",
+      )
+    : undefined;
+  const entitlementType =
+    leaveTypeMode === "Maternity" || leaveTypeMode === "Paternity"
+      ? "OneTime"
+      : enumText(
+          raw.entitlementType,
+          ["Annual", "Monthly", "OneTime"] as const,
+          "Annual",
+        );
+  const maternityRules = record(raw.maternityRules);
+  const maternityChildLimits = Array.isArray(maternityRules.childLimits)
+    ? maternityRules.childLimits
+    : [];
+  const maternityExtension = record(maternityRules.pregnancyIllnessExtension);
+  const paternityRules = record(raw.paternityRules);
+  const paternityChildLimits = Array.isArray(paternityRules.childLimits)
+    ? paternityRules.childLimits
+    : [];
+  const compOffRules = record(raw.compOffRules);
+  const clubbingRules = record(raw.clubbingRules);
 
   return {
+    ...raw,
     _id: text(raw._id) || text(raw.id) || undefined,
     name: text(raw.name) || "Leave Type",
     shortCode: text(raw.shortCode) || "LT",
     colour: normalizeHexColour(raw.colour),
     isCustom: bool(raw.isCustom),
+    ...(leaveTypeMode ? { leaveTypeMode } : {}),
     leaveYear: enumText(raw.leaveYear, ["Calendar", "Financial"] as const, "Calendar"),
     attendanceCycle: {
       startDay: num(cycle.startDay, 1),
       endDay: num(cycle.endDay, 31),
     },
-    entitlementType: enumText(
-      raw.entitlementType,
-      ["Annual", "Monthly"] as const,
-      "Annual",
-    ),
+    entitlementType,
     totalLeavesPerYear: num(raw.totalLeavesPerYear, 0),
     creditRule: {
       type: enumText(
@@ -444,6 +589,73 @@ function normalizeLeaveType(value: unknown): LeaveTypeConfig {
         };
       }),
     },
+    ...(raw.genderEligibility && typeof raw.genderEligibility === "object" && !Array.isArray(raw.genderEligibility)
+      ? {
+          genderEligibility: {
+            ...record(raw.genderEligibility),
+            fieldKey: text(record(raw.genderEligibility).fieldKey) || "gender",
+            eligibleValues: stringArray(record(raw.genderEligibility).eligibleValues),
+          },
+        }
+      : {}),
+    ...(raw.maternityRules && typeof raw.maternityRules === "object" && !Array.isArray(raw.maternityRules)
+      ? {
+          maternityRules: {
+            ...maternityRules,
+            childLimits: maternityChildLimits.map((item) => {
+              const limit = record(item);
+              return {
+                ...limit,
+                category: text(limit.category),
+                maxDays: num(limit.maxDays, 0),
+              };
+            }),
+            ...(maternityRules.pregnancyIllnessExtension &&
+            typeof maternityRules.pregnancyIllnessExtension === "object" &&
+            !Array.isArray(maternityRules.pregnancyIllnessExtension)
+              ? {
+                  pregnancyIllnessExtension: {
+                    ...maternityExtension,
+                    isAllowed: bool(maternityExtension.isAllowed),
+                    durationWeeks: num(maternityExtension.durationWeeks, 6),
+                  },
+                }
+              : {}),
+          },
+        }
+      : {}),
+    ...(raw.paternityRules && typeof raw.paternityRules === "object" && !Array.isArray(raw.paternityRules)
+      ? {
+          paternityRules: {
+            ...paternityRules,
+            childLimits: paternityChildLimits.map((item) => {
+              const limit = record(item);
+              return {
+                ...limit,
+                category: text(limit.category),
+                maxDays: num(limit.maxDays, 0),
+              };
+            }),
+          },
+        }
+      : {}),
+    ...(raw.compOffRules && typeof raw.compOffRules === "object" && !Array.isArray(raw.compOffRules)
+      ? {
+          compOffRules: {
+            ...compOffRules,
+            sourceAttendanceTypes: stringArray(compOffRules.sourceAttendanceTypes),
+            lookbackDays: num(compOffRules.lookbackDays, 30),
+          },
+        }
+      : {}),
+    ...(raw.clubbingRules && typeof raw.clubbingRules === "object" && !Array.isArray(raw.clubbingRules)
+      ? {
+          clubbingRules: {
+            ...clubbingRules,
+            allowedLeaveTypeIds: stringArray(clubbingRules.allowedLeaveTypeIds),
+          },
+        }
+      : {}),
   };
 }
 
@@ -451,6 +663,7 @@ function normalizePolicy(value: unknown): LeavePolicy {
   const raw = record(value);
   const visibility = record(raw.visibility);
   return {
+    ...raw,
     _id: text(raw._id) || text(raw.id) || undefined,
     name: text(raw.name) || "Untitled Leave Policy",
     applicableDesignations: stringArray(raw.applicableDesignations),
@@ -476,6 +689,7 @@ function normalizePolicy(value: unknown): LeavePolicy {
 function normalizeConfig(value: unknown, projectId: string): LeaveConfigDocument {
   const raw = record(value);
   return {
+    ...raw,
     _id: text(raw._id) || text(raw.id) || undefined,
     projectId: text(raw.projectId) || projectId,
     policies: Array.isArray(raw.policies) ? raw.policies.map(normalizePolicy) : [],
@@ -489,10 +703,30 @@ function holidayForSave(holiday: LeaveHoliday): LeaveHoliday {
   };
 }
 
+function derivedParentalEntitlement(leaveType: LeaveTypeConfig): number | undefined {
+  const limits =
+    leaveType.leaveTypeMode === "Paternity"
+      ? leaveType.paternityRules?.childLimits
+      : leaveType.leaveTypeMode === "Maternity"
+        ? leaveType.maternityRules?.childLimits
+        : undefined;
+  if (!limits?.length) return undefined;
+  return Math.max(0, ...limits.map((limit) => Number(limit.maxDays) || 0));
+}
+
 function leaveTypeForSave(leaveType: LeaveTypeConfig): LeaveTypeConfig {
+  const totalLeavesPerYear = derivedParentalEntitlement(leaveType);
   return {
     ...leaveType,
     _id: validMongoId(leaveType._id),
+    ...(
+      leaveType.leaveTypeMode === "Maternity" || leaveType.leaveTypeMode === "Paternity"
+        ? {
+            entitlementType: "OneTime" as const,
+            ...(totalLeavesPerYear !== undefined ? { totalLeavesPerYear } : {}),
+          }
+        : {}
+    ),
   };
 }
 
@@ -772,6 +1006,43 @@ export const leaveConfigService = {
     }
     const raw = await apiClient.delete<unknown>(
       `${BASE}/${projectId}/policies/${policyId}`,
+    );
+    return normalizeResponse(raw, projectId);
+  },
+
+  async addSpecialLeaveTypeTemplate(
+    projectId: string,
+    policyId: string,
+    input: AddSpecialLeaveTypeTemplateInput,
+  ): Promise<LeaveConfigResponse> {
+    if (USE_MOCK_API) {
+      await delay();
+      const current = ensureMockConfig(projectId);
+      const next = {
+        ...current,
+        policies: current.policies.map((policy) =>
+          policy._id === policyId
+            ? {
+                ...policy,
+                leaveTypes: [
+                  ...policy.leaveTypes,
+                  createSpecialLeaveType(input.template, input.eligibleGenderValues ?? []),
+                ],
+              }
+            : policy,
+        ),
+      };
+      mockConfigs.set(projectId, next);
+      return withMockWarnings(next);
+    }
+    const raw = await apiClient.post<unknown>(
+      `${BASE}/${projectId}/policies/${policyId}/leave-types/templates`,
+      input.template === "CompOff"
+        ? { template: input.template }
+        : {
+            template: input.template,
+            eligibleGenderValues: input.eligibleGenderValues ?? [],
+          },
     );
     return normalizeResponse(raw, projectId);
   },

@@ -578,14 +578,16 @@ export function UDFConfigModal({
       <div style={{ display: "grid", gap: 16 }}>
         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
           Configure schema-driven UDF fields for {scopeLabel.toLowerCase()} data in project{" "}
-          <strong>{projectId}</strong>. This editor saves the backend UDF schema and the user add/edit forms will consume compatible fields automatically.
+          <strong>{projectId}</strong>. This editor saves the backend UDF schema and
+          the matching add/edit forms will consume compatible fields automatically.
         </div>
 
-        {scope === "user" && (
+        {(scope === "user" || scope === "store") && (
           <div className="pa-info-banner">
             For attendance shift timing, projects can optionally add STRING UDF fields with
             field keys <strong>shiftStartTime</strong> and <strong>shiftEndTime</strong>.
-            User create/edit forms will render these as HH:mm time inputs.
+            {scope === "store" ? " Store" : " User"} create/edit forms will render
+            these as HH:mm time inputs.
           </div>
         )}
 
