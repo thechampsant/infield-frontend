@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,8 +10,13 @@ import {
   PieChart,
   LogOut,
   ChevronLeft,
+  LayoutGrid,
 } from "lucide-react";
-import { projectAdminDrawerNav } from "@/lib/nav/nav";
+import { projectAdminBase, projectAdminDrawerNav } from "@/lib/nav/nav";
+import {
+  dynamicMenuService,
+  type DynamicMenuConfig,
+} from "@/lib/api/dynamic-menu-service";
 
 const ICONS = {
   users: Users,
@@ -23,6 +28,7 @@ const ICONS = {
 export function ProjectAdminDrawer({
   accountCode,
   projectCode,
+  projectId,
   projectName,
   accountName,
   backHref,
@@ -30,6 +36,7 @@ export function ProjectAdminDrawer({
 }: {
   accountCode: string;
   projectCode: string;
+  projectId: string;
   projectName: string;
   accountName: string;
   backHref: string;
@@ -38,6 +45,25 @@ export function ProjectAdminDrawer({
   const [expanded, setExpanded] = useState(true);
   const pathname = usePathname() ?? "/";
   const navItems = projectAdminDrawerNav(accountCode, projectCode);
+
+  // Dynamic menu items
+  const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    dynamicMenuService
+      .getSidebarMenu()
+      .then((items) => {
+        if (!cancelled) setDynamicItems(items);
+      })
+      .catch(() => {
+        if (!cancelled) setDynamicItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   return (
     <aside
@@ -113,6 +139,45 @@ export function ProjectAdminDrawer({
             </Link>
           );
         })}
+
+        {/* Dynamic menu items */}
+        {dynamicItems.length > 0 && (
+          <>
+            <div
+              style={{
+                height: 1,
+                background: "var(--border, #e2e8f0)",
+                margin: expanded ? "12px 16px" : "12px 8px",
+              }}
+              aria-hidden
+            />
+            {dynamicItems.map((item) => {
+              // Resolve route: inbox key goes to project-admin inbox-items page
+              const base = projectAdminBase(accountCode, projectCode);
+              const resolvedHref =
+                item.menuKey === "inbox"
+                  ? `${base}/inbox-items`
+                  : item.route;
+              const active =
+                item.menuKey === "inbox"
+                  ? pathname.includes("/inbox-items")
+                  : pathname.includes(item.route);
+              return (
+                <Link
+                  key={item.id}
+                  href={resolvedHref}
+                  className={`pa-nav-link${active ? " active" : ""}`}
+                  title={item.label}
+                >
+                  <span style={{ flexShrink: 0 }}>
+                    <LayoutGrid size={18} />
+                  </span>
+                  {expanded && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       <div className="pa-drawer-footer">
