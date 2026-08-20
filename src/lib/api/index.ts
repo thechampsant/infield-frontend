@@ -207,9 +207,12 @@ export type {
   LeaveHolidayGroup,
   LeaveHolidayType,
   LeavePolicy,
+  LeaveSpecialTemplate,
   LeaveTypeConfig,
+  LeaveTypeMode,
   LeaveVisibility,
   LeaveYear,
+  ParentalChildCategory,
 } from "./leave-config-service";
 export {
   featureWizardService,

@@ -53,7 +53,20 @@ export function getApiErrorMessage(
       if (joined.trim()) return joined;
     }
     if (typeof record.message === "string" && record.message.trim()) {
-      return record.message;
+      const errors = Array.isArray(record.errors)
+        ? record.errors
+            .map((entry) => {
+              if (typeof entry === "string") return entry;
+              if (entry && typeof entry === "object" && Array.isArray((entry as Record<string, unknown>).errors)) {
+                return ((entry as Record<string, unknown>).errors as unknown[])
+                  .filter((item): item is string => typeof item === "string")
+                  .join(". ");
+              }
+              return "";
+            })
+            .filter(Boolean)
+        : [];
+      return errors.length ? `${record.message}: ${errors.join(". ")}` : record.message;
     }
     if (typeof record.error === "string" && record.error.trim()) {
       return record.error;

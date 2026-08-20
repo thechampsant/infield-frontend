@@ -8,6 +8,7 @@ import type {
   PhotoDirection,
   PhotoSource,
   RegWindowType,
+  ShiftAssignmentMode,
 } from "@/lib/api/attendance-config";
 import { attendanceConfigService } from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
@@ -57,6 +58,21 @@ export function AttendanceConfigEdit({
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const anyGeoFenced = form.types.some((t) => t.geoFenced);
+  const irEnabledTypes = form.types.filter(
+    (t) => t.active && t.photoRequired && t.imageRecognitionEnabled,
+  );
+  const hasIrEnabledTypes = irEnabledTypes.length > 0;
+  const activeTypeNames = form.types
+    .filter((t) => t.active && t.name.trim())
+    .map((t) => t.name.trim());
+  const shiftAppliedTypeNames = activeTypeNames.filter(
+    (name) => !form.shiftBypassAttendanceTypes.includes(name),
+  );
+  const storeShiftCopy = form.shiftAssignmentMode === "STORE_MASTER";
+  const irGalleryWarning =
+    form.imageRecognitionEnabled &&
+    hasIrEnabledTypes &&
+    (form.photoSource === "Gallery" || form.photoSource === "Both");
   const usedDesignations = new Map<string, string>();
   configs.forEach((config, index) => {
     const configId = config._id ?? config.id ?? "";
@@ -238,6 +254,7 @@ export function AttendanceConfigEdit({
                   <th>Geo-tagged</th>
                   <th>Geo-fenced</th>
                   <th>Photo</th>
+                  {form.imageRecognitionEnabled && <th>IR</th>}
                   <th>Color</th>
                   <th>Actions</th>
                 </tr>
@@ -282,6 +299,21 @@ export function AttendanceConfigEdit({
                         onChange={(v) => updateType(form, onChange, i, "photoRequired", v)}
                       />
                     </td>
+                    {form.imageRecognitionEnabled && (
+                      <td>
+                        {t.photoRequired ? (
+                          <Toggle
+                            checked={t.imageRecognitionEnabled}
+                            disabled={!t.active}
+                            onChange={(v) =>
+                              updateType(form, onChange, i, "imageRecognitionEnabled", v)
+                            }
+                          />
+                        ) : (
+                          <span className="setting-hint">Needs Photo</span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       <div className="att-type-color">
                         <input
@@ -337,6 +369,17 @@ export function AttendanceConfigEdit({
               Enable Geo-fenced on an attendance type to apply radius validation.
             </div>
           )}
+          <div className="flat-mode-note">
+            GPS coordinates are still required whenever geo-tagging or geo-fencing
+            applies. If usable mapped store coordinates exist, radius validation
+            still runs.
+          </div>
+          <SettingRow
+            label="Bypass Geo-Fencing if Store Not Mapped"
+            hint="When enabled, radius validation is skipped if no usable mapped store coordinate exists. If disabled, missing or invalid store mapping fails geo-fence validation."
+            checked={form.geoFenceBypassWhenStoreUnavailable}
+            onChange={(v) => onChange("geoFenceBypassWhenStoreUnavailable", v)}
+          />
           <FormGroup label="Distance (metres)" required>
             <input
               type="number"
@@ -359,6 +402,29 @@ export function AttendanceConfigEdit({
         onToggle={() => toggleSection("photo")}
       >
         <div className="section-inner">
+          {form.imageRecognitionEnabled && (
+            <>
+              <InfoBanner>
+                Image Recognition Photo Labels - For IR-enabled attendance types,
+                mobile must capture two camera photos: Capture Selfie and Full Body
+                Picture.
+              </InfoBanner>
+              <div className="form-row-2">
+                <div className="flat-mode-note">
+                  <strong>Front/Selfie:</strong> Capture Selfie
+                </div>
+                <div className="flat-mode-note">
+                  <strong>Back/Full Body:</strong> Full Body Picture
+                </div>
+              </div>
+              {irGalleryWarning && (
+                <div className="flat-mode-note" style={{ color: "var(--amber-700, #b45309)" }}>
+                  Gallery uploads are not valid for IR-enabled attendance types. Mobile
+                  must enforce camera-only capture for IR types.
+                </div>
+              )}
+            </>
+          )}
           <FormGroup label="Direction">
             <RadioPillGroup
               name="photoDirection"
@@ -383,6 +449,41 @@ export function AttendanceConfigEdit({
               onChange={(v) => onChange("photoSource", v as PhotoSource)}
             />
           </FormGroup>
+        </div>
+      </Section>
+
+      <Section
+        id="ir"
+        title="Image Recognition"
+        description="Photo analysis for verification"
+        open={openSections.ir}
+        onToggle={() => toggleSection("ir")}
+      >
+        <div className="section-inner">
+          <SettingRow
+            label="Enable Image Recognition"
+            hint="AI-powered analysis of attendance photos for verification. Enable IR per attendance type in the Attendance Types table. Photo must be ON for that type."
+            checked={form.imageRecognitionEnabled}
+            onChange={(v) => setImageRecognitionEnabled(form, onChange, v)}
+          />
+          {form.imageRecognitionEnabled && (
+            <>
+              <div className="flat-mode-note">
+                {hasIrEnabledTypes
+                  ? `Active for: ${summarizeNames(irEnabledTypes.map((type) => type.name))}`
+                  : "No attendance types have IR enabled yet."}
+              </div>
+              <InfoBanner>
+                For IR projects, User Master must have a UDF field with key city.
+                The backend sends this value as the user&apos;s location to Vision Attire.
+              </InfoBanner>
+              <div className="flat-mode-note">
+                Photo Capture: Capture Selfie and Full Body Picture. API Analysis:
+                Mobile calls the backend IR endpoint before check-in. Reports store
+                the summary on attendance and detailed analysis in Vision Analysis.
+              </div>
+            </>
+          )}
         </div>
       </Section>
 
@@ -525,22 +626,6 @@ export function AttendanceConfigEdit({
               />
             </>
           )}
-          <div className="section-divider">Shift management</div>
-          <SettingRow
-            label="Enable Shift Management"
-            hint="Use optional User UDF shiftStartTime and shiftEndTime values when calculating working hours"
-            checked={form.shiftManagementEnabled}
-            onChange={(v) => onChange("shiftManagementEnabled", v)}
-          />
-          {form.shiftManagementEnabled && (
-            <InfoBanner>
-              Add optional User UDF STRING fields with field keys shiftStartTime and
-              shiftEndTime for projects that need user-level shift windows. Values are
-              stored as HH:mm. Leave both blank for default attendance flow, or set both
-              to 00:00 to bypass shift logic for that user. Overnight shifts are not
-              supported, so shiftEndTime must be later than shiftStartTime.
-            </InfoBanner>
-          )}
         </div>
       </Section>
 
@@ -571,29 +656,96 @@ export function AttendanceConfigEdit({
       </Section>
 
       <Section
-        id="loctiming"
-        title="Location-wise timings"
-        description="Per-location start/end times"
-        open={openSections.loctiming}
-        onToggle={() => toggleSection("loctiming")}
+        id="shift"
+        title="Shift & Timing"
+        description="Shift source and timing bypass rules"
+        open={openSections.shift}
+        onToggle={() => toggleSection("shift")}
       >
         <div className="section-inner">
           <SettingRow
-            label="Use location-wise timings"
-            checked={form.locationTimingsEnabled}
-            onChange={(v) => onChange("locationTimingsEnabled", v)}
+            label="Enable Shift-Based Timing"
+            checked={form.shiftManagementEnabled}
+            onChange={(v) => onChange("shiftManagementEnabled", v)}
           />
-          {form.locationTimingsEnabled ? (
-            <InfoBanner>
-              Present &ge; 9 hrs within the official window, Half day &ge; 4.5 hrs,
-              Absent &lt; 4.5 hrs. Early punch is excluded from duty hours. Timings
-              come from each user&apos;s location in User Master.
-            </InfoBanner>
-          ) : (
+          {!form.shiftManagementEnabled ? (
             <div className="flat-mode-note">
-              <strong>Flat mode:</strong> global working-hours thresholds apply with
-              no per-location variation or early-punch exclusion.
+              Working hours are calculated from raw check-in to check-out duration.
             </div>
+          ) : (
+            <>
+              <FormGroup label="Map shifts via">
+                <RadioPillGroup
+                  name="shiftAssignmentMode"
+                  options={[
+                    { label: "User Master", value: "USER_MASTER" },
+                    { label: "Store Master", value: "STORE_MASTER" },
+                  ]}
+                  value={form.shiftAssignmentMode}
+                  onChange={(v) => onChange("shiftAssignmentMode", v as ShiftAssignmentMode)}
+                />
+              </FormGroup>
+              <div className="flat-mode-note">
+                {storeShiftCopy
+                  ? "Uses shiftStartTime and shiftEndTime from the user's mapped Store Master record."
+                  : "Uses shiftStartTime and shiftEndTime from User Master."}
+              </div>
+              <InfoBanner>
+                No mapping = no shift logic. If no usable shift timing is found,
+                working hours fall back to flat check-in to check-out duration.
+              </InfoBanner>
+              <SettingRow
+                label="Bypass Shift if Timing is 00:00"
+                hint={
+                  storeShiftCopy
+                    ? "Skip shift logic when shift hours are set to 00:00 against a store."
+                    : "Skip shift logic when shift hours are set to 00:00 against a user."
+                }
+                checked={form.zeroHoursBypassEnabled}
+                onChange={(v) => onChange("zeroHoursBypassEnabled", v)}
+              />
+              <div className="flat-mode-note">
+                {form.zeroHoursBypassEnabled
+                  ? "If shift from/to is 00:00 - 00:00, shift validation is skipped and working hours are calculated using flat check-in to check-out."
+                  : "00:00 entries are treated as unusable for shift calculation. If no usable timing remains, backend falls back to flat duration."}
+              </div>
+              <FormGroup label="Bypass attendance types">
+                <div className="att-designation-grid">
+                  {activeTypeNames.map((name) => {
+                    const selected = form.shiftBypassAttendanceTypes.includes(name);
+                    return (
+                      <label
+                        key={name}
+                        className={`att-designation-option${selected ? " selected" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleShiftBypassType(form, onChange, name)}
+                        />
+                        <span>{name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </FormGroup>
+              <div className="flat-mode-note">
+                <strong>Shift bypassed:</strong>{" "}
+                {form.shiftBypassAttendanceTypes.length
+                  ? summarizeNames(form.shiftBypassAttendanceTypes)
+                  : "None"}
+                <br />
+                <strong>Shift applied to:</strong>{" "}
+                {shiftAppliedTypeNames.length
+                  ? summarizeNames(shiftAppliedTypeNames)
+                  : "No active attendance types"}
+              </div>
+              <InfoBanner>
+                {storeShiftCopy
+                  ? "Store Master shift timings come from optional Store UDF fields with exact keys shiftStartTime and shiftEndTime."
+                  : "User Master shift timings come from optional User UDF fields with exact keys shiftStartTime and shiftEndTime."}
+              </InfoBanner>
+            </>
           )}
         </div>
       </Section>
@@ -663,16 +815,33 @@ function updateTypeName(
   idx: number,
   name: string,
 ) {
+  const oldName = form.types[idx]?.name.trim();
+  const newName = name.trim();
   const next = form.types.map((t, i) => (i === idx ? { ...t, name } : t));
   onChange("types", next);
+  if (oldName && newName && oldName !== newName) {
+    onChange(
+      "shiftBypassAttendanceTypes",
+      form.shiftBypassAttendanceTypes.map((typeName) =>
+        typeName === oldName ? newName : typeName,
+      ),
+    );
+  }
 }
 
 function removeType(form: AttendanceConfigForm, onChange: ChangeFn, idx: number) {
   if (form.types.length <= 1) return;
+  const removedName = form.types[idx]?.name.trim();
   onChange(
     "types",
     form.types.filter((_, i) => i !== idx),
   );
+  if (removedName) {
+    onChange(
+      "shiftBypassAttendanceTypes",
+      form.shiftBypassAttendanceTypes.filter((name) => name !== removedName),
+    );
+  }
 }
 
 function normalizeHexColour(value: string): string {
@@ -688,14 +857,60 @@ function updateType(
   idx: number,
   field: keyof Pick<
     AttendanceTypeForm,
-    "active" | "geoTagged" | "geoFenced" | "photoRequired"
+    | "active"
+    | "geoTagged"
+    | "geoFenced"
+    | "photoRequired"
+    | "imageRecognitionEnabled"
   >,
   value: boolean,
 ) {
-  const next = form.types.map((t, i) =>
-    i === idx ? { ...t, [field]: value } : t,
-  );
+  const next = form.types.map((t, i) => {
+    if (i !== idx) return t;
+    const updated = { ...t, [field]: value };
+    if (field === "photoRequired" && !value) {
+      updated.imageRecognitionEnabled = false;
+    }
+    if (field === "active" && !value) {
+      updated.imageRecognitionEnabled = false;
+    }
+    return updated;
+  });
   onChange("types", next);
+}
+
+function setImageRecognitionEnabled(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  enabled: boolean,
+) {
+  onChange("imageRecognitionEnabled", enabled);
+  if (!enabled) {
+    onChange(
+      "types",
+      form.types.map((type) => ({ ...type, imageRecognitionEnabled: false })),
+    );
+  }
+}
+
+function toggleShiftBypassType(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  name: string,
+) {
+  const selected = form.shiftBypassAttendanceTypes.includes(name);
+  onChange(
+    "shiftBypassAttendanceTypes",
+    selected
+      ? form.shiftBypassAttendanceTypes.filter((typeName) => typeName !== name)
+      : [...form.shiftBypassAttendanceTypes, name],
+  );
+}
+
+function summarizeNames(names: string[]): string {
+  const unique = Array.from(new Set(names.filter(Boolean)));
+  if (unique.length <= 3) return unique.join(", ");
+  return `${unique.slice(0, 3).join(", ")} +${unique.length - 3} more`;
 }
 
 // ─── Regularization section ─────────────────────────────────────────────────
@@ -1000,6 +1215,7 @@ function AddAttendanceTypeModal({
               geoFenced,
               photoRequired,
               colour: normalizeHexColour(colour),
+              imageRecognitionEnabled: false,
             })
           }
         >
@@ -1113,15 +1329,18 @@ function SaveBar({
 function Toggle({
   checked,
   onChange,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="toggle">
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
       />
       <span className="toggle-track" />

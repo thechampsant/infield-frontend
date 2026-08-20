@@ -5,6 +5,7 @@ import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { storeService, type StoreRecord } from "@/lib/api/store-service";
 import { formatApiError } from "@/lib/api";
+import { validateShiftTimes } from "@/lib/project-admin/user-shift-times";
 import type { UDFField, UDFValue } from "@/types/project-admin";
 
 interface EditStoreModalProps {
@@ -59,9 +60,15 @@ export function EditStoreModal({
 
   const handleSubmit = async () => {
     const errs: string[] = [];
+    setSubmitError(null);
     if (!form.storeName.trim()) errs.push("storeName");
     if (form.latitude.trim() && isNaN(Number(form.latitude))) errs.push("latitude");
     if (form.longitude.trim() && isNaN(Number(form.longitude))) errs.push("longitude");
+    const shiftValidation = validateShiftTimes(udfFields, udfValues, "store");
+    if (shiftValidation) {
+      errs.push(...shiftValidation.errorKeys);
+      setSubmitError(shiftValidation.message);
+    }
 
     if (errs.length > 0) {
       setErrors(errs);
@@ -69,7 +76,6 @@ export function EditStoreModal({
     }
 
     setSubmitting(true);
-    setSubmitError(null);
     try {
       await storeService.update(store.backendId, {
         storeCode: form.storeCode.trim() || undefined,
