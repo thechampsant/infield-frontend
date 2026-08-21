@@ -118,15 +118,6 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       config.validation.requiredMode = field.required === "no" ? "never" : field.required;
     }
 
-    // Visibility rules
-    if (field.visibility === "conditional" && field.visibilityRules.length > 0) {
-      config.visibilityRules = field.visibilityRules.map(rule => ({
-        dependsOnFieldId: rule.sourceFieldId,
-        operator: rule.operator,
-        value: rule.value,
-      }));
-    }
-
     // Options
     if (field.optionsSource) {
       config.options = field.manualOptions;
@@ -238,6 +229,12 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       config.precision = 2;
     }
 
+    // UDF-native visibility at field top-level (mobile/submit evaluate this shape only)
+    const visibilityRules =
+      field.visibility === "conditional"
+        ? toUdfVisibilityRules(field.visibilityRules)
+        : undefined;
+
     return {
       fieldKey: field.id,
       label: field.label,
@@ -246,8 +243,80 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       required: field.required === "always",
       order: index,
       status: true,
+      ...(visibilityRules && visibilityRules.length > 0
+        ? { visibilityRules }
+        : {}),
     };
   });
+}
+
+/** Group FE equals-rules into UDF { dependsOnField, showWhen[] }. */
+export function toUdfVisibilityRules(
+  rules: FormField["visibilityRules"],
+): { dependsOnField: string; showWhen: string[] }[] {
+  const byParent = new Map<string, Set<string>>();
+  for (const rule of rules ?? []) {
+    const parent = String(rule.sourceFieldId ?? "").trim();
+    if (!parent) continue;
+    if (!byParent.has(parent)) byParent.set(parent, new Set());
+    const value = String(rule.value ?? "").trim();
+    if (value) byParent.get(parent)!.add(value);
+  }
+  return Array.from(byParent.entries())
+    .map(([dependsOnField, values]) => ({
+      dependsOnField,
+      showWhen: Array.from(values),
+    }))
+    .filter((rule) => rule.showWhen.length > 0);
+}
+
+/** Expand UDF (and legacy admin) rules into FE VisibilityRule[]. */
+export function fromUdfVisibilityRules(
+  udfRules: unknown,
+  legacyConfigRules?: unknown,
+): FormField["visibilityRules"] {
+  const result: FormField["visibilityRules"] = [];
+
+  const pushUdf = (rules: unknown) => {
+    if (!Array.isArray(rules)) return;
+    for (const raw of rules) {
+      if (!raw || typeof raw !== "object") continue;
+      const rule = raw as Record<string, unknown>;
+      // Canonical UDF
+      if (typeof rule.dependsOnField === "string") {
+        const showWhen = Array.isArray(rule.showWhen) ? rule.showWhen : [];
+        for (const value of showWhen) {
+          result.push({
+            id: crypto.randomUUID(),
+            sourceFieldId: rule.dependsOnField,
+            operator: "equals",
+            value: String(value ?? ""),
+          });
+        }
+        continue;
+      }
+      // Legacy form-builder admin shape
+      const parent =
+        typeof rule.dependsOnFieldId === "string"
+          ? rule.dependsOnFieldId
+          : typeof rule.sourceFieldId === "string"
+            ? rule.sourceFieldId
+            : "";
+      if (!parent) continue;
+      result.push({
+        id: typeof rule.id === "string" ? rule.id : crypto.randomUUID(),
+        sourceFieldId: parent,
+        operator: (typeof rule.operator === "string"
+          ? rule.operator
+          : "equals") as FormField["visibilityRules"][number]["operator"],
+        value: rule.value != null ? String(rule.value) : "",
+      });
+    }
+  };
+
+  pushUdf(udfRules);
+  if (result.length === 0) pushUdf(legacyConfigRules);
+  return result;
 }
 
 export function apiComponentTypeToFrontend(apiType: string): ComponentType {
@@ -302,16 +371,14 @@ export function mapUdfFieldToFrontend(udf: ApiUdfField): FormField {
     required = cfg.validation?.conditionalRequired ? "conditional" : "always";
   }
 
-  // Map visibility rules from backend format to frontend format
-  const visibilityRules = (udf.visibilityRules ?? []).map((rule) => ({
-    id: crypto.randomUUID(),
-    sourceFieldId: rule.dependsOnField,
-    operator: "equals" as const,
-    value: Array.isArray(rule.showWhen) ? rule.showWhen[0]?.toString() ?? "" : "",
-  }));
+  // Map visibility rules — prefer UDF top-level; fall back to legacy config shape
+  const visibilityRules = fromUdfVisibilityRules(
+    udf.visibilityRules,
+    cfg.visibilityRules,
+  );
 
   const visibility: "always" | "conditional" =
-    cfg.visibilityMode === "conditional" || (udf.visibilityRules && udf.visibilityRules.length > 0)
+    cfg.visibilityMode === "conditional" || visibilityRules.length > 0
       ? "conditional"
       : "always";
 
@@ -442,14 +509,10 @@ export function mapFrontendFieldToUpdatePayload(changes: Partial<FormField>): Up
   if (changes.toggleOnLabel !== undefined) payload.onLabel = changes.toggleOnLabel;
   if (changes.toggleOffLabel !== undefined) payload.offLabel = changes.toggleOffLabel;
 
-  // Visibility
+  // Visibility — UDF-native top-level shape for submit-time evaluation
   if (changes.visibility !== undefined) payload.visibilityMode = changes.visibility;
   if (changes.visibilityRules !== undefined) {
-    payload.visibilityRules = changes.visibilityRules.map((rule) => ({
-      dependsOnFieldId: rule.sourceFieldId,
-      operator: rule.operator,
-      value: rule.value,
-    }));
+    payload.visibilityRules = toUdfVisibilityRules(changes.visibilityRules);
   }
 
   // Prefill

@@ -1,6 +1,11 @@
 import { ApiError, apiClient } from "./api-client";
 import { unwrapApiData } from "./api-response";
-import type { UdfFieldConfig, UdfFieldType, UdfSchemaField } from "./udf-config-service";
+import type {
+  UdfFieldConfig,
+  UdfFieldType,
+  UdfSchemaField,
+  UdfVisibilityRule,
+} from "./udf-config-service";
 
 const BASE = "/api/v1/claims-config";
 const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
@@ -199,8 +204,27 @@ function normalizeFieldConfig(value: unknown): UdfFieldConfig | undefined {
   return value as UdfFieldConfig;
 }
 
+function normalizeVisibilityRules(value: unknown): UdfVisibilityRule[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const rules = value
+    .map((item) => {
+      const raw = asRecord(item);
+      const dependsOnField = stringValue(raw.dependsOnField);
+      const showWhen = Array.isArray(raw.showWhen)
+        ? raw.showWhen.map((entry) => String(entry)).filter((entry) => entry.trim() !== "")
+        : [];
+      if (!dependsOnField || showWhen.length === 0) return null;
+      return { dependsOnField, showWhen };
+    })
+    .filter((rule): rule is UdfVisibilityRule => Boolean(rule));
+
+  return rules.length > 0 ? rules : undefined;
+}
+
 function normalizeSchemaField(rawValue: unknown, index: number): UdfSchemaField {
   const raw = asRecord(rawValue);
+  const visibilityRules = normalizeVisibilityRules(raw.visibilityRules);
   return {
     fieldKey: stringValue(raw.fieldKey) || `field_${index + 1}`,
     label: stringValue(raw.label) || `Field ${index + 1}`,
@@ -210,6 +234,7 @@ function normalizeSchemaField(rawValue: unknown, index: number): UdfSchemaField 
     order: numberValue(raw.order) ?? index + 1,
     status: booleanValue(raw.status, true),
     summaryKey: booleanValue(raw.summaryKey),
+    ...(visibilityRules ? { visibilityRules } : {}),
   };
 }
 
@@ -375,6 +400,7 @@ function normalizeClaimSchema(
 }
 
 function sanitizeSchemaField(field: UdfSchemaField, index: number): UdfSchemaField {
+  const visibilityRules = normalizeVisibilityRules(field.visibilityRules);
   return {
     fieldKey: field.fieldKey.trim(),
     label: field.label.trim(),
@@ -384,6 +410,7 @@ function sanitizeSchemaField(field: UdfSchemaField, index: number): UdfSchemaFie
     order: index + 1,
     status: field.status ?? true,
     summaryKey: Boolean(field.summaryKey),
+    ...(visibilityRules ? { visibilityRules } : {}),
   };
 }
 

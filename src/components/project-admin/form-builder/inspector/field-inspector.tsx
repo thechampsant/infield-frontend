@@ -321,6 +321,212 @@ function ToggleSwitch({
   );
 }
 
+const LAYOUT_FIELD_TYPES = new Set([
+  "section-group",
+  "add-more-block",
+  "divider",
+  "info-label",
+  "conditional-logic",
+]);
+
+/** Show-when editor: parent field + values (UDF dependsOnField / showWhen). */
+function VisibilityDependOnEditor({
+  field,
+  siblingFields,
+  onChange,
+}: {
+  field: FormField;
+  siblingFields: FormField[];
+  onChange: (rules: FormField["visibilityRules"]) => void;
+}) {
+  const parentCandidates = siblingFields.filter(
+    (f) => f.id !== field.id && !LAYOUT_FIELD_TYPES.has(f.type),
+  );
+
+  const parentId = field.visibilityRules[0]?.sourceFieldId ?? "";
+  const selectedValues = field.visibilityRules
+    .filter((r) => r.sourceFieldId === parentId && r.value)
+    .map((r) => r.value);
+
+  const parentField = parentCandidates.find((f) => f.id === parentId);
+  const parentOptions =
+    parentField?.manualOptions?.filter((o) => String(o).trim()) ?? [];
+  const hasManualOptions = parentOptions.length > 0;
+
+  const setParent = (nextParentId: string) => {
+    if (!nextParentId) {
+      onChange([]);
+      return;
+    }
+    if (nextParentId === parentId) return;
+    // New parent — clear previous values until user picks options
+    onChange([
+      {
+        id: crypto.randomUUID(),
+        sourceFieldId: nextParentId,
+        operator: "equals",
+        value: "",
+      },
+    ]);
+  };
+
+  const setValues = (values: string[]) => {
+    if (!parentId) return;
+    const cleaned = values.map((v) => v.trim()).filter(Boolean);
+    if (cleaned.length === 0) {
+      onChange([
+        {
+          id: crypto.randomUUID(),
+          sourceFieldId: parentId,
+          operator: "equals",
+          value: "",
+        },
+      ]);
+      return;
+    }
+    onChange(
+      cleaned.map((value) => ({
+        id: crypto.randomUUID(),
+        sourceFieldId: parentId,
+        operator: "equals" as const,
+        value,
+      })),
+    );
+  };
+
+  const toggleOption = (option: string) => {
+    if (selectedValues.includes(option)) {
+      setValues(selectedValues.filter((v) => v !== option));
+    } else {
+      setValues([...selectedValues, option]);
+    }
+  };
+
+  return (
+    <div style={{ padding: "4px 16px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <label
+          style={{
+            display: "block",
+            fontSize: 13,
+            fontWeight: 500,
+            color: colors.labelText,
+            marginBottom: 4,
+          }}
+        >
+          This field is visible when
+        </label>
+        <select
+          value={parentId}
+          onChange={(e) => setParent(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "8px 10px",
+            fontSize: 13,
+            border: `1px solid ${colors.inputBorder}`,
+            borderRadius: 6,
+            background: colors.inputBg,
+            color: colors.inputText,
+          }}
+        >
+          <option value="">Select parent field…</option>
+          {parentCandidates.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label || f.type}
+            </option>
+          ))}
+        </select>
+        {parentCandidates.length === 0 && (
+          <div style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
+            Add another field (e.g. Device Type dropdown) to depend on.
+          </div>
+        )}
+      </div>
+
+      {parentId && hasManualOptions && (
+        <div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: colors.labelText,
+              marginBottom: 6,
+            }}
+          >
+            Show when value is
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {parentOptions.map((option) => {
+              const checked = selectedValues.includes(option);
+              return (
+                <label
+                  key={option}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: colors.inputText,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleOption(option)}
+                  />
+                  {option}
+                </label>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
+            Pick one or more values from the parent field options.
+          </div>
+        </div>
+      )}
+
+      {parentId && !hasManualOptions && (
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: 13,
+              fontWeight: 500,
+              color: colors.labelText,
+              marginBottom: 4,
+            }}
+          >
+            Show when values
+          </label>
+          <input
+            type="text"
+            placeholder="Iphone, Non Iphone"
+            value={selectedValues.join(", ")}
+            onChange={(e) =>
+              setValues(
+                e.target.value.split(",").map((v) => v.trim()).filter(Boolean),
+              )
+            }
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              fontSize: 13,
+              border: `1px solid ${colors.inputBorder}`,
+              borderRadius: 6,
+              background: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <div style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
+            Comma-separated values that must match the parent field.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Inspector Content ────────────────────────────────────────────────────
 
 function InspectorContent({
@@ -531,12 +737,25 @@ function InspectorContent({
             { label: "Show when...", value: "conditional" },
           ]}
           value={field.visibility}
-          onChange={(value) =>
-            updateField({
-              visibility: value as "always" | "conditional",
-            })
-          }
+          onChange={(value) => {
+            const next = value as "always" | "conditional";
+            if (next === "always") {
+              updateField({ visibility: "always", visibilityRules: [] });
+              return;
+            }
+            updateField({ visibility: "conditional" });
+          }}
         />
+        {field.visibility === "conditional" && (
+          <VisibilityDependOnEditor
+            field={field}
+            siblingFields={
+              state.configurations.find((c) => c.id === state.activeConfigId)
+                ?.fields ?? []
+            }
+            onChange={(visibilityRules) => updateField({ visibilityRules })}
+          />
+        )}
 
         {/* PRE-FILL & READ-ONLY Section */}
         <SectionHeader title="Pre-fill & Read-only" />
