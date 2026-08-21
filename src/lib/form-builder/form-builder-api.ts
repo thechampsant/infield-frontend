@@ -97,7 +97,10 @@ export interface UpdateFieldPayload {
   onLabel?: string;
   offLabel?: string;
   visibilityMode?: "always" | "conditional";
-  visibilityRules?: { dependsOnFieldId: string; operator: string; value?: string }[];
+  /** UDF-native shape (preferred). Legacy dependsOnFieldId/operator/value also accepted by backend normalize. */
+  visibilityRules?:
+    | { dependsOnField: string; showWhen: any[] }[]
+    | { dependsOnFieldId: string; operator: string; value?: string }[];
   preFill?: { sourceType: string; sourceField: string } | null;
   isReadOnly?: boolean;
   validation?: Record<string, any>;

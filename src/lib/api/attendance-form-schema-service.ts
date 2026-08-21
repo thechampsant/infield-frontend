@@ -4,6 +4,7 @@ import type {
   UdfFieldConfig,
   UdfFieldType,
   UdfSchemaField,
+  UdfVisibilityRule,
 } from "./udf-config-service";
 
 const BASE = "/api/v1/attendance-form/schema";
@@ -61,8 +62,28 @@ function normalizeFieldConfig(value: unknown): UdfFieldConfig | undefined {
   return value as UdfFieldConfig;
 }
 
+function normalizeVisibilityRules(value: unknown): UdfVisibilityRule[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const rules = value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const raw = item as Record<string, unknown>;
+      const dependsOnField = String(raw.dependsOnField ?? "").trim();
+      const showWhen = Array.isArray(raw.showWhen)
+        ? raw.showWhen.map((entry) => String(entry)).filter((entry) => entry.trim() !== "")
+        : [];
+      if (!dependsOnField || showWhen.length === 0) return null;
+      return { dependsOnField, showWhen };
+    })
+    .filter((rule): rule is UdfVisibilityRule => Boolean(rule));
+
+  return rules.length > 0 ? rules : undefined;
+}
+
 function normalizeField(rawValue: unknown, index: number): UdfSchemaField {
   const raw = (rawValue ?? {}) as Record<string, unknown>;
+  const visibilityRules = normalizeVisibilityRules(raw.visibilityRules);
   return {
     fieldKey: String(raw.fieldKey ?? `field_${index + 1}`).trim(),
     label: String(raw.label ?? `Field ${index + 1}`).trim(),
@@ -72,6 +93,7 @@ function normalizeField(rawValue: unknown, index: number): UdfSchemaField {
     status: typeof raw.status === "boolean" ? raw.status : true,
     summaryKey: typeof raw.summaryKey === "boolean" ? raw.summaryKey : false,
     config: normalizeFieldConfig(raw.config),
+    ...(visibilityRules ? { visibilityRules } : {}),
   };
 }
 
@@ -117,6 +139,7 @@ function sanitizeApiSelectConfig(config: UdfFieldConfig | undefined): UdfFieldCo
 }
 
 function sanitizeField(field: UdfSchemaField, index: number): UdfSchemaField {
+  const visibilityRules = normalizeVisibilityRules(field.visibilityRules);
   return {
     fieldKey: field.fieldKey.trim(),
     label: field.label.trim(),
@@ -126,6 +149,7 @@ function sanitizeField(field: UdfSchemaField, index: number): UdfSchemaField {
     status: field.status ?? true,
     summaryKey: Boolean(field.summaryKey),
     config: field.type === "API_SELECT" ? sanitizeApiSelectConfig(field.config) : field.config,
+    ...(visibilityRules ? { visibilityRules } : {}),
   };
 }
 
