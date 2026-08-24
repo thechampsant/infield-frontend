@@ -188,7 +188,25 @@ export function AttendanceConfigEdit({
         </div>
         <Toggle
           checked={form.isModuleEnabled}
-          onChange={(v) => onChange("isModuleEnabled", v)}
+          onChange={(v) => {
+            onChange("isModuleEnabled", v);
+            if (!v) onChange("requireCheckInToAccessModules", false);
+          }}
+        />
+      </div>
+
+      <div className="module-banner">
+        <div>
+          <p className="setting-name">Require check-in to access other modules</p>
+          <p className="setting-hint">
+            When on, field users can open Visit, Forms, Sales, and other mobile
+            modules only after they check in today. Web portal is not affected.
+          </p>
+        </div>
+        <Toggle
+          checked={form.requireCheckInToAccessModules}
+          onChange={(v) => onChange("requireCheckInToAccessModules", v)}
+          disabled={!form.isModuleEnabled || !form.checkInEnabled}
         />
       </div>
 
@@ -206,7 +224,10 @@ export function AttendanceConfigEdit({
                 <SettingRow
                   label="Enable check-in"
                   checked={form.checkInEnabled}
-                  onChange={(v) => onChange("checkInEnabled", v)}
+                  onChange={(v) => {
+                    onChange("checkInEnabled", v);
+                    if (!v) onChange("requireCheckInToAccessModules", false);
+                  }}
                 />
                 <input
                   className="form-input"
