@@ -10,7 +10,10 @@ import type {
   RegWindowType,
   ShiftAssignmentMode,
 } from "@/lib/api/attendance-config";
-import { attendanceConfigService } from "@/lib/api/attendance-config";
+import {
+  DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE,
+  attendanceConfigService,
+} from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
 
 type ChangeFn = <K extends keyof AttendanceConfigForm>(
@@ -62,6 +65,9 @@ export function AttendanceConfigEdit({
     (t) => t.active && t.photoRequired && t.imageRecognitionEnabled,
   );
   const hasIrEnabledTypes = irEnabledTypes.length > 0;
+  const randomEnabledTypes = form.types.filter(
+    (t) => t.active && t.randomAttendanceEnabled,
+  );
   const activeTypeNames = form.types
     .filter((t) => t.active && t.name.trim())
     .map((t) => t.name.trim());
@@ -255,6 +261,7 @@ export function AttendanceConfigEdit({
                   <th>Geo-fenced</th>
                   <th>Photo</th>
                   {form.imageRecognitionEnabled && <th>IR</th>}
+                  {form.randomAttendanceEnabled && <th>Random</th>}
                   <th>Color</th>
                   <th>Actions</th>
                 </tr>
@@ -314,6 +321,17 @@ export function AttendanceConfigEdit({
                         )}
                       </td>
                     )}
+                    {form.randomAttendanceEnabled && (
+                      <td>
+                        <Toggle
+                          checked={t.active && t.randomAttendanceEnabled}
+                          disabled={!t.active}
+                          onChange={(v) =>
+                            updateType(form, onChange, i, "randomAttendanceEnabled", v)
+                          }
+                        />
+                      </td>
+                    )}
                     <td>
                       <div className="att-type-color">
                         <input
@@ -348,6 +366,101 @@ export function AttendanceConfigEdit({
           <button className="btn btn-secondary btn-sm" onClick={() => setAddTypeModal(true)}>
             + Add custom type
           </button>
+        </div>
+      </Section>
+
+      <Section
+        id="random"
+        title="Random Attendance"
+        description="Randomized push verification checks"
+        open={openSections.random}
+        onToggle={() => toggleSection("random")}
+      >
+        <div className="section-inner">
+          <SettingRow
+            label="Enable Random Attendance"
+            hint="Plans randomized verification notifications after successful normal check-in for Random-enabled attendance types."
+            checked={form.randomAttendanceEnabled}
+            onChange={(v) => setRandomAttendanceEnabled(form, onChange, v)}
+          />
+          {!form.randomAttendanceEnabled ? (
+            <div className="flat-mode-note">
+              Per-type Random flags are treated as off while this master setting is disabled.
+            </div>
+          ) : (
+            <>
+              <div className="form-row-2">
+                <FormGroup label="From time" required>
+                  <input
+                    type="time"
+                    className="form-input"
+                    value={form.randomAttendanceFromTime}
+                    onChange={(e) => onChange("randomAttendanceFromTime", e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup label="Till time" required>
+                  <input
+                    type="time"
+                    className="form-input"
+                    value={form.randomAttendanceTillTime}
+                    onChange={(e) => onChange("randomAttendanceTillTime", e.target.value)}
+                  />
+                </FormGroup>
+              </div>
+              <FieldError message={errors.randomAttendanceTimeWindow} />
+              <div className="form-row-2">
+                <FormGroup label="Max notifications per day" required>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min={1}
+                    max={10}
+                    value={form.randomAttendanceMaxNotificationsPerDay}
+                    onChange={(e) =>
+                      onChange(
+                        "randomAttendanceMaxNotificationsPerDay",
+                        numberValue(e.target.value),
+                      )
+                    }
+                  />
+                </FormGroup>
+                <FormGroup label="Response window minutes" required>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min={5}
+                    max={60}
+                    value={form.randomAttendanceResponseWindowMinutes}
+                    onChange={(e) =>
+                      onChange(
+                        "randomAttendanceResponseWindowMinutes",
+                        numberValue(e.target.value),
+                      )
+                    }
+                  />
+                </FormGroup>
+              </div>
+              <FieldError message={errors.randomAttendanceMaxNotificationsPerDay} />
+              <FieldError message={errors.randomAttendanceResponseWindowMinutes} />
+              <FormGroup label="Expired window message">
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  value={form.randomAttendanceExpiredWindowMessage}
+                  onChange={(e) =>
+                    onChange("randomAttendanceExpiredWindowMessage", e.target.value)
+                  }
+                  placeholder={DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE}
+                />
+              </FormGroup>
+              <div className="flat-mode-note">
+                <strong>Random enabled for:</strong>{" "}
+                {randomEnabledTypes.length
+                  ? summarizeNames(randomEnabledTypes.map((type) => type.name))
+                  : "No active attendance types"}
+              </div>
+            </>
+          )}
         </div>
       </Section>
 
@@ -862,6 +975,7 @@ function updateType(
     | "geoFenced"
     | "photoRequired"
     | "imageRecognitionEnabled"
+    | "randomAttendanceEnabled"
   >,
   value: boolean,
 ) {
@@ -873,6 +987,7 @@ function updateType(
     }
     if (field === "active" && !value) {
       updated.imageRecognitionEnabled = false;
+      updated.randomAttendanceEnabled = false;
     }
     return updated;
   });
@@ -889,6 +1004,20 @@ function setImageRecognitionEnabled(
     onChange(
       "types",
       form.types.map((type) => ({ ...type, imageRecognitionEnabled: false })),
+    );
+  }
+}
+
+function setRandomAttendanceEnabled(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  enabled: boolean,
+) {
+  onChange("randomAttendanceEnabled", enabled);
+  if (!enabled) {
+    onChange(
+      "types",
+      form.types.map((type) => ({ ...type, randomAttendanceEnabled: false })),
     );
   }
 }
@@ -1216,6 +1345,7 @@ function AddAttendanceTypeModal({
               photoRequired,
               colour: normalizeHexColour(colour),
               imageRecognitionEnabled: false,
+              randomAttendanceEnabled: false,
             })
           }
         >

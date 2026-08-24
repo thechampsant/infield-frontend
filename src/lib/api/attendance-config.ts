@@ -38,6 +38,7 @@ export interface AttendanceTypeDto {
   colour?: string;
   color?: string;
   isImageRecognitionEnabled?: boolean;
+  isRandomAttendanceEnabled?: boolean;
 }
 
 export interface GeoFencingConfigDto {
@@ -134,6 +135,15 @@ export interface ImageRecognitionConfigDto {
   isEnabled: boolean;
 }
 
+export interface RandomAttendanceConfigDto {
+  isEnabled: boolean;
+  fromTime: string | null;
+  tillTime: string | null;
+  maxNotificationsPerDay: number;
+  responseWindowMinutes: number;
+  expiredWindowMessage: string;
+}
+
 /** Body shared by create/update (create also carries `projectId`). */
 export interface AttendanceConfigDto {
   name?: string;
@@ -156,6 +166,7 @@ export interface AttendanceConfigDto {
   leaveModule: LeaveModuleConfigDto;
   shiftManagement: ShiftManagementConfigDto;
   imageRecognition: ImageRecognitionConfigDto;
+  randomAttendance: RandomAttendanceConfigDto;
 }
 
 export interface CreateAttendanceConfigDto extends AttendanceConfigDto {
@@ -188,6 +199,7 @@ export interface AttendanceTypeForm {
   photoRequired: boolean;
   colour: string;
   imageRecognitionEnabled: boolean;
+  randomAttendanceEnabled: boolean;
 }
 
 export interface ApprovalLevelForm {
@@ -239,6 +251,12 @@ export interface AttendanceConfigForm {
   shiftBypassAttendanceTypes: string[];
   maxWorkingHoursTimerLimitEnabled: boolean;
   imageRecognitionEnabled: boolean;
+  randomAttendanceEnabled: boolean;
+  randomAttendanceFromTime: string;
+  randomAttendanceTillTime: string;
+  randomAttendanceMaxNotificationsPerDay: number;
+  randomAttendanceResponseWindowMinutes: number;
+  randomAttendanceExpiredWindowMessage: string;
 
   autoCheckoutEnabled: boolean;
   autoCheckoutTime: string;
@@ -264,6 +282,8 @@ export interface AttendanceConfigForm {
 }
 
 const DEFAULT_TYPE_COLOUR = "#3377ff";
+export const DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE =
+  "Your window to mark attendance has closed. Please contact your manager for regularization.";
 
 function normalizeTypeColour(value: string | undefined): string {
   const raw = String(value ?? "").trim();
@@ -274,13 +294,13 @@ function normalizeTypeColour(value: string | undefined): string {
 
 /** Seven default attendance types per AC4. */
 export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
-  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
-  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
-  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
-  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
-  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
-  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
-  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false },
+  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
 ];
 
 export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
@@ -325,6 +345,12 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   shiftBypassAttendanceTypes: [],
   maxWorkingHoursTimerLimitEnabled: false,
   imageRecognitionEnabled: false,
+  randomAttendanceEnabled: false,
+  randomAttendanceFromTime: "10:00",
+  randomAttendanceTillTime: "18:00",
+  randomAttendanceMaxNotificationsPerDay: 1,
+  randomAttendanceResponseWindowMinutes: 15,
+  randomAttendanceExpiredWindowMessage: DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE,
 
   autoCheckoutEnabled: false,
   autoCheckoutTime: "23:00",
@@ -380,6 +406,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
   const wh = doc.workingHours;
   const reg = doc.regularization;
   const rootIrEnabled = Boolean(doc.imageRecognition?.isEnabled);
+  const rootRandomEnabled = Boolean(doc.randomAttendance?.isEnabled);
 
   const types: AttendanceTypeForm[] =
     Array.isArray(doc.attendanceTypes) && doc.attendanceTypes.length
@@ -392,6 +419,8 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
           photoRequired: Boolean(t.isPhotoRequired),
           colour: normalizeTypeColour(t.colour ?? t.color),
           imageRecognitionEnabled: rootIrEnabled && Boolean(t.isImageRecognitionEnabled),
+          randomAttendanceEnabled:
+            rootRandomEnabled && Boolean(t.isActive) && Boolean(t.isRandomAttendanceEnabled),
         }))
       : DEFAULT_ATTENDANCE_TYPES.map((t) => ({ ...t }));
 
@@ -443,6 +472,20 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
       : [],
     maxWorkingHoursTimerLimitEnabled: Boolean(wh?.enableTimerLimit),
     imageRecognitionEnabled: rootIrEnabled,
+    randomAttendanceEnabled: rootRandomEnabled,
+    randomAttendanceFromTime:
+      doc.randomAttendance?.fromTime ?? DEFAULT_CONFIG_FORM.randomAttendanceFromTime,
+    randomAttendanceTillTime:
+      doc.randomAttendance?.tillTime ?? DEFAULT_CONFIG_FORM.randomAttendanceTillTime,
+    randomAttendanceMaxNotificationsPerDay:
+      doc.randomAttendance?.maxNotificationsPerDay ??
+      DEFAULT_CONFIG_FORM.randomAttendanceMaxNotificationsPerDay,
+    randomAttendanceResponseWindowMinutes:
+      doc.randomAttendance?.responseWindowMinutes ??
+      DEFAULT_CONFIG_FORM.randomAttendanceResponseWindowMinutes,
+    randomAttendanceExpiredWindowMessage:
+      doc.randomAttendance?.expiredWindowMessage ??
+      DEFAULT_CONFIG_FORM.randomAttendanceExpiredWindowMessage,
 
     autoCheckoutEnabled: Boolean(doc.isAutoCheckOutEnabled),
     autoCheckoutTime: doc.autoCheckOutTime ?? DEFAULT_CONFIG_FORM.autoCheckoutTime,
@@ -506,6 +549,8 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       colour: normalizeTypeColour(t.colour),
       isImageRecognitionEnabled:
         form.imageRecognitionEnabled && t.active && t.photoRequired && t.imageRecognitionEnabled,
+      isRandomAttendanceEnabled:
+        form.randomAttendanceEnabled && t.active && t.randomAttendanceEnabled,
     })),
     geoFencing: {
       isEnabled: anyGeoFenced,
@@ -567,6 +612,14 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
         .filter((name, index, names) => Boolean(name) && activeTypeNames.has(name) && names.indexOf(name) === index),
     },
     imageRecognition: { isEnabled: form.imageRecognitionEnabled },
+    randomAttendance: {
+      isEnabled: form.randomAttendanceEnabled,
+      fromTime: form.randomAttendanceEnabled ? form.randomAttendanceFromTime : null,
+      tillTime: form.randomAttendanceEnabled ? form.randomAttendanceTillTime : null,
+      maxNotificationsPerDay: form.randomAttendanceMaxNotificationsPerDay,
+      responseWindowMinutes: form.randomAttendanceResponseWindowMinutes,
+      expiredWindowMessage: form.randomAttendanceExpiredWindowMessage,
+    },
   };
 }
 
