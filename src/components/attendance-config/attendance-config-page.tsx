@@ -939,7 +939,44 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
     }
   }
 
+  if (form.randomAttendanceEnabled) {
+    const fromMinutes = parseTimeToMinutes(form.randomAttendanceFromTime);
+    const tillMinutes = parseTimeToMinutes(form.randomAttendanceTillTime);
+
+    if (fromMinutes === null || tillMinutes === null) {
+      errors.randomAttendanceTimeWindow = "From and till time are required in HH:mm format.";
+    } else if (tillMinutes <= fromMinutes) {
+      errors.randomAttendanceTimeWindow = "Till time must be after from time.";
+    }
+
+    if (
+      form.randomAttendanceMaxNotificationsPerDay < 1 ||
+      form.randomAttendanceMaxNotificationsPerDay > 10
+    ) {
+      errors.randomAttendanceMaxNotificationsPerDay =
+        "Max notifications per day must be between 1 and 10.";
+    }
+
+    if (
+      form.randomAttendanceResponseWindowMinutes < 5 ||
+      form.randomAttendanceResponseWindowMinutes > 60
+    ) {
+      errors.randomAttendanceResponseWindowMinutes =
+        "Response window must be between 5 and 60 minutes.";
+    }
+  }
+
   return errors;
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  if (!/^\d{2}:\d{2}$/.test(value)) return null;
+  const [hoursText, minutesText] = value.split(":");
+  const hours = Number(hoursText);
+  const minutes = Number(minutesText);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
 }
 
 function validateAttendanceSchema(
