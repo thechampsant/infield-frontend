@@ -139,6 +139,7 @@ export interface AttendanceConfigDto {
   name?: string;
   applicableDesignations?: string[];
   isModuleEnabled: boolean;
+  requireCheckInToAccessModules?: boolean;
   checkInLabel: LabelConfigDto;
   checkOutLabel: LabelConfigDto;
   showDateField: boolean;
@@ -203,6 +204,7 @@ export interface AttendanceConfigForm {
   applicableDesignations: string[];
 
   isModuleEnabled: boolean;
+  requireCheckInToAccessModules: boolean;
 
   checkInEnabled: boolean;
   checkInLabel: string;
@@ -289,6 +291,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   applicableDesignations: [],
 
   isModuleEnabled: false,
+  requireCheckInToAccessModules: false,
 
   checkInEnabled: true,
   checkInLabel: "",
@@ -403,6 +406,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
       : [],
 
     isModuleEnabled: Boolean(doc.isModuleEnabled),
+    requireCheckInToAccessModules: Boolean(doc.requireCheckInToAccessModules),
 
     checkInEnabled: doc.checkInLabel?.isEnabled ?? true,
     checkInLabel: doc.checkInLabel?.label ?? "",
@@ -490,6 +494,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
     name: form.name.trim() || undefined,
     applicableDesignations: form.applicableDesignations,
     isModuleEnabled: form.isModuleEnabled,
+    requireCheckInToAccessModules: form.requireCheckInToAccessModules,
     checkInLabel: { ...label(form.checkInLabel, "Check-In"), isEnabled: form.checkInEnabled },
     checkOutLabel: {
       ...label(form.checkOutLabel, "Check-Out"),
