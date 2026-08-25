@@ -18,7 +18,10 @@ import {
   type DynamicMenuConfig,
 } from "@/lib/api/dynamic-menu-service";
 import { useAuth } from "@/lib/auth/auth-context";
-import { canManageModules } from "@/lib/auth/permissions";
+import {
+  canManageModules,
+  canNavigateBackToProjects,
+} from "@/lib/auth/permissions";
 
 const ICONS = {
   users: Users,
@@ -47,8 +50,10 @@ export function ProjectAdminDrawer({
   const [expanded, setExpanded] = useState(true);
   const pathname = usePathname() ?? "/";
   const { user } = useAuth();
+  const manageModules = canManageModules(user);
+  const showBackToProjects = canNavigateBackToProjects(user);
   const navItems = projectAdminDrawerNav(accountCode, projectCode, {
-    canManageModules: canManageModules(user),
+    canManageModules: manageModules,
   });
 
   // Dynamic menu items
@@ -115,10 +120,12 @@ export function ProjectAdminDrawer({
       )}
 
       <nav className="pa-drawer-body">
-        <Link href={backHref} className="pa-back-link">
-          <ChevronLeft size={14} style={{ flexShrink: 0 }} />
-          {expanded && <span>Back to Projects</span>}
-        </Link>
+        {showBackToProjects ? (
+          <Link href={backHref} className="pa-back-link">
+            <ChevronLeft size={14} style={{ flexShrink: 0 }} />
+            {expanded && <span>Back to Projects</span>}
+          </Link>
+        ) : null}
 
         {expanded && <div className="pa-nav-section">Setup</div>}
 

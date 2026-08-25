@@ -24,6 +24,22 @@ export function canManageModules(user: BackendUser | null | undefined): boolean 
   return hasPermission(user, MODULE_CONFIG_UPDATE);
 }
 
+/**
+ * "Back to Projects" is only for admins who have an account/project list.
+ * Project-scoped users (project admin, managers, report-only) stay in the project shell.
+ */
+export function canNavigateBackToProjects(
+  user: BackendUser | null | undefined,
+): boolean {
+  if (!user?.role) return false;
+  const normalized = user.role.toLowerCase().replace(/[\s_-]+/g, "");
+  return (
+    normalized.includes("superadmin") ||
+    normalized.includes("accountadmin") ||
+    normalized.includes("clientadmin")
+  );
+}
+
 /** Path segments under project-admin that require module-config:update */
 export function isModuleConfigPath(pathname: string): boolean {
   return (
