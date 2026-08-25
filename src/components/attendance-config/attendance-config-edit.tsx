@@ -31,6 +31,8 @@ interface Props {
   onChange: ChangeFn;
   onSave: () => void;
   onDiscard: () => void;
+  /** When true, Save is disabled (no module-config:update). */
+  readOnly?: boolean;
 }
 
 export function AttendanceConfigEdit({
@@ -43,6 +45,7 @@ export function AttendanceConfigEdit({
   onChange,
   onSave,
   onDiscard,
+  readOnly = false,
 }: Props) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     scope: true,
@@ -914,6 +917,7 @@ export function AttendanceConfigEdit({
       <SaveBar
         dirty={dirty}
         saving={saving}
+        readOnly={readOnly}
         onSave={onSave}
         onDiscard={onDiscard}
       />
@@ -1441,18 +1445,22 @@ function Modal({
 function SaveBar({
   dirty,
   saving,
+  readOnly = false,
   onSave,
   onDiscard,
 }: {
   dirty: boolean;
   saving: boolean;
+  readOnly?: boolean;
   onSave: () => void;
   onDiscard: () => void;
 }) {
   return (
     <div className="save-bar">
       <div className="save-bar-info">
-        {dirty ? (
+        {readOnly
+          ? "View only — you do not have permission to change module configuration."
+          : dirty ? (
           <>
             <span className="unsaved-dot" />
             Unsaved changes
@@ -1465,11 +1473,15 @@ function SaveBar({
         <button
           className="btn btn-secondary"
           onClick={onDiscard}
-          disabled={saving || !dirty}
+          disabled={readOnly || saving || !dirty}
         >
           Discard
         </button>
-        <button className="btn btn-primary" onClick={onSave} disabled={saving}>
+        <button
+          className="btn btn-primary"
+          onClick={onSave}
+          disabled={readOnly || saving}
+        >
           {saving ? "Saving\u2026" : "Save"}
         </button>
       </div>

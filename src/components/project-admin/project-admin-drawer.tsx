@@ -17,6 +17,8 @@ import {
   dynamicMenuService,
   type DynamicMenuConfig,
 } from "@/lib/api/dynamic-menu-service";
+import { useAuth } from "@/lib/auth/auth-context";
+import { canManageModules } from "@/lib/auth/permissions";
 
 const ICONS = {
   users: Users,
@@ -44,7 +46,10 @@ export function ProjectAdminDrawer({
 }) {
   const [expanded, setExpanded] = useState(true);
   const pathname = usePathname() ?? "/";
-  const navItems = projectAdminDrawerNav(accountCode, projectCode);
+  const { user } = useAuth();
+  const navItems = projectAdminDrawerNav(accountCode, projectCode, {
+    canManageModules: canManageModules(user),
+  });
 
   // Dynamic menu items
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
