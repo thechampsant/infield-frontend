@@ -12,6 +12,7 @@
  */
 
 import { apiClient } from "./api-client";
+import { MAX_LIST_PAGE_SIZE, normalizeListMeta, type RawListMeta } from "./pagination";
 import { storeService, type StoreRecord } from "./store-service";
 
 const USERS_BASE = "/api/v1/users";
@@ -43,7 +44,7 @@ interface RawUser {
 
 interface PaginatedUsers {
   data?: RawUser[];
-  meta?: unknown;
+  meta?: RawListMeta;
 }
 
 export interface BulkMappingResult {
@@ -82,17 +83,32 @@ function normalizeUser(raw: RawUser): MappedUser {
 
 export const userStoreMappingService = {
   /** List all active users for a project with their current store mappings. */
-  async listUsersWithMapping(projectId: string, limit = 10000): Promise<MappedUser[]> {
-    const res = await apiClient.get<PaginatedUsers | RawUser[]>(
-      `${USERS_BASE}?projectId=${encodeURIComponent(projectId)}&limit=${limit}`,
-    );
-    const rows = Array.isArray(res) ? res : ((res as PaginatedUsers).data ?? []);
+  async listUsersWithMapping(projectId: string): Promise<MappedUser[]> {
+    const fetchPage = async (page: number) => {
+      const res = await apiClient.get<PaginatedUsers | RawUser[]>(
+        `${USERS_BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${MAX_LIST_PAGE_SIZE}`,
+      );
+      const rows = Array.isArray(res) ? res : ((res as PaginatedUsers).data ?? []);
+      return {
+        rows,
+        meta: normalizeListMeta(Array.isArray(res) ? undefined : res.meta, rows.length),
+      };
+    };
+
+    const firstPage = await fetchPage(1);
+    const rows = [...firstPage.rows];
+
+    for (let page = firstPage.meta.page + 1; page <= firstPage.meta.totalPages; page += 1) {
+      const next = await fetchPage(page);
+      rows.push(...next.rows);
+    }
+
     return rows.map(normalizeUser);
   },
 
   /** List all active stores for a project. */
   async listStores(projectId: string): Promise<StoreRecord[]> {
-    return storeService.listByProject(projectId);
+    return storeService.listAllByProject(projectId);
   },
 
   /**

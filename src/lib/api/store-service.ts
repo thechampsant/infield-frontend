@@ -4,6 +4,14 @@
  */
 
 import { apiClient } from "./api-client";
+import {
+  clampListPageSize,
+  DEFAULT_LIST_PAGE_SIZE,
+  MAX_LIST_PAGE_SIZE,
+  normalizeListMeta,
+  type ListMeta,
+  type RawListMeta,
+} from "./pagination";
 import { udfConfigService } from "./udf-config-service";
 import type { UDFField } from "@/types/project-admin";
 import type { UdfSchemaField } from "./udf-config-service";
@@ -39,7 +47,12 @@ interface RawStore {
 
 interface PaginatedStores {
   data?: RawStore[];
-  meta?: { total?: number; page?: number; pageSize?: number; totalCount?: number };
+  meta?: RawListMeta;
+}
+
+export interface StoreListResult {
+  data: StoreRecord[];
+  meta: ListMeta;
 }
 
 export interface BulkStoreResult {
@@ -95,6 +108,16 @@ function normalizeStore(raw: RawStore): StoreRecord {
     storeType: raw.store_type,
     isActive: raw.isActive !== false,
     udfs: extractUdfs(raw),
+  };
+}
+
+function normalizeStoresResponse(
+  raw: PaginatedStores | RawStore[],
+): StoreListResult {
+  const rows = Array.isArray(raw) ? raw : (raw.data ?? []);
+  return {
+    data: rows.map(normalizeStore),
+    meta: normalizeListMeta(Array.isArray(raw) ? undefined : raw.meta, rows.length),
   };
 }
 
@@ -220,13 +243,33 @@ function normalizeStoreSchemaFieldForSave(
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export const storeService = {
-  /** List all active stores for a project (up to 500). */
-  async listByProject(projectId: string, limit = 500): Promise<StoreRecord[]> {
+  /** List one page of active stores for a project. */
+  async listByProject(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+  ): Promise<StoreListResult> {
     const res = await apiClient.get<PaginatedStores | RawStore[]>(
-      `${BASE}?projectId=${encodeURIComponent(projectId)}&limit=${limit}`,
+      `${BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${clampListPageSize(pageSize)}`,
     );
-    const rows = Array.isArray(res) ? res : (res.data ?? []);
-    return rows.map(normalizeStore);
+    return normalizeStoresResponse(res);
+  },
+
+  /** Page through every active store. For pickers and mapping screens only. */
+  async listAllByProject(projectId: string): Promise<StoreRecord[]> {
+    const firstPage = await storeService.listByProject(
+      projectId,
+      1,
+      MAX_LIST_PAGE_SIZE,
+    );
+    const stores = [...firstPage.data];
+
+    for (let page = firstPage.meta.page + 1; page <= firstPage.meta.totalPages; page += 1) {
+      const result = await storeService.listByProject(projectId, page, MAX_LIST_PAGE_SIZE);
+      stores.push(...result.data);
+    }
+
+    return stores;
   },
 
   /** Get UDF form fields (runtime UDFField[] shape for forms). */

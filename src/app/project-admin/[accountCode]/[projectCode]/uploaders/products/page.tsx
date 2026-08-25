@@ -7,6 +7,7 @@ import {
   type BulkProductResult,
   type ProductRecord,
 } from "@/lib/api/product-service";
+import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { ProductTable } from "@/components/project-admin/uploaders/products/product-table";
 import { AddProductModal } from "@/components/project-admin/uploaders/products/add-product-modal";
@@ -33,6 +34,14 @@ export default function ProductsMasterPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<BulkProductResult | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [meta, setMeta] = useState<ListMeta>({
+    page: 1,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    totalCount: 0,
+    totalPages: 1,
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,18 +51,23 @@ export default function ProductsMasterPage() {
     setError(null);
     try {
       const [productList, fields] = await Promise.all([
-        productService.listAllByProject(projectId),
+        productService.listByProject(projectId, page, pageSize),
         productService.getFormFields(projectId),
       ]);
-      setProducts(productList);
+      setProducts(productList.data);
+      setMeta(productList.meta);
       setUdfFields(fields);
+      // Deleting the last row of the final page can leave us past the end.
+      if (page > productList.meta.totalPages) {
+        setPage(productList.meta.totalPages);
+      }
     } catch (err) {
       setError(formatApiError(err, "Failed to load products"));
       setProducts([]);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, page, pageSize]);
 
   useEffect(() => {
     load();
@@ -88,7 +102,9 @@ export default function ProductsMasterPage() {
       const result = await productService.bulkUpload(projectId, file);
       setUploadResult(result);
       if (result.successCount > 0) {
-        load();
+        // Newest rows sort first, so jump back to page 1 to show them.
+        if (page === 1) load();
+        else setPage(1);
       }
       if (result.invalidCount > 0) {
         setError(
@@ -187,6 +203,17 @@ export default function ProductsMasterPage() {
         udfFields={udfFields}
         loading={loading}
         projectId={projectId}
+        pagination={{
+          page: meta.page,
+          pageSize,
+          totalCount: meta.totalCount,
+          totalPages: meta.totalPages,
+          onPageChange: setPage,
+          onPageSizeChange: (size) => {
+            setPageSize(size);
+            setPage(1);
+          },
+        }}
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
         onExport={handleExport}

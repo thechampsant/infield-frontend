@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { Store, CheckCircle, XCircle } from "lucide-react";
-import { DataTable } from "@/components/project-admin/shared/data-table";
+import {
+  DataTable,
+  type ServerPagination,
+} from "@/components/project-admin/shared/data-table";
 import { StatCard } from "@/components/project-admin/shared/stat-card";
 import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
@@ -16,6 +19,8 @@ interface StoreTableProps {
   udfFields: UDFField[];
   loading: boolean;
   projectId: string;
+  /** `stores` holds only the current page; counts come from here. */
+  pagination: ServerPagination;
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
@@ -28,6 +33,7 @@ export function StoreTable({
   udfFields,
   loading,
   projectId,
+  pagination,
   onOpenUDFConfig,
   onRefresh,
   onExport,
@@ -50,8 +56,9 @@ export function StoreTable({
       );
     });
 
-  const total = stores.length;
-  const activeCount = stores.filter((s) => s.isActive).length;
+  // The list API returns active stores only, so every row on every page is active.
+  const total = pagination.totalCount;
+  const activeCount = total;
 
   const cellTruncate: React.CSSProperties = {
     overflow: "hidden",
@@ -204,6 +211,7 @@ export function StoreTable({
         searchValue={search}
         onSearchChange={setSearch}
         loading={loading}
+        serverPagination={pagination}
         toolbarRight={
           <>
             <button

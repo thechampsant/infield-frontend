@@ -1,4 +1,12 @@
 import { ApiError, apiClient } from "./api-client";
+import {
+  clampListPageSize,
+  DEFAULT_LIST_PAGE_SIZE,
+  MAX_LIST_PAGE_SIZE,
+  normalizeListMeta,
+  type ListMeta,
+  type RawListMeta,
+} from "./pagination";
 import { udfConfigService } from "./udf-config-service";
 import type { UDFField } from "@/types/project-admin";
 import type { UdfSchemaField } from "./udf-config-service";
@@ -30,23 +38,12 @@ interface RawProduct {
 
 interface PaginatedProducts {
   data?: RawProduct[];
-  meta?: {
-    page?: number;
-    pageSize?: number;
-    total?: number;
-    totalCount?: number;
-    totalPages?: number;
-  };
+  meta?: RawListMeta;
 }
 
 export interface ProductListResult {
   data: ProductRecord[];
-  meta: {
-    page: number;
-    pageSize: number;
-    totalCount: number;
-    totalPages: number;
-  };
+  meta: ListMeta;
 }
 
 export interface BulkProductResult {
@@ -178,18 +175,9 @@ function normalizeProduct(raw: RawProduct): ProductRecord {
 
 function normalizeProductsResponse(raw: PaginatedProducts | RawProduct[]): ProductListResult {
   const rows = Array.isArray(raw) ? raw : (raw.data ?? []);
-  const meta = Array.isArray(raw) ? undefined : raw.meta;
-  const page = meta?.page ?? 1;
-  const pageSize = meta?.pageSize ?? rows.length;
-  const totalCount = meta?.totalCount ?? meta?.total ?? rows.length;
   return {
     data: rows.map(normalizeProduct),
-    meta: {
-      page,
-      pageSize,
-      totalCount,
-      totalPages: meta?.totalPages ?? Math.max(1, Math.ceil(totalCount / Math.max(pageSize, 1))),
-    },
+    meta: normalizeListMeta(Array.isArray(raw) ? undefined : raw.meta, rows.length),
   };
 }
 
@@ -299,19 +287,25 @@ function normalizeMapping(raw: RawProductStoreMapping): ProductStoreMapping {
 }
 
 export const productService = {
-  async listByProject(projectId: string, page = 1, pageSize = 50): Promise<ProductListResult> {
+  /** List one page of active products for a project. */
+  async listByProject(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+  ): Promise<ProductListResult> {
     const res = await apiClient.get<PaginatedProducts | RawProduct[]>(
-      `${BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${pageSize}`,
+      `${BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${clampListPageSize(pageSize)}`,
     );
     return normalizeProductsResponse(res);
   },
 
+  /** Page through every active product. For pickers and mapping screens only. */
   async listAllByProject(projectId: string): Promise<ProductRecord[]> {
-    const firstPage = await productService.listByProject(projectId);
+    const firstPage = await productService.listByProject(projectId, 1, MAX_LIST_PAGE_SIZE);
     const products = [...firstPage.data];
 
     for (let page = firstPage.meta.page + 1; page <= firstPage.meta.totalPages; page += 1) {
-      const result = await productService.listByProject(projectId, page);
+      const result = await productService.listByProject(projectId, page, MAX_LIST_PAGE_SIZE);
       products.push(...result.data);
     }
 

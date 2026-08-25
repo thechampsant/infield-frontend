@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { CheckCircle, Package, Star, XCircle } from "lucide-react";
-import { DataTable } from "@/components/project-admin/shared/data-table";
+import {
+  DataTable,
+  type ServerPagination,
+} from "@/components/project-admin/shared/data-table";
 import { StatCard } from "@/components/project-admin/shared/stat-card";
 import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
@@ -16,6 +19,8 @@ interface ProductTableProps {
   udfFields: UDFField[];
   loading: boolean;
   projectId: string;
+  /** `products` holds only the current page; counts come from here. */
+  pagination: ServerPagination;
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
@@ -28,6 +33,7 @@ export function ProductTable({
   udfFields,
   loading,
   projectId,
+  pagination,
   onOpenUDFConfig,
   onRefresh,
   onExport,
@@ -55,8 +61,10 @@ export function ProductTable({
       );
     });
 
-  const total = products.length;
-  const activeCount = products.filter((product) => product.isActive).length;
+  // The list API returns active products only, so every row on every page is active.
+  const total = pagination.totalCount;
+  const activeCount = total;
+  // No project-wide focus count is exposed, so this stays scoped to the page.
   const focusCount = products.filter((product) => product.isFocusProduct).length;
   const grid = udfFields.length > 0
     ? `${CORE_GRID} ${udfFields.map(() => "140px").join(" ")}`
@@ -197,7 +205,7 @@ export function ProductTable({
         />
         <StatCard
           value={focusCount}
-          label="Focus Products"
+          label="Focus Products (this page)"
           color="blue"
           icon={<Star size={20} />}
           selected={filter === "focus"}
@@ -226,7 +234,7 @@ export function ProductTable({
         searchValue={search}
         onSearchChange={setSearch}
         loading={loading}
-        pageSize={20}
+        serverPagination={pagination}
         toolbarRight={
           <>
             <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenUDFConfig}>

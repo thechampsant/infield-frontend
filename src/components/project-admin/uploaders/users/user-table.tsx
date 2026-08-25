@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { Users, CheckCircle, XCircle } from "lucide-react";
-import { DataTable } from "@/components/project-admin/shared/data-table";
+import {
+  DataTable,
+  type ServerPagination,
+} from "@/components/project-admin/shared/data-table";
 import { StatCard } from "@/components/project-admin/shared/stat-card";
 import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
@@ -21,6 +24,8 @@ interface UserTableProps {
   updateStaticFields: UserStaticField[];
   loading: boolean;
   projectId: string;
+  /** `users` holds only the current page; counts come from here. */
+  pagination: ServerPagination;
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
@@ -34,6 +39,7 @@ export function UserTable({
   updateStaticFields,
   loading,
   projectId,
+  pagination,
   onOpenUDFConfig,
   onRefresh,
   onExport,
@@ -55,8 +61,9 @@ export function UserTable({
       );
     });
 
-  const total = users.length;
-  const activeCount = users.filter((u) => u.status === "active").length;
+  // The list API returns active users only, so every row on every page is active.
+  const total = pagination.totalCount;
+  const activeCount = total;
 
   const cellTruncate: React.CSSProperties = {
     overflow: "hidden",
@@ -219,7 +226,7 @@ export function UserTable({
         searchValue={search}
         onSearchChange={setSearch}
         loading={loading}
-        pageSize={20}
+        serverPagination={pagination}
         toolbarRight={
           <>
             <button

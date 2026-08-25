@@ -9,6 +9,20 @@ interface Column {
   align?: "left" | "right" | "center";
 }
 
+/**
+ * Server-driven pagination. `rows` then holds only the current page, so the
+ * footer is built from the API's `meta` instead of the loaded array length.
+ */
+export interface ServerPagination {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  pageSizeOptions?: number[];
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}
+
 interface DataTableProps {
   columns: Column[];
   rows: React.ReactNode[];
@@ -23,7 +37,11 @@ interface DataTableProps {
   emptyMessage?: string;
   /** Enable scroll pagination — show this many rows initially, load more on scroll */
   pageSize?: number;
+  /** Page through the API instead of slicing an already-loaded array. */
+  serverPagination?: ServerPagination;
 }
+
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 export function DataTable({
   columns,
@@ -38,17 +56,20 @@ export function DataTable({
   loading,
   emptyMessage,
   pageSize,
+  serverPagination,
 }: DataTableProps) {
-  const [visibleCount, setVisibleCount] = useState(pageSize ?? rows.length);
+  // Scroll paging only makes sense when the whole dataset is already loaded.
+  const scrollPageSize = serverPagination ? undefined : pageSize;
+  const [visibleCount, setVisibleCount] = useState(scrollPageSize ?? rows.length);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Reset visible count when rows change (e.g. search/filter) or pageSize changes
   useEffect(() => {
-    setVisibleCount(pageSize ?? rows.length);
-  }, [pageSize, rows.length, searchValue]);
+    setVisibleCount(scrollPageSize ?? rows.length);
+  }, [scrollPageSize, rows.length, searchValue]);
 
   const handleScroll = useCallback(() => {
-    if (!pageSize) return;
+    if (!scrollPageSize) return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
@@ -56,26 +77,37 @@ export function DataTable({
     // Load more when user is within 100px of the bottom
     if (scrollTop + clientHeight >= scrollHeight - 100) {
       setVisibleCount((prev) => {
-        const next = prev + pageSize;
+        const next = prev + scrollPageSize;
         return next > rows.length ? rows.length : next;
       });
     }
-  }, [pageSize, rows.length]);
+  }, [scrollPageSize, rows.length]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
-    if (!container || !pageSize) return;
+    if (!container || !scrollPageSize) return;
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll, pageSize]);
+  }, [handleScroll, scrollPageSize]);
 
-  const displayedRows = pageSize ? rows.slice(0, visibleCount) : rows;
-  const hasMore = pageSize ? visibleCount < rows.length : false;
+  const displayedRows = scrollPageSize ? rows.slice(0, visibleCount) : rows;
+  const hasMore = scrollPageSize ? visibleCount < rows.length : false;
   const gridCols = columns
     .map((c) =>
       typeof c.width === "number" ? `${c.width}px` : (c.width ?? "1fr"),
     )
     .join(" ");
+
+  const rangeStart =
+    serverPagination && serverPagination.totalCount > 0
+      ? (serverPagination.page - 1) * serverPagination.pageSize + 1
+      : 0;
+  const rangeEnd = serverPagination
+    ? Math.min(
+        serverPagination.page * serverPagination.pageSize,
+        serverPagination.totalCount,
+      )
+    : 0;
 
   return (
     <div
@@ -158,7 +190,7 @@ export function DataTable({
               borderRadius: 999,
             }}
           >
-            {filtered} {entityLabel}
+            {serverPagination ? serverPagination.totalCount : filtered} {entityLabel}
           </span>
 
           {toolbarLeft}
@@ -169,7 +201,7 @@ export function DataTable({
         </div>
       </div>
 
-      <div ref={scrollContainerRef} style={{ overflowX: "auto", overflowY: pageSize ? "auto" : undefined, maxHeight: pageSize ? 640 : undefined }}>
+      <div ref={scrollContainerRef} style={{ overflowX: "auto", overflowY: scrollPageSize ? "auto" : undefined, maxHeight: scrollPageSize ? 640 : undefined }}>
         <div
           style={{
             display: "grid",
@@ -251,14 +283,119 @@ export function DataTable({
           padding: "12px 20px",
           borderTop: "1px solid var(--border)",
           background: "var(--surface2)",
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
-        <span
-          style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}
-        >
-          Showing {pageSize ? `${displayedRows.length} of ${filtered}` : `${filtered} of ${total}`}
-        </span>
+        {serverPagination ? (
+          <>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 11,
+                color: "var(--text-muted)",
+                fontWeight: 500,
+              }}
+            >
+              Show
+              <select
+                value={serverPagination.pageSize}
+                onChange={(e) =>
+                  serverPagination.onPageSizeChange(Number(e.target.value))
+                }
+                aria-label={`Rows of ${entityLabel} per page`}
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  color: "var(--text)",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "4px 6px",
+                }}
+              >
+                {(serverPagination.pageSizeOptions ?? DEFAULT_PAGE_SIZE_OPTIONS).map(
+                  (size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ),
+                )}
+              </select>
+              per page
+            </label>
+
+            <span
+              style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}
+            >
+              {searchValue.trim()
+                ? `Showing ${displayedRows.length} matching on page ${serverPagination.page} of ${serverPagination.totalPages}`
+                : `Showing ${rangeStart}–${rangeEnd} of ${serverPagination.totalCount} ${entityLabel}`}
+            </span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <PagerButton
+                disabled={serverPagination.page <= 1 || loading}
+                onClick={() => serverPagination.onPageChange(serverPagination.page - 1)}
+              >
+                Previous
+              </PagerButton>
+              <span
+                style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}
+              >
+                Page {serverPagination.page} of {serverPagination.totalPages}
+              </span>
+              <PagerButton
+                disabled={
+                  serverPagination.page >= serverPagination.totalPages || loading
+                }
+                onClick={() => serverPagination.onPageChange(serverPagination.page + 1)}
+              >
+                Next
+              </PagerButton>
+            </div>
+          </>
+        ) : (
+          <span
+            style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}
+          >
+            Showing {scrollPageSize ? `${displayedRows.length} of ${filtered}` : `${filtered} of ${total}`}
+          </span>
+        )}
       </div>
     </div>
+  );
+}
+
+function PagerButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 6,
+        color: "var(--text)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontSize: 11,
+        fontWeight: 600,
+        opacity: disabled ? 0.5 : 1,
+        padding: "5px 10px",
+      }}
+    >
+      {children}
+    </button>
   );
 }

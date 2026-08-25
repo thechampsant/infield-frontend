@@ -40,7 +40,7 @@ export default function ProductStoreMapPage() {
     setError(null);
     try {
       const [storeRows, productRows, mappingRows] = await Promise.all([
-        storeService.listByProject(projectId),
+        storeService.listAllByProject(projectId),
         productService.listAllByProject(projectId),
         productService.listStoreMappings(projectId),
       ]);

@@ -3,6 +3,14 @@
  */
 
 import { apiClient } from "./api-client";
+import {
+  clampListPageSize,
+  DEFAULT_LIST_PAGE_SIZE,
+  MAX_LIST_PAGE_SIZE,
+  normalizeListMeta,
+  type ListMeta,
+  type RawListMeta,
+} from "./pagination";
 import { udfConfigService } from "./udf-config-service";
 import type {
   UDFField,
@@ -47,7 +55,12 @@ const STORE_IDS_FIELD_KEY = "storeIds";
 
 interface PaginatedUsers {
   data?: RawUser[];
-  meta?: { total?: number; page?: number; pageSize?: number };
+  meta?: RawListMeta;
+}
+
+export interface ProjectUserListResult {
+  data: ProjectUser[];
+  meta: ListMeta;
 }
 
 interface BulkUploadResult {
@@ -417,12 +430,37 @@ function normalizeUserSchemaFieldForSave(
 }
 
 export const projectUsersService = {
-  async listByProject(projectId: string): Promise<ProjectUser[]> {
+  /** List one page of active users for a project. */
+  async listByProject(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+  ): Promise<ProjectUserListResult> {
     const res = await apiClient.get<PaginatedUsers | RawUser[]>(
-      `${BASE}?projectId=${encodeURIComponent(projectId)}&limit=10000`,
+      `${BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${clampListPageSize(pageSize)}`,
     );
     const rows = Array.isArray(res) ? res : (res.data ?? []);
-    return rows.map(normalizeUser);
+    return {
+      data: rows.map(normalizeUser),
+      meta: normalizeListMeta(Array.isArray(res) ? undefined : res.meta, rows.length),
+    };
+  },
+
+  /** Page through every active user. For pickers and mapping screens only. */
+  async listAllByProject(projectId: string): Promise<ProjectUser[]> {
+    const firstPage = await projectUsersService.listByProject(
+      projectId,
+      1,
+      MAX_LIST_PAGE_SIZE,
+    );
+    const users = [...firstPage.data];
+
+    for (let page = firstPage.meta.page + 1; page <= firstPage.meta.totalPages; page += 1) {
+      const result = await projectUsersService.listByProject(projectId, page, MAX_LIST_PAGE_SIZE);
+      users.push(...result.data);
+    }
+
+    return users;
   },
 
   async getFormFields(projectId: string): Promise<UDFField[]> {

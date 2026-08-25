@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { designationService } from "@/lib/api/designation-service";
+import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { projectUsersService } from "@/lib/api/project-users-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { DesignationsRequiredBanner } from "@/components/project-admin/uploaders/designations-required-banner";
@@ -44,6 +45,14 @@ export default function UsersMasterPage() {
     errors: { row?: string | number; data?: unknown; errors: string[] }[];
   } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [meta, setMeta] = useState<ListMeta>({
+    page: 1,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    totalCount: 0,
+    totalPages: 1,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -52,11 +61,16 @@ export default function UsersMasterPage() {
     setError(null);
     try {
       const [userList, formConfig, designations] = await Promise.all([
-        projectUsersService.listByProject(projectId),
+        projectUsersService.listByProject(projectId, page, pageSize),
         projectUsersService.getFormFieldsConfig(projectId),
         designationService.listByProject(projectId).catch(() => []),
       ]);
-      setUsers(userList);
+      setUsers(userList.data);
+      setMeta(userList.meta);
+      // Deleting the last row of the final page can leave us past the end.
+      if (page > userList.meta.totalPages) {
+        setPage(userList.meta.totalPages);
+      }
       if (formConfig) {
         setUdfFields(formConfig.runtimeUdfFields);
         setStaticFields(formConfig.runtimeStaticFields);
@@ -71,7 +85,7 @@ export default function UsersMasterPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, page, pageSize]);
 
   useEffect(() => {
     load();
@@ -106,7 +120,9 @@ export default function UsersMasterPage() {
       const result = await projectUsersService.bulkUpload(projectId, file);
       setUploadResult(result);
       if (result.successCount > 0) {
-        load(); // Refresh the user list
+        // Newest rows sort first, so jump back to page 1 to show them.
+        if (page === 1) load();
+        else setPage(1);
       }
       if (result.invalidCount > 0) {
         setError(
@@ -244,6 +260,17 @@ export default function UsersMasterPage() {
         updateStaticFields={staticFields.update}
         loading={loading}
         projectId={projectId}
+        pagination={{
+          page: meta.page,
+          pageSize,
+          totalCount: meta.totalCount,
+          totalPages: meta.totalPages,
+          onPageChange: setPage,
+          onPageSizeChange: (size) => {
+            setPageSize(size);
+            setPage(1);
+          },
+        }}
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
         onExport={handleExport}

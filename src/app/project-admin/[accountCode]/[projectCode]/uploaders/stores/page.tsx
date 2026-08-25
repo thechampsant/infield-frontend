@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
+import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { storeService, type StoreRecord, type BulkStoreResult } from "@/lib/api/store-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { StoreTable } from "@/components/project-admin/uploaders/stores/store-table";
@@ -29,6 +30,14 @@ export default function StoresMasterPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<BulkStoreResult | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [meta, setMeta] = useState<ListMeta>({
+    page: 1,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    totalCount: 0,
+    totalPages: 1,
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,18 +47,23 @@ export default function StoresMasterPage() {
     setError(null);
     try {
       const [storeList, fields] = await Promise.all([
-        storeService.listByProject(projectId),
+        storeService.listByProject(projectId, page, pageSize),
         storeService.getFormFields(projectId),
       ]);
-      setStores(storeList);
+      setStores(storeList.data);
+      setMeta(storeList.meta);
       setUdfFields(fields);
+      // Deleting the last row of the final page can leave us past the end.
+      if (page > storeList.meta.totalPages) {
+        setPage(storeList.meta.totalPages);
+      }
     } catch (err) {
       setError(formatApiError(err, "Failed to load stores"));
       setStores([]);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, page, pageSize]);
 
   useEffect(() => {
     load();
@@ -84,7 +98,9 @@ export default function StoresMasterPage() {
       const result = await storeService.bulkUpload(projectId, file);
       setUploadResult(result);
       if (result.successCount > 0) {
-        load();
+        // Newest rows sort first, so jump back to page 1 to show them.
+        if (page === 1) load();
+        else setPage(1);
       }
       if (result.invalidCount > 0) {
         setError(
@@ -233,6 +249,17 @@ export default function StoresMasterPage() {
         udfFields={udfFields}
         loading={loading}
         projectId={projectId}
+        pagination={{
+          page: meta.page,
+          pageSize,
+          totalCount: meta.totalCount,
+          totalPages: meta.totalPages,
+          onPageChange: setPage,
+          onPageSizeChange: (size) => {
+            setPageSize(size);
+            setPage(1);
+          },
+        }}
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
         onExport={handleExport}
