@@ -43,6 +43,8 @@ interface ModuleCardProps {
   onToggle?: (enabled: boolean) => void;
   onConfigUnavailable?: () => void;
   alwaysShowConfig?: boolean;
+  /** When true, enable/disable toggle is disabled (no module-config:update). */
+  readOnly?: boolean;
 }
 
 export function ModuleCard({
@@ -51,9 +53,11 @@ export function ModuleCard({
   onToggle,
   onConfigUnavailable,
   alwaysShowConfig = false,
+  readOnly = false,
 }: ModuleCardProps) {
   const Icon = ICONS[definition.id] ?? LayoutGrid;
   const planned = definition.comingSoon;
+  const toggleDisabled = planned || readOnly;
   const toggleLabel = planned ? "Planned" : enabled ? "Enabled" : "Disabled";
 
   return (
@@ -75,12 +79,12 @@ export function ModuleCard({
 
       <div className="pa-mod-footer">
         <label
-          className={`pa-mod-toggle${planned ? " pa-mod-toggle--disabled" : ""}`}
+          className={`pa-mod-toggle${toggleDisabled ? " pa-mod-toggle--disabled" : ""}`}
         >
           <input
             type="checkbox"
             checked={enabled}
-            disabled={planned}
+            disabled={toggleDisabled}
             onChange={(e) => onToggle?.(e.target.checked)}
             aria-label={`${definition.name}: ${toggleLabel}`}
           />

@@ -27,6 +27,8 @@ interface AuthContextValue extends AuthState {
   login: (credentials: LoginDto) => Promise<BackendUser>;
   /** Establish a session from a token+user obtained via OTP/passkey flows. */
   establishSession: (accessToken: string, user: BackendUser) => void;
+  /** Refresh user profile (including permissions) from GET /auth/me. */
+  refreshUser: () => Promise<BackendUser | null>;
   logout: () => Promise<void>;
 }
 
@@ -127,6 +129,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [],
   );
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const profile = await authService.getMe();
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(profile));
+      setState((prev) => ({
+        ...prev,
+        user: profile,
+        isAuthenticated: true,
+      }));
+      return profile;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await authService.logout();
@@ -150,9 +167,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       ...state,
       login,
       establishSession,
+      refreshUser,
       logout,
     }),
-    [state, login, establishSession, logout],
+    [state, login, establishSession, refreshUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

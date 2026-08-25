@@ -116,15 +116,23 @@ export function projectAdminBase(accountCode: string, projectCode: string): stri
 export function projectAdminDrawerNav(
   accountCode: string,
   projectCode: string,
+  options?: { canManageModules?: boolean },
 ): ProjectAdminDrawerItem[] {
   const base = projectAdminBase(accountCode, projectCode);
-  return [
-    { label: "Uploaders", href: `${base}/uploaders/designations`, icon: "users" },
-    { label: "Modules", href: `${base}/modules`, icon: "settings" },
-    { label: "Web Modules", href: `${base}/web-modules`, icon: "settings" },
-    { label: "Form Builder", href: `${base}/form-builder`, icon: "fileText" },
-    { label: "Reports", href: `${base}/reports`, icon: "pieChart" },
-  ];
+  const canManage = options?.canManageModules !== false;
+  const items: ProjectAdminDrawerItem[] = [];
+
+  if (canManage) {
+    items.push(
+      { label: "Uploaders", href: `${base}/uploaders/designations`, icon: "users" },
+      { label: "Modules", href: `${base}/modules`, icon: "settings" },
+      { label: "Web Modules", href: `${base}/web-modules`, icon: "settings" },
+      { label: "Form Builder", href: `${base}/form-builder`, icon: "fileText" },
+    );
+  }
+
+  items.push({ label: "Reports", href: `${base}/reports`, icon: "pieChart" });
+  return items;
 }
 
 export function uploadersTabs(accountCode: string, projectCode: string) {

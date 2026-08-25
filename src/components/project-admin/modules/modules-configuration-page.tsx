@@ -20,10 +20,14 @@ import {
 } from "@/lib/api/target-vs-achievement-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
+import { useAuth } from "@/lib/auth/auth-context";
+import { canManageModules } from "@/lib/auth/permissions";
 
 export function ModulesConfigurationPage() {
   const { projectId, accountCode, projectCode, loading: ctxLoading } =
     useProjectContext();
+  const { user } = useAuth();
+  const manageModules = canManageModules(user);
 
     
   const base = projectAdminBase(accountCode, projectCode);
@@ -91,6 +95,13 @@ export function ModulesConfigurationPage() {
   }, [ctxLoading, projectId, load]);
 
   async function handleToggle(moduleId: string, enabled: boolean) {
+    if (!manageModules) {
+      setToast({
+        type: "error",
+        message: "You do not have permission to change module configuration.",
+      });
+      return;
+    }
     let moduleName = "Module";
     const previous = modules.find((m) => m.definition.id === moduleId)?.enabled;
 
@@ -125,7 +136,7 @@ export function ModulesConfigurationPage() {
       setToast({
         type: "success",
         message:
-          "Form Builder forms go live from inside Form Builder configuration.",
+          "Publish each form in Form Builder to show it on mobile. There is no separate Form Builder enable switch.",
       });
       return;
     }
@@ -224,7 +235,9 @@ export function ModulesConfigurationPage() {
       </div>
 
       <div className="pa-info-banner">
-        Modules stay disabled until their required configuration is complete.
+        {manageModules
+          ? "Modules stay disabled until their required configuration is complete."
+          : "You do not have permission to change module configuration. Ask an admin for module-config:update."}
       </div>
 
       <div className="pa-mod-grid">
@@ -244,6 +257,7 @@ export function ModulesConfigurationPage() {
               module={mod}
               configHref={configHref}
               alwaysShowConfig={alwaysShowConfig}
+              readOnly={!manageModules}
               onToggle={(enabled) =>
                 handleToggle(mod.definition.id, enabled)
               }

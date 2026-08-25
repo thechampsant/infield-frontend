@@ -85,6 +85,11 @@ export interface BackendUser {
    * AC6/AC7). When "MOBILE", the web portal is restricted.
    */
   access?: "WEB" | "MOBILE" | "BOTH" | null;
+  /**
+   * Effective permissions from login/me (web UI gating).
+   * Mobile may ignore. Absent on older sessions until re-login.
+   */
+  permissions?: string[];
   designation?: {
     id: string | null;
     name: string | null;

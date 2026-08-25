@@ -27,6 +27,8 @@ import { ApiError } from "@/lib/api/api-client";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { AttendanceConfigEdit } from "./attendance-config-edit";
 import { AttendanceFormBuilder } from "./attendance-form-builder";
+import { useAuth } from "@/lib/auth/auth-context";
+import { canManageModules } from "@/lib/auth/permissions";
 
 interface Props {
   projectId: string;
@@ -50,6 +52,8 @@ export function AttendanceConfigPage({ projectId, projectName, modulesHref }: Pr
   const [loadError, setLoadError] = useState<string | null>(null);
   const [target, setTarget] = useState<EditorTarget | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const { user } = useAuth();
+  const manageModules = canManageModules(user);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -93,6 +97,7 @@ export function AttendanceConfigPage({ projectId, projectName, modulesHref }: Pr
         loading={loading}
         error={loadError}
         modulesHref={modulesHref}
+        canCreate={manageModules}
         onRetry={() => void loadList()}
         onCreate={() => setTarget({ mode: "create" })}
         onEdit={(configId) => setTarget({ mode: "edit", configId })}
@@ -144,6 +149,8 @@ function AttendanceConfigEditor({
   const [formErrors, setFormErrors] = useState<FormErrors>(EMPTY_FORM_ERRORS);
   const [formSaving, setFormSaving] = useState<FormSaving>({});
   const [formValidation, setFormValidation] = useState<FormValidation>({});
+  const { user } = useAuth();
+  const manageModules = canManageModules(user);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -271,6 +278,13 @@ function AttendanceConfigEditor({
   }, [saved]);
 
   const handleSaveConfiguration = useCallback(async () => {
+    if (!manageModules) {
+      setToast({
+        message: "You do not have permission to change module configuration.",
+        type: "error",
+      });
+      return false;
+    }
     if (!form) return false;
     const validation = validateConfig(form);
     if (Object.keys(validation).length > 0) {
@@ -328,7 +342,7 @@ function AttendanceConfigEditor({
     } finally {
       setSaving(false);
     }
-  }, [configId, exists, form, onSaved, projectId]);
+  }, [configId, exists, form, manageModules, onSaved, projectId]);
 
   function handleSchemaChange(formType: AttendanceFormType, nextFields: UdfSchemaField[]) {
     setSchemas((prev) => ({ ...prev, [formType]: nextFields }));
@@ -476,6 +490,7 @@ function AttendanceConfigEditor({
                 errors={errors}
                 dirty={dirty}
                 saving={saving}
+                readOnly={!manageModules}
                 onChange={handleChange}
                 onSave={() => void handleSaveConfiguration()}
                 onDiscard={handleDiscard}
@@ -493,7 +508,7 @@ function AttendanceConfigEditor({
                     const ok = await handleSaveConfiguration();
                     if (ok) setStep("forms");
                   }}
-                  disabled={saving}
+                  disabled={saving || !manageModules}
                 >
                   Save & Continue to Form Builder
                 </button>
@@ -695,6 +710,7 @@ function AttendanceConfigList({
   loading,
   error,
   modulesHref,
+  canCreate = true,
   onRetry,
   onCreate,
   onEdit,
@@ -705,6 +721,7 @@ function AttendanceConfigList({
   loading: boolean;
   error: string | null;
   modulesHref?: string;
+  canCreate?: boolean;
   onRetry: () => void;
   onCreate: () => void;
   onEdit: (configId: string) => void;
@@ -825,10 +842,16 @@ function AttendanceConfigList({
           </div>
         ) : null}
 
-        <button className="att-add-config" type="button" onClick={onCreate}>
-          <Plus size={22} />
-          Add New Configuration
-        </button>
+        {canCreate ? (
+          <button className="att-add-config" type="button" onClick={onCreate}>
+            <Plus size={22} />
+            Add New Configuration
+          </button>
+        ) : (
+          <div className="att-empty-list">
+            You do not have permission to create or change attendance configuration.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import {
 } from "@/lib/project-admin/project-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { authService } from "@/lib/api/auth-service";
+import { ModuleConfigAccessGuard } from "@/components/auth/module-config-access-guard";
 
 function ProjectAdminShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -76,7 +77,14 @@ function ProjectAdminShellInner({ children }: { children: ReactNode }) {
         onLogout={handleLogout}
       />
       <main className="pa-stage" aria-label={`Project admin — ${userChip.role}`}>
-        <div className="pa-content-wrap">{children}</div>
+        <div className="pa-content-wrap">
+          <ModuleConfigAccessGuard
+            accountCode={ctx.accountCode}
+            projectCode={ctx.projectCode}
+          >
+            {children}
+          </ModuleConfigAccessGuard>
+        </div>
       </main>
     </div>
   );
