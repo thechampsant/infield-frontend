@@ -114,21 +114,26 @@ export function CustomViewPage({
     if (!projectId) return;
     setLoading(true);
     try {
-      const [designationList, viewList, roleList] = await Promise.all([
+      const [designationResult, viewResult, roleList, permissionList] = await Promise.all([
         designationService.listByProject(projectId),
-        customViewService.list(projectId),
+        customViewService.list(projectId).then(
+          (views) => ({ views, error: null as string | null }),
+          (err) => ({
+            views: [] as CustomViewConfiguration[],
+            error: formatApiError(err, "Failed to load Custom View configurations"),
+          }),
+        ),
         roleService.listByProject(projectId).catch(() => []),
+        designationService.listPermissionOptions(projectId).catch(() => []),
       ]);
-      const permissionList = await designationService
-        .listPermissionOptions(projectId)
-        .catch(() => []);
-      setDesignations(designationList);
-      setConfigs(viewList);
+
+      setDesignations(designationResult);
+      setConfigs(viewResult.views);
       setRoles(roleList);
       setPermissionOptions(permissionList);
 
       const grouped: Record<string, DraftView[]> = {};
-      for (const view of viewList) {
+      for (const view of viewResult.views) {
         if (!grouped[view.designationId]) grouped[view.designationId] = [];
         grouped[view.designationId].push(configToDraft(view));
       }
@@ -146,8 +151,12 @@ export function CustomViewPage({
         didAutoSelect.current = true;
         setSelectedIds(Object.keys(grouped));
       }
+
+      if (viewResult.error) {
+        setToast({ message: viewResult.error, type: "error" });
+      }
     } catch (err) {
-      setToast({ message: formatApiError(err, "Failed to load Custom View"), type: "error" });
+      setToast({ message: formatApiError(err, "Failed to load designations"), type: "error" });
     } finally {
       setLoading(false);
     }
