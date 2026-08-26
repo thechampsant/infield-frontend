@@ -19,32 +19,67 @@ const BASE = "/api/v1/inbox";
 
 export interface InboxSubmittedBy {
   userId: string;
-  firstName: string;
-  lastName: string;
+  displayName: string;
   designation: string;
 }
 
-export interface InboxDisplayField {
-  key: string;
-  label: string;
-  value: string;
+export interface InboxSlaDisplay {
+  status: string;
+  indicator: string;
+  breachDuration: string | null;
 }
 
-export type InboxAction = "approve" | "reject" | "send-back";
+export interface InboxDisplayField {
+  fieldKey: string;
+  label: string;
+  dataType: string;
+  displayOrder: number;
+}
+
+export interface InboxAvailableAction {
+  actionKey: string;
+  label: string;
+  icon: string;
+  color: string;
+  enabled: boolean;
+  confirmationRequired: boolean;
+  remarksRequired: boolean;
+}
+
+export interface InboxStatusConfig {
+  displayLabel: string;
+  colorCode: string;
+  icon: string;
+}
+
+export interface InboxDisplayMetadata {
+  fields: InboxDisplayField[];
+  sections: unknown[];
+  actions: unknown[];
+  statusConfig: Record<string, InboxStatusConfig>;
+  formatTemplates: Record<string, unknown>;
+  attachmentConfig: unknown | null;
+}
+
 export type InboxSlaStatus = "OnTime" | "Warning" | "Breached";
-export type InboxModule = "claims" | "leave" | "regularization" | "visit";
 
 export interface InboxItem {
   inboxItemId: string;
   module: string;
   requestType: string;
-  status: string;
+  requestId: string;
   submittedBy: InboxSubmittedBy;
   submittedDate: string;
+  currentStatus: string;
+  currentLevel: number;
+  totalLevels: number;
   slaDeadline: string;
   slaStatus: InboxSlaStatus;
-  displayFields: InboxDisplayField[];
-  actions: InboxAction[];
+  slaDisplay: InboxSlaDisplay;
+  escalationStatus: string | null;
+  moduleData: Record<string, unknown>;
+  displayMetadata: InboxDisplayMetadata;
+  availableActions: InboxAvailableAction[];
 }
 
 export interface InboxPagination {
@@ -54,9 +89,35 @@ export interface InboxPagination {
   totalPages: number;
 }
 
+export interface InboxSummary {
+  total: number;
+  byModule: Record<string, number>;
+}
+
+export interface InboxFilterOption {
+  value: string;
+  label: string;
+}
+
+export interface InboxAvailableFilter {
+  filterKey: string;
+  label: string;
+  filterType: string;
+  options?: InboxFilterOption[];
+}
+
+export interface InboxAvailableSort {
+  sortKey: string;
+  label: string;
+  defaultDirection: string;
+}
+
 export interface InboxListResponse {
   items: InboxItem[];
   pagination: InboxPagination;
+  summary: InboxSummary;
+  availableFilters: InboxAvailableFilter[];
+  availableSorts: InboxAvailableSort[];
 }
 
 export interface InboxFilters {
@@ -67,7 +128,7 @@ export interface InboxFilters {
   slaStatus?: string;
   dateFrom?: string;
   dateTo?: string;
-  sortBy?: "slaDeadline" | "submittedDate";
+  sortBy?: string;
   sortDirection?: "asc" | "desc";
   page?: number;
   pageSize?: number;
@@ -87,43 +148,55 @@ export interface InboxBulkResult {
 
 // ─── Raw types ────────────────────────────────────────────────────────────
 
-interface RawInboxItem {
-  inboxItemId?: string;
-  module?: string;
-  requestType?: string;
-  status?: string;
-  submittedBy?: InboxSubmittedBy;
-  submittedDate?: string;
-  slaDeadline?: string;
-  slaStatus?: string;
-  displayFields?: InboxDisplayField[];
-  actions?: string[];
-}
-
 interface RawListResponse {
-  items?: RawInboxItem[];
+  items?: unknown[];
   pagination?: InboxPagination;
+  summary?: InboxSummary;
+  availableFilters?: InboxAvailableFilter[];
+  availableSorts?: InboxAvailableSort[];
 }
 
 // ─── Normalizers ──────────────────────────────────────────────────────────
 
-function normalizeItem(raw: RawInboxItem): InboxItem {
+function normalizeItem(raw: Record<string, unknown>): InboxItem {
+  const submittedBy = (raw.submittedBy ?? {}) as Record<string, unknown>;
+  const slaDisplay = (raw.slaDisplay ?? {}) as Record<string, unknown>;
+  const displayMetadata = (raw.displayMetadata ?? {}) as Record<string, unknown>;
+
   return {
-    inboxItemId: raw.inboxItemId ?? "",
-    module: raw.module ?? "",
-    requestType: raw.requestType ?? "",
-    status: raw.status ?? "",
-    submittedBy: raw.submittedBy ?? {
-      userId: "",
-      firstName: "",
-      lastName: "",
-      designation: "",
+    inboxItemId: (raw.inboxItemId as string) ?? "",
+    module: (raw.module as string) ?? "",
+    requestType: (raw.requestType as string) ?? "",
+    requestId: (raw.requestId as string) ?? "",
+    submittedBy: {
+      userId: (submittedBy.userId as string) ?? "",
+      displayName: (submittedBy.displayName as string) ?? "",
+      designation: (submittedBy.designation as string) ?? "",
     },
-    submittedDate: raw.submittedDate ?? "",
-    slaDeadline: raw.slaDeadline ?? "",
-    slaStatus: (raw.slaStatus as InboxSlaStatus) ?? "OnTime",
-    displayFields: raw.displayFields ?? [],
-    actions: (raw.actions as InboxAction[]) ?? [],
+    submittedDate: (raw.submittedDate as string) ?? "",
+    currentStatus: (raw.currentStatus as string) ?? "",
+    currentLevel: (raw.currentLevel as number) ?? 1,
+    totalLevels: (raw.totalLevels as number) ?? 1,
+    slaDeadline: (raw.slaDeadline as string) ?? "",
+    slaStatus: ((raw.slaStatus as string) ?? "OnTime") as InboxSlaStatus,
+    slaDisplay: {
+      status: (slaDisplay.status as string) ?? "",
+      indicator: (slaDisplay.indicator as string) ?? "none",
+      breachDuration: (slaDisplay.breachDuration as string) ?? null,
+    },
+    escalationStatus: (raw.escalationStatus as string) ?? null,
+    moduleData: (raw.moduleData as Record<string, unknown>) ?? {},
+    displayMetadata: {
+      fields: Array.isArray(displayMetadata.fields) ? displayMetadata.fields : [],
+      sections: Array.isArray(displayMetadata.sections) ? displayMetadata.sections : [],
+      actions: Array.isArray(displayMetadata.actions) ? displayMetadata.actions : [],
+      statusConfig: (displayMetadata.statusConfig as Record<string, InboxStatusConfig>) ?? {},
+      formatTemplates: (displayMetadata.formatTemplates as Record<string, unknown>) ?? {},
+      attachmentConfig: displayMetadata.attachmentConfig ?? null,
+    },
+    availableActions: Array.isArray(raw.availableActions)
+      ? (raw.availableActions as InboxAvailableAction[])
+      : [],
   };
 }
 
@@ -157,8 +230,13 @@ export const inboxItemsService = {
       `${BASE}/assigned-to-me${buildQuery(filters)}`
     );
     return {
-      items: Array.isArray(res?.items) ? res.items.map(normalizeItem) : [],
+      items: Array.isArray(res?.items)
+        ? res.items.map((i) => normalizeItem(i as Record<string, unknown>))
+        : [],
       pagination: res?.pagination ?? { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+      summary: res?.summary ?? { total: 0, byModule: {} },
+      availableFilters: res?.availableFilters ?? [],
+      availableSorts: res?.availableSorts ?? [],
     };
   },
 
