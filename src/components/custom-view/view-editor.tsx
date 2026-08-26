@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Upload, X } from "lucide-react";
 import {
   customViewService,
@@ -11,6 +11,35 @@ import {
 } from "@/lib/api";
 import { ColumnStructureBuilder } from "./column-structure-builder";
 
+export const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+export function currentIstPeriod(): { month: number; year: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(new Date());
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  return {
+    month: Number.isFinite(month) ? month : new Date().getMonth() + 1,
+    year: Number.isFinite(year) ? year : new Date().getFullYear(),
+  };
+}
+
 export interface DraftView {
   id?: string;
   localId: string;
@@ -18,6 +47,8 @@ export interface DraftView {
   taggingLogic: CustomViewTaggingLogic;
   columnStructure: CustomViewColumnNode[];
   status?: CustomViewConfiguration["status"];
+  periodMonth: number;
+  periodYear: number;
   latestFileName?: string | null;
   latestFileSize?: number | null;
   latestRowCount?: number;
@@ -27,8 +58,6 @@ interface Props {
   projectId: string;
   designationId: string;
   view: DraftView;
-  month: number;
-  year: number;
   onChange: (view: DraftView) => void;
   onSaved: (saved: CustomViewConfiguration, localId: string) => void;
   onError: (message: string) => void;
@@ -49,6 +78,7 @@ export function isViewConfigured(view: DraftView): boolean {
 }
 
 export function configToDraft(cfg: CustomViewConfiguration): DraftView {
+  const fallback = currentIstPeriod();
   return {
     id: cfg.id,
     localId: cfg.id,
@@ -59,6 +89,8 @@ export function configToDraft(cfg: CustomViewConfiguration): DraftView {
         ? cfg.columnStructure
         : [identityColumn(cfg.taggingLogic)],
     status: cfg.status,
+    periodMonth: cfg.latestPeriodMonth || fallback.month,
+    periodYear: cfg.latestPeriodYear || fallback.year,
     latestFileName: cfg.latestFileName,
     latestFileSize: cfg.latestFileSize,
     latestRowCount: cfg.latestRowCount,
@@ -68,11 +100,14 @@ export function configToDraft(cfg: CustomViewConfiguration): DraftView {
 export function createEmptyDraft(
   tagging: CustomViewTaggingLogic = "loginid",
 ): DraftView {
+  const period = currentIstPeriod();
   return {
     localId: `draft_${Math.random().toString(36).slice(2, 10)}`,
     name: "",
     taggingLogic: tagging,
     columnStructure: [identityColumn(tagging)],
+    periodMonth: period.month,
+    periodYear: period.year,
   };
 }
 
@@ -80,8 +115,6 @@ export function ViewEditor({
   projectId,
   designationId,
   view,
-  month,
-  year,
   onChange,
   onSaved,
   onError,
@@ -89,6 +122,16 @@ export function ViewEditor({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUploader, setShowUploader] = useState(!view.latestFileName);
+  const month = view.periodMonth;
+  const year = view.periodYear;
+
+  const yearOptions = useMemo(() => {
+    const current = currentIstPeriod().year;
+    const selected = year;
+    return [...new Set([current - 2, current - 1, current, current + 1, selected])].sort(
+      (a, b) => a - b,
+    );
+  }, [year]);
 
   useEffect(() => {
     setShowUploader(!view.latestFileName);
@@ -196,6 +239,42 @@ export function ViewEditor({
         structure={view.columnStructure}
         onChange={(columnStructure) => onChange({ ...view, columnStructure })}
       />
+
+      <div className="cv-excel-period">
+        <div>
+          <div className="cv-label">Excel period for this view</div>
+          <div className="cv-muted">
+            Download template and upload apply only to this month. Save view does not
+            change period.
+          </div>
+        </div>
+        <div className="cv-period">
+          <select
+            className="cv-select"
+            value={month}
+            onChange={(e) => onChange({ ...view, periodMonth: Number(e.target.value) })}
+            aria-label="Excel period month"
+          >
+            {MONTH_LABELS.map((label, index) => (
+              <option key={label} value={index + 1}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="cv-select"
+            value={year}
+            onChange={(e) => onChange({ ...view, periodYear: Number(e.target.value) })}
+            aria-label="Excel period year"
+          >
+            {yearOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <div className="cv-field-row">
         <button type="button" className="cv-btn cv-btn-secondary" onClick={handleDownload} disabled={!view.id}>
