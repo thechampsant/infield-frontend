@@ -5,18 +5,16 @@ import { projectAdminUploadersEntryPath } from "@/lib/project-admin/setup-paths"
 /**
  * Maps a backend role to its landing route after login.
  *
- * The backend returns a `role` on the user object. Role naming isn't strictly
- * specified, so we match loosely (case/format-insensitive). Project Admin and
- * Manager dashboards require project context that login does not provide, so
- * they fall back to a sensible default until those routes exist.
+ * Prefer {@link landingRouteForUser} — Project Admin needs project codes from
+ * the profile. This role-only helper cannot send them to a project.
  */
 export function landingRouteForRole(role?: string): string {
-  const normalized = (role ?? "").toLowerCase().replace(/[\s_-]+/g, "");
+  const normalized = normalizeRole(role);
 
   if (normalized.includes("superadmin")) return "/super-admin/accounts";
   if (normalized.includes("clientadmin") || normalized.includes("accountadmin"))
     return "/account-admin/projects";
-  if (normalized.includes("projectadmin")) return "/super-admin/accounts";
+  if (normalized.includes("projectadmin")) return "/account-admin/projects";
   if (normalized.includes("manager")) return "/workspace";
 
   // Unknown role: default to super-admin console.
@@ -68,6 +66,10 @@ function enrichedLandingRouteForUser(user?: BackendUser | null): string | null {
   if (isSuperAdmin(user.role)) return "/super-admin/accounts";
   if (isWebPortalRestricted(user)) return "/login/password?restricted=web";
 
+  if (isProjectAdmin(user.role)) {
+    return projectAdminLandingRoute(user);
+  }
+
   const singleProjectRoute = singleActiveProjectRoute(user);
   if (singleProjectRoute) return singleProjectRoute;
 
@@ -77,6 +79,35 @@ function enrichedLandingRouteForUser(user?: BackendUser | null): string | null {
     normalizedRole.includes("accountadmin")
   ) {
     return "/account-admin/projects";
+  }
+
+  return null;
+}
+
+/** Project Admin belongs to one project — never Super Admin accounts. */
+function projectAdminLandingRoute(user: BackendUser): string | null {
+  const fromSingleProject = singleActiveProjectRoute(user);
+  if (fromSingleProject) return fromSingleProject;
+
+  if (
+    user.accountCode &&
+    user.projectCode &&
+    isWebAccessAllowedForProjectLanding(user.access)
+  ) {
+    return projectAdminUploadersEntryPath(user.accountCode, user.projectCode);
+  }
+
+  const first = (user.projects ?? []).find(
+    (project) =>
+      Boolean(project.accountCode && project.projectCode) &&
+      (!project.status || normalizeStatus(project.status) === "active"),
+  );
+  if (
+    first?.accountCode &&
+    first.projectCode &&
+    isWebAccessAllowedForProjectLanding(user.access)
+  ) {
+    return projectAdminUploadersEntryPath(first.accountCode, first.projectCode);
   }
 
   return null;
@@ -105,6 +136,10 @@ function isWebAccessAllowedForProjectLanding(
 
 function isSuperAdmin(role?: string): boolean {
   return normalizeRole(role).includes("superadmin");
+}
+
+function isProjectAdmin(role?: string): boolean {
+  return normalizeRole(role).includes("projectadmin");
 }
 
 function normalizeRole(role?: string): string {

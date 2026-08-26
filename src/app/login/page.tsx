@@ -6,7 +6,7 @@ import { authService, formatApiError } from "@/lib/api";
 import { ApiError } from "@/lib/api/api-client";
 import type { BackendUser } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
-import { landingRouteForRole } from "@/lib/auth/role-routing";
+import { landingRouteForUser } from "@/lib/auth/role-routing";
 import {
   createPasskey,
   describePasskeyError,
@@ -119,7 +119,7 @@ export default function LoginPage() {
   const completeSession = useCallback(
     (accessToken: string, user: BackendUser) => {
       establishSession(accessToken, user);
-      router.replace(landingRouteForRole(user.role));
+      router.replace(landingRouteForUser(user));
     },
     [establishSession, router],
   );

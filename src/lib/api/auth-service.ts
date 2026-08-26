@@ -43,6 +43,9 @@ export interface AuthService {
 
   // ── Current user ──
   getMe(): Promise<BackendUser>;
+
+  /** ACCOUNT_ADMIN: mint a JWT with projectId. Replaces the stored access token. */
+  switchToProject(projectId: string): Promise<LoginResponseDto>;
 }
 
 export const authService: AuthService = {
@@ -129,5 +132,14 @@ export const authService: AuthService = {
 
   async getMe(): Promise<BackendUser> {
     return apiClient.get<BackendUser>("/api/v1/users/me");
+  },
+
+  async switchToProject(projectId: string): Promise<LoginResponseDto> {
+    const response = await apiClient.post<LoginResponseDto>(
+      "/api/v1/auth/switch-to-project",
+      { projectId },
+    );
+    apiClient.setAccessToken(response.accessToken);
+    return response;
   },
 };
