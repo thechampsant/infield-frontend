@@ -8,6 +8,8 @@ import {
   type InboxItem,
   type InboxFilters,
   type InboxPagination,
+  type InboxAvailableFilter,
+  type InboxAvailableSort,
 } from "@/lib/api/inbox-items-service";
 
 interface InboxItemsPageProps {
@@ -15,26 +17,39 @@ interface InboxItemsPageProps {
   projectName: string;
 }
 
-const MODULE_OPTIONS = [
-  { label: "All Modules", value: "" },
-  { label: "Leave", value: "leave" },
-  { label: "Claims", value: "claims" },
-  { label: "Regularization", value: "regularization" },
-  { label: "Visit", value: "visit" },
-];
-
-const SLA_OPTIONS = [
-  { label: "All SLA", value: "" },
-  { label: "On Time", value: "OnTime" },
-  { label: "Warning", value: "Warning" },
-  { label: "Breached", value: "Breached" },
-];
-
 const SLA_COLORS: Record<string, { bg: string; color: string }> = {
   OnTime: { bg: "#dcfce7", color: "#16a34a" },
   Warning: { bg: "#fef3c7", color: "#d97706" },
   Breached: { bg: "#fee2e2", color: "#dc2626" },
 };
+
+function formatDate(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatStatus(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+/**
+ * Resolve a display field value from moduleData using the fieldKey.
+ */
+function resolveFieldValue(
+  fieldKey: string,
+  dataType: string,
+  moduleData: Record<string, unknown>
+): string {
+  const raw = moduleData[fieldKey];
+  if (raw === undefined || raw === null) return "—";
+  if (dataType === "date" && typeof raw === "string") return formatDate(raw);
+  return String(raw);
+}
 
 export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) {
   // List state
@@ -49,13 +64,23 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
+  // Dynamic filters from API
+  const [availableFilters, setAvailableFilters] = useState<InboxAvailableFilter[]>([]);
+  const [availableSorts, setAvailableSorts] = useState<InboxAvailableSort[]>([]);
+
   // Filters
   const [filterModule, setFilterModule] = useState("");
   const [filterSla, setFilterSla] = useState("");
+  const [sortBy, setSortBy] = useState("slaDeadline");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
 
   // Selection for bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Detail dialog state
+  const [detailItem, setDetailItem] = useState<InboxItem | null>(null);
+  const [detailProcessing, setDetailProcessing] = useState(false);
 
   // Remark dialog state
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
@@ -64,7 +89,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   const [remarkText, setRemarkText] = useState("");
   const [remarkSubmitting, setRemarkSubmitting] = useState(false);
 
-  // Processing state for individual approve
+  // Processing state for individual approve in list
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   // Fetch items
@@ -77,8 +102,8 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
         status: "Pending_Approval",
         page,
         pageSize: 20,
-        sortBy: "slaDeadline",
-        sortDirection: "asc",
+        sortBy,
+        sortDirection,
       };
       if (filterModule) filters.module = filterModule;
       if (filterSla) filters.slaStatus = filterSla;
@@ -86,12 +111,14 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
       const res = await inboxItemsService.getAssignedToMe(filters);
       setItems(res.items);
       setPagination(res.pagination);
+      if (res.availableFilters.length > 0) setAvailableFilters(res.availableFilters);
+      if (res.availableSorts.length > 0) setAvailableSorts(res.availableSorts);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inbox items");
     } finally {
       setLoading(false);
     }
-  }, [projectId, page, filterModule, filterSla]);
+  }, [projectId, page, filterModule, filterSla, sortBy, sortDirection]);
 
   useEffect(() => {
     loadItems();
@@ -100,7 +127,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [filterModule, filterSla]);
+  }, [filterModule, filterSla, sortBy, sortDirection]);
 
   // Selection helpers
   const toggleSelect = (id: string) => {
@@ -120,19 +147,26 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     }
   };
 
+  // Get filter options from availableFilters
+  const moduleFilterOptions = availableFilters.find((f) => f.filterKey === "module")?.options ?? [];
+  const slaFilterOptions = availableFilters.find((f) => f.filterKey === "slaStatus")?.options ?? [];
+
   // ─── Actions ────────────────────────────────────────────────────────────
 
-  const handleApprove = async (id: string) => {
-    setProcessingId(id);
+  const handleApprove = async (id: string, fromDetail = false) => {
+    if (fromDetail) setDetailProcessing(true);
+    else setProcessingId(id);
     try {
       await inboxItemsService.approve(id);
       setToast({ type: "success", message: "Request approved." });
+      if (fromDetail) setDetailItem(null);
       await loadItems();
       setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
     } catch (err) {
       setToast({ type: "error", message: err instanceof Error ? err.message : "Failed to approve" });
     } finally {
-      setProcessingId(null);
+      if (fromDetail) setDetailProcessing(false);
+      else setProcessingId(null);
     }
   };
 
@@ -148,14 +182,12 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     setRemarkSubmitting(true);
     try {
       if (remarkTargetIds.length === 1) {
-        // Single action
         if (remarkAction === "reject") {
           await inboxItemsService.reject(remarkTargetIds[0], remarkText.trim());
         } else {
           await inboxItemsService.sendBack(remarkTargetIds[0], remarkText.trim());
         }
       } else {
-        // Bulk action
         if (remarkAction === "reject") {
           await inboxItemsService.bulkReject(remarkTargetIds, remarkText.trim());
         } else {
@@ -163,6 +195,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
         }
       }
       setRemarkDialogOpen(false);
+      setDetailItem(null);
       const actionLabel = remarkAction === "reject" ? "rejected" : "sent back";
       setToast({
         type: "success",
@@ -179,7 +212,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     }
   };
 
-  // Bulk approve
   const handleBulkApprove = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
@@ -224,7 +256,8 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           onChange={(e) => setFilterModule(e.target.value)}
           style={{ width: "auto", minWidth: 140 }}
         >
-          {MODULE_OPTIONS.map((o) => (
+          <option value="">All Modules</option>
+          {moduleFilterOptions.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
@@ -237,12 +270,32 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           onChange={(e) => setFilterSla(e.target.value)}
           style={{ width: "auto", minWidth: 130 }}
         >
-          {SLA_OPTIONS.map((o) => (
+          <option value="">All SLA</option>
+          {slaFilterOptions.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
         </select>
+
+        {availableSorts.length > 0 && (
+          <select
+            className="form-input"
+            value={`${sortBy}:${sortDirection}`}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":");
+              setSortBy(key);
+              setSortDirection(dir as "asc" | "desc");
+            }}
+            style={{ width: "auto", minWidth: 160 }}
+          >
+            {availableSorts.map((s) => (
+              <option key={s.sortKey} value={`${s.sortKey}:${s.defaultDirection}`}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Bulk actions bar */}
@@ -339,122 +392,104 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             </label>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Table-style list */}
+          <div
+            style={{
+              border: "1px solid var(--border, #e2e8f0)",
+              borderRadius: 8,
+              overflow: "hidden",
+            }}
+          >
+            {/* Header row */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "32px 1.5fr 1fr 1fr 1fr 80px",
+                padding: "10px 16px",
+                background: "var(--bg-muted, #f8fafc)",
+                borderBottom: "1px solid var(--border, #e2e8f0)",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--text-muted, #64748b)",
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
+              }}
+            >
+              <span />
+              <span>Submitted By</span>
+              <span>Request Type</span>
+              <span>Status</span>
+              <span>Submitted Date</span>
+              <span>SLA</span>
+            </div>
+
+            {/* Item rows */}
             {items.map((item) => {
               const slaStyle = SLA_COLORS[item.slaStatus] ?? SLA_COLORS.OnTime;
               const isSelected = selectedIds.has(item.inboxItemId);
-              const isProcessing = processingId === item.inboxItemId;
+              const statusCfg = item.displayMetadata.statusConfig[item.currentStatus];
 
               return (
-                <article
+                <div
                   key={item.inboxItemId}
                   style={{
+                    display: "grid",
+                    gridTemplateColumns: "32px 1.5fr 1fr 1fr 1fr 80px",
+                    padding: "12px 16px",
+                    borderBottom: "1px solid var(--border, #f1f5f9)",
                     background: isSelected ? "var(--primary-light, #e0e7ff)" : "#fff",
-                    border: "1px solid var(--border, #e2e8f0)",
-                    borderRadius: 8,
-                    padding: 16,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
+                    cursor: "pointer",
+                    alignItems: "center",
                   }}
+                  onClick={() => setDetailItem(item)}
                 >
-                  {/* Top row: checkbox + submitted by + module badge + SLA */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelect(item.inboxItemId)}
-                      style={{ accentColor: "var(--primary, #4f46e5)" }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>
-                        {item.submittedBy.firstName} {item.submittedBy.lastName}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)" }}>
-                        {item.submittedBy.designation}
-                      </div>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      toggleSelect(item.inboxItemId);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ accentColor: "var(--primary, #4f46e5)" }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+                      {item.submittedBy.displayName}
                     </div>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        borderRadius: 10,
-                        background: "#e0e7ff",
-                        color: "#4f46e5",
-                        fontWeight: 500,
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {item.module}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        borderRadius: 10,
-                        background: slaStyle.bg,
-                        color: slaStyle.color,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {item.slaStatus}
-                    </span>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
+                      {item.submittedBy.designation}
+                    </div>
                   </div>
-
-                  {/* Request type */}
-                  <div style={{ fontSize: 13, fontWeight: 500, color: "#334155" }}>
+                  <span style={{ fontSize: 13, color: "#334155", textTransform: "capitalize" }}>
                     {item.requestType}
-                  </div>
-
-                  {/* Display fields */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-                    {item.displayFields.map((f) => (
-                      <div key={f.key}>
-                        <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
-                          {f.label}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
-                          {f.value}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    {item.actions.includes("approve") && (
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        style={{ fontSize: 12, padding: "5px 14px" }}
-                        onClick={() => handleApprove(item.inboxItemId)}
-                        disabled={isProcessing}
-                      >
-                        {isProcessing ? "Approving…" : "Approve"}
-                      </button>
-                    )}
-                    {item.actions.includes("reject") && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ fontSize: 12, padding: "5px 14px", color: "#dc2626", borderColor: "#dc2626" }}
-                        onClick={() => openRemarkDialog("reject", [item.inboxItemId])}
-                      >
-                        Reject
-                      </button>
-                    )}
-                    {item.actions.includes("send-back") && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ fontSize: 12, padding: "5px 14px" }}
-                        onClick={() => openRemarkDialog("send-back", [item.inboxItemId])}
-                      >
-                        Send Back
-                      </button>
-                    )}
-                  </div>
-                </article>
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: statusCfg?.colorCode ?? "#475569",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {statusCfg?.displayLabel ?? formatStatus(item.currentStatus)}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#475569" }}>
+                    {formatDate(item.submittedDate)}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      borderRadius: 10,
+                      background: slaStyle.bg,
+                      color: slaStyle.color,
+                      fontWeight: 500,
+                      textAlign: "center",
+                    }}
+                  >
+                    {item.slaStatus}
+                  </span>
+                </div>
               );
             })}
           </div>
@@ -495,6 +530,204 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           )}
         </>
       )}
+
+      {/* Detail Dialog */}
+      <Modal
+        open={!!detailItem}
+        onClose={() => setDetailItem(null)}
+        title="Request Details"
+        width={560}
+        footer={
+          detailItem ? (
+            <div style={{ display: "flex", gap: 8, width: "100%", justifyContent: "flex-end" }}>
+              {detailItem.availableActions
+                .filter((a) => a.enabled)
+                .map((action) => {
+                  if (action.actionKey === "approve") {
+                    return (
+                      <button
+                        key={action.actionKey}
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ background: action.color, borderColor: action.color }}
+                        onClick={() => handleApprove(detailItem.inboxItemId, true)}
+                        disabled={detailProcessing}
+                      >
+                        {detailProcessing ? "Approving…" : action.label}
+                      </button>
+                    );
+                  }
+                  if (action.actionKey === "reject") {
+                    return (
+                      <button
+                        key={action.actionKey}
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ color: action.color, borderColor: action.color }}
+                        onClick={() => openRemarkDialog("reject", [detailItem.inboxItemId])}
+                      >
+                        {action.label}
+                      </button>
+                    );
+                  }
+                  if (action.actionKey === "send-back") {
+                    return (
+                      <button
+                        key={action.actionKey}
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ color: action.color, borderColor: action.color }}
+                        onClick={() => openRemarkDialog("send-back", [detailItem.inboxItemId])}
+                      >
+                        {action.label}
+                      </button>
+                    );
+                  }
+                  return null;
+                })}
+            </div>
+          ) : undefined
+        }
+      >
+        {detailItem && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Top info */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+                padding: 12,
+                background: "var(--bg-muted, #f8fafc)",
+                borderRadius: 6,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                  Submitted By
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>
+                  {detailItem.submittedBy.displayName}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)" }}>
+                  {detailItem.submittedBy.designation}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                  Request Type
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: "#0f172a", textTransform: "capitalize" }}>
+                  {detailItem.requestType}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                  Status
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: detailItem.displayMetadata.statusConfig[detailItem.currentStatus]?.colorCode ?? "#475569",
+                  }}
+                >
+                  {detailItem.displayMetadata.statusConfig[detailItem.currentStatus]?.displayLabel ?? formatStatus(detailItem.currentStatus)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                  Module
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "#475569", textTransform: "capitalize" }}>
+                  {detailItem.module}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                  Submitted Date
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>
+                  {formatDate(detailItem.submittedDate)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                  SLA Deadline
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>
+                    {formatDate(detailItem.slaDeadline)}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: "1px 6px",
+                      borderRadius: 8,
+                      background: (SLA_COLORS[detailItem.slaStatus] ?? SLA_COLORS.OnTime).bg,
+                      color: (SLA_COLORS[detailItem.slaStatus] ?? SLA_COLORS.OnTime).color,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {detailItem.slaStatus}
+                  </span>
+                </div>
+              </div>
+              {detailItem.totalLevels > 1 && (
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                    Approval Level
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>
+                    {detailItem.currentLevel} of {detailItem.totalLevels}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Display fields (from displayMetadata.fields + moduleData) */}
+            {detailItem.displayMetadata.fields.length > 0 && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--text-muted, #64748b)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    marginBottom: 8,
+                  }}
+                >
+                  Details
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                    padding: 12,
+                    border: "1px solid var(--border, #e2e8f0)",
+                    borderRadius: 6,
+                  }}
+                >
+                  {[...detailItem.displayMetadata.fields]
+                    .sort((a, b) => a.displayOrder - b.displayOrder)
+                    .map((f) => (
+                      <div key={f.fieldKey}>
+                        <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginBottom: 2 }}>
+                          {f.label}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+                          {resolveFieldValue(f.fieldKey, f.dataType, detailItem.moduleData)}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Remark Dialog (for reject / send-back) */}
       <Modal
