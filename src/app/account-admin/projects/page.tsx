@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatApiError, getAdminApi } from "@/lib/api";
 import type { Project } from "@/lib/api/types";
 import { authService } from "@/lib/api/auth-service";
+import { useAuth } from "@/lib/auth/auth-context";
 import { resolveAccountScope } from "@/lib/auth/account-scope";
 import { projectAdminUploadersEntryPath } from "@/lib/project-admin/setup-paths";
 import { exportToCsv } from "@/lib/utils/export-csv";
@@ -13,12 +14,14 @@ import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 
 export default function AccountAdminProjectsPage() {
   const router = useRouter();
+  const { user, establishSession } = useAuth();
 
   useSetBreadcrumbs([{ label: "Setup" }, { label: "Projects" }]);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [accountCode, setAccountCode] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -81,7 +84,7 @@ export default function AccountAdminProjectsPage() {
   }, [projects, search]);
 
   const goToProject = useCallback(
-    (project: Project) => {
+    async (project: Project) => {
       const code = project.accountCode || accountCode;
       if (!code) {
         setToast({
@@ -90,9 +93,30 @@ export default function AccountAdminProjectsPage() {
         });
         return;
       }
-      router.push(projectAdminUploadersEntryPath(code, project.code));
+      const href = projectAdminUploadersEntryPath(code, project.code);
+      if (user?.projectId && user.projectId === project.id) {
+        router.push(href);
+        return;
+      }
+
+      setSwitchingId(project.id || project.code);
+      try {
+        const session = await authService.switchToProject(project.id);
+        establishSession(session.accessToken, session.user);
+        router.push(href);
+      } catch (err) {
+        setToast({
+          message: formatApiError(
+            err,
+            "Could not switch into this project. Re-login if you were already in another project.",
+          ),
+          type: "error",
+        });
+      } finally {
+        setSwitchingId(null);
+      }
     },
-    [accountCode, router],
+    [accountCode, establishSession, router, user?.projectId],
   );
 
   const handleExport = useCallback(() => {
@@ -191,7 +215,8 @@ export default function AccountAdminProjectsPage() {
               <ProjectRow
                 key={project.id || project.code}
                 project={project}
-                onGo={() => goToProject(project)}
+                switching={switchingId === (project.id || project.code)}
+                onGo={() => void goToProject(project)}
               />
             ))
           )}
@@ -210,9 +235,11 @@ export default function AccountAdminProjectsPage() {
 function ProjectRow({
   project,
   onGo,
+  switching,
 }: {
   project: Project;
   onGo: () => void;
+  switching: boolean;
 }) {
   const active = project.status === "Active";
   const initials = project.name.slice(0, 2).toUpperCase();
@@ -235,8 +262,13 @@ function ProjectRow({
         </span>
       </div>
       <div className="proj-action-cell">
-        <button type="button" className="proj-go-btn" onClick={onGo}>
-          Go to Project
+        <button
+          type="button"
+          className="proj-go-btn"
+          onClick={onGo}
+          disabled={switching}
+        >
+          {switching ? "Opening…" : "Go to Project"}
           <svg viewBox="0 0 24 24" fill="none">
             <polyline points="9 18 15 12 9 6" />
           </svg>

@@ -3,15 +3,27 @@ import type { BackendUser } from "@/lib/api/types";
 /** Matches libs/common Permission.MODULE_CONFIG_UPDATE */
 export const MODULE_CONFIG_UPDATE = "module-config:update";
 
+function normalizeRole(role?: string): string {
+  return (role ?? "").toLowerCase().replace(/[\s_-]+/g, "");
+}
+
 export function hasPermission(
   user: BackendUser | null | undefined,
   permission: string,
 ): boolean {
   if (!user) return false;
-  if (user.role === "SUPER_ADMIN") return true;
-  if (user.role === "ACCOUNT_ADMIN") {
-    // ACCOUNT_ADMIN role map always includes module-config:update
-    if (permission === MODULE_CONFIG_UPDATE) return true;
+  const role = normalizeRole(user.role);
+  if (role.includes("superadmin")) return true;
+  // JWT admin roles have module-config:update on the backend role map and
+  // no designation.permissions. Hard-code so the drawer/guard work even when
+  // login has not populated user.permissions[].
+  if (
+    permission === MODULE_CONFIG_UPDATE &&
+    (role.includes("accountadmin") ||
+      role.includes("clientadmin") ||
+      role.includes("projectadmin"))
+  ) {
+    return true;
   }
   return Array.isArray(user.permissions) && user.permissions.includes(permission);
 }
