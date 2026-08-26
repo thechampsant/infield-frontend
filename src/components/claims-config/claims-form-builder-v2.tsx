@@ -1042,7 +1042,10 @@ export function ClaimsFormBuilderV2({
                   checked={childConfig.isMobileNumber === true}
                   onChange={(event) =>
                     replaceRepeatableChildConfig(parentIndex, childIndex, (current) => {
-                      const next = { ...current, isMobileNumber: event.target.checked };
+                      const next: Record<string, unknown> = {
+                        ...current,
+                        isMobileNumber: event.target.checked,
+                      };
                       if (event.target.checked) {
                         delete next.minValue;
                         delete next.maxValue;
