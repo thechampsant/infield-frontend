@@ -52,9 +52,12 @@ export function ProjectAdminDrawer({
   const { user } = useAuth();
   const manageModules = canManageModules(user);
   const showBackToProjects = canNavigateBackToProjects(user);
+  const isSuperAdmin = (user?.role ?? "").toLowerCase().replace(/[\s_-]+/g, "").includes("superadmin");
   const navItems = projectAdminDrawerNav(accountCode, projectCode, {
     canManageModules: manageModules,
-  });
+  }).filter(
+    (item) => item.label !== "Web Modules" || isSuperAdmin
+  );
 
   // Dynamic menu items
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
