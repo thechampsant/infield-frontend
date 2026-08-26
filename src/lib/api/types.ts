@@ -90,6 +90,11 @@ export interface BackendUser {
    * Mobile may ignore. Absent on older sessions until re-login.
    */
   permissions?: string[];
+  /**
+   * Project Admin setup areas from login/me. Absent on older sessions /
+   * field users. Super Admin and Account Admin are treated as all areas.
+   */
+  adminAccess?: string[];
   designation?: {
     id: string | null;
     name: string | null;

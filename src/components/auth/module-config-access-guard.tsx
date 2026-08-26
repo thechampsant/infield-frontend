@@ -5,14 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { InfieldSplash } from "@/components/brand/infield-splash";
 import { useAuth } from "@/lib/auth/auth-context";
 import {
-  canManageModules,
-  isModuleConfigPath,
+  adminAccessAreaForPath,
+  firstAllowedAdminPath,
+  hasAdminAccess,
 } from "@/lib/auth/permissions";
-import { projectAdminBase } from "@/lib/nav/nav";
 
 /**
- * Web-only: redirects away from setup/module routes when the user lacks
- * module-config:update. Reports stay open; Uploaders/Modules/etc. go to Reports.
+ * Web-only: redirects away from setup/module routes the user is not granted.
+ * Super Admin / Account Admin keep all areas; Project Admin uses adminAccess.
  */
 export function ModuleConfigAccessGuard({
   accountCode,
@@ -26,8 +26,8 @@ export function ModuleConfigAccessGuard({
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const { user, isLoading, refreshUser } = useAuth();
-  const allowed = canManageModules(user);
-  const blocked = isModuleConfigPath(pathname) && !allowed;
+  const area = adminAccessAreaForPath(pathname);
+  const blocked = Boolean(area && !hasAdminAccess(user, area));
 
   useEffect(() => {
     void refreshUser();
@@ -35,9 +35,8 @@ export function ModuleConfigAccessGuard({
 
   useEffect(() => {
     if (isLoading || !blocked) return;
-    const reportsHref = `${projectAdminBase(accountCode, projectCode)}/reports`;
-    router.replace(reportsHref);
-  }, [isLoading, blocked, accountCode, projectCode, router]);
+    router.replace(firstAllowedAdminPath(accountCode, projectCode, user));
+  }, [isLoading, blocked, accountCode, projectCode, router, user]);
 
   if (isLoading) {
     return <InfieldSplash message="Loading" />;

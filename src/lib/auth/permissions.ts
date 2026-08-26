@@ -3,8 +3,92 @@ import type { BackendUser } from "@/lib/api/types";
 /** Matches libs/common Permission.MODULE_CONFIG_UPDATE */
 export const MODULE_CONFIG_UPDATE = "module-config:update";
 
+export const ADMIN_ACCESS_AREAS = [
+  "uploaders",
+  "modules",
+  "web-modules",
+  "form-builder",
+  "reports",
+] as const;
+
+export type AdminAccessArea = (typeof ADMIN_ACCESS_AREAS)[number];
+
+export const DEFAULT_PROJECT_ADMIN_ACCESS: AdminAccessArea[] = [
+  "uploaders",
+  "modules",
+  "form-builder",
+  "reports",
+];
+
+export const ALL_ADMIN_ACCESS: AdminAccessArea[] = [...ADMIN_ACCESS_AREAS];
+
+export const ADMIN_ACCESS_LABELS: Record<AdminAccessArea, string> = {
+  uploaders: "Uploaders",
+  modules: "Modules",
+  "web-modules": "Web Modules",
+  "form-builder": "Form Builder",
+  reports: "Reports",
+};
+
+const AREA_SET = new Set<string>(ADMIN_ACCESS_AREAS);
+
+const LANDING_ORDER: AdminAccessArea[] = [
+  "uploaders",
+  "modules",
+  "form-builder",
+  "web-modules",
+  "reports",
+];
+
+const LANDING_HREF: Record<AdminAccessArea, (base: string) => string> = {
+  uploaders: (base) => `${base}/uploaders/roles`,
+  modules: (base) => `${base}/modules`,
+  "form-builder": (base) => `${base}/form-builder`,
+  "web-modules": (base) => `${base}/web-modules`,
+  reports: (base) => `${base}/reports`,
+};
+
 function normalizeRole(role?: string): string {
   return (role ?? "").toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+export function parseAdminAccess(raw: unknown): AdminAccessArea[] | null {
+  if (!Array.isArray(raw)) return null;
+  const unique: AdminAccessArea[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== "string" || !AREA_SET.has(item) || seen.has(item)) {
+      continue;
+    }
+    seen.add(item);
+    unique.push(item as AdminAccessArea);
+  }
+  return unique.length ? unique : null;
+}
+
+/** Effective setup areas for drawer / landing / guard. */
+export function resolvedAdminAccess(
+  user: BackendUser | null | undefined,
+): AdminAccessArea[] {
+  if (!user) return [];
+  const role = normalizeRole(user.role);
+  if (role.includes("superadmin") || role.includes("accountadmin") || role.includes("clientadmin")) {
+    return [...ALL_ADMIN_ACCESS];
+  }
+  if (role.includes("projectadmin")) {
+    return parseAdminAccess(user.adminAccess) ?? [...DEFAULT_PROJECT_ADMIN_ACCESS];
+  }
+  if (hasPermission(user, MODULE_CONFIG_UPDATE)) {
+    return [...DEFAULT_PROJECT_ADMIN_ACCESS];
+  }
+  return ["reports"];
+}
+
+export function hasAdminAccess(
+  user: BackendUser | null | undefined,
+  area: AdminAccessArea,
+): boolean {
+  return resolvedAdminAccess(user).includes(area);
 }
 
 export function hasPermission(
@@ -29,11 +113,11 @@ export function hasPermission(
 }
 
 /**
- * Web-only: can open/edit Project Admin module configuration
- * (Modules, attendance, visit, form builder, web-modules, etc.).
+ * Web-only: can open/edit Modules configuration (attendance, visit, etc.).
+ * Project Admin is gated by the modules adminAccess flag.
  */
 export function canManageModules(user: BackendUser | null | undefined): boolean {
-  return hasPermission(user, MODULE_CONFIG_UPDATE);
+  return hasAdminAccess(user, "modules");
 }
 
 /**
@@ -52,28 +136,47 @@ export function canNavigateBackToProjects(
   );
 }
 
-/** Path segments under project-admin that require module-config:update */
-export function isModuleConfigPath(pathname: string): boolean {
-  return (
-    pathname.includes("/uploaders") ||
+/** Map a project-admin path to its setup-area flag. Check web-modules before modules. */
+export function adminAccessAreaForPath(pathname: string): AdminAccessArea | null {
+  if (pathname.includes("/web-modules")) return "web-modules";
+  if (pathname.includes("/uploaders")) return "uploaders";
+  if (pathname.includes("/form-builder")) return "form-builder";
+  if (pathname.includes("/reports")) return "reports";
+  if (
     pathname.includes("/modules") ||
-    pathname.includes("/web-modules") ||
-    pathname.includes("/form-builder") ||
     pathname.includes("/master-data") ||
     pathname.includes("/configuration/module-toggles") ||
     pathname.includes("/configuration/attendance-rules")
-  );
+  ) {
+    return "modules";
+  }
+  return null;
 }
 
-/** Default project-admin landing based on whether the user can manage setup. */
-export function projectAdminLandingPath(
+/** Path segments that are setup (not Reports) — used by older callers. */
+export function isModuleConfigPath(pathname: string): boolean {
+  const area = adminAccessAreaForPath(pathname);
+  return area !== null && area !== "reports";
+}
+
+export function firstAllowedAdminPath(
   accountCode: string,
   projectCode: string,
   user: BackendUser | null | undefined,
 ): string {
   const base = `/project-admin/${accountCode}/${projectCode}`;
-  if (canManageModules(user)) {
-    return `${base}/uploaders/roles`;
+  const access = resolvedAdminAccess(user);
+  for (const area of LANDING_ORDER) {
+    if (access.includes(area)) return LANDING_HREF[area](base);
   }
   return `${base}/reports`;
+}
+
+/** Default project-admin landing from granted setup areas. */
+export function projectAdminLandingPath(
+  accountCode: string,
+  projectCode: string,
+  user: BackendUser | null | undefined,
+): string {
+  return firstAllowedAdminPath(accountCode, projectCode, user);
 }

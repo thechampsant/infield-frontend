@@ -19,8 +19,8 @@ import {
 } from "@/lib/api/dynamic-menu-service";
 import { useAuth } from "@/lib/auth/auth-context";
 import {
-  canManageModules,
   canNavigateBackToProjects,
+  resolvedAdminAccess,
 } from "@/lib/auth/permissions";
 
 const ICONS = {
@@ -50,14 +50,10 @@ export function ProjectAdminDrawer({
   const [expanded, setExpanded] = useState(true);
   const pathname = usePathname() ?? "/";
   const { user } = useAuth();
-  const manageModules = canManageModules(user);
   const showBackToProjects = canNavigateBackToProjects(user);
-  const isSuperAdmin = (user?.role ?? "").toLowerCase().replace(/[\s_-]+/g, "").includes("superadmin");
   const navItems = projectAdminDrawerNav(accountCode, projectCode, {
-    canManageModules: manageModules,
-  }).filter(
-    (item) => item.label !== "Web Modules" || isSuperAdmin
-  );
+    adminAccess: resolvedAdminAccess(user),
+  });
 
   // Dynamic menu items
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
