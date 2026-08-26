@@ -41,44 +41,12 @@ interface Props {
   projectCode: string;
 }
 
-const MONTH_LABELS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-function currentIstPeriod(): { month: number; year: number } {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Kolkata",
-    month: "numeric",
-    year: "numeric",
-  }).formatToParts(new Date());
-  const month = Number(parts.find((part) => part.type === "month")?.value);
-  const year = Number(parts.find((part) => part.type === "year")?.value);
-  return {
-    month: Number.isFinite(month) ? month : new Date().getMonth() + 1,
-    year: Number.isFinite(year) ? year : new Date().getFullYear(),
-  };
-}
-
 export function CustomViewPage({
   projectId,
   projectName,
   accountCode,
   projectCode,
 }: Props) {
-  const initialPeriod = useMemo(() => currentIstPeriod(), []);
-  const [month, setMonth] = useState(initialPeriod.month);
-  const [year, setYear] = useState(initialPeriod.year);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [roles, setRoles] = useState<BackendRole[]>([]);
@@ -104,11 +72,6 @@ export function CustomViewPage({
     () => new Map(roles.map((role) => [role.id, role] as const)),
     [roles],
   );
-
-  const yearOptions = useMemo(() => {
-    const current = initialPeriod.year;
-    return [current - 2, current - 1, current, current + 1];
-  }, [initialPeriod.year]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -209,9 +172,12 @@ export function CustomViewPage({
       const list = prev[saved.designationId] || [];
       return {
         ...prev,
-        [saved.designationId]: list.map((item) =>
-          item.localId === localId ? configToDraft(saved) : item,
-        ),
+        [saved.designationId]: list.map((item) => {
+          if (item.localId !== localId) return item;
+          const next = configToDraft(saved);
+          if (saved.latestPeriodMonth && saved.latestPeriodYear) return next;
+          return { ...next, periodMonth: item.periodMonth, periodYear: item.periodYear };
+        }),
       };
     });
     setExpandedViewId((current) => (current === localId ? saved.id : current));
@@ -348,43 +314,16 @@ export function CustomViewPage({
           <div className="pa-eyebrow">Modules</div>
           <div className="pa-page-title">Custom View — {projectName}</div>
           <div className="pa-page-desc">
-            Configure Excel-driven views per designation. Month and year filter
-            template download and uploads.
+            Configure Excel-driven views per designation. Each view has its own
+            month and year for template download and upload.
           </div>
-        </div>
-        <div className="cv-period">
-          <span className="cv-period-label">Period</span>
-          <select
-            className="cv-select"
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            aria-label="Month"
-          >
-            {MONTH_LABELS.map((label, index) => (
-              <option key={label} value={index + 1}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="cv-select"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            aria-label="Year"
-          >
-            {yearOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
       <div className="pa-info-banner">
-        Config is one-time per view. Re-uploading the selected month replaces rows
-        for that period. Pause hides a view from mobile; Remove permanently takes it
-        off the catalog.
+        Config is one-time per view. Choose the Excel period inside each view;
+        re-uploading that month replaces its rows. Pause hides a view from mobile;
+        Remove permanently takes it off the catalog.
       </div>
 
       <section className="cv-section">
@@ -412,8 +351,6 @@ export function CustomViewPage({
               designation={designation}
               views={draftsByDesignation[designation.id] || []}
               projectId={projectId}
-              month={month}
-              year={year}
               expandedViewId={expandedViewId}
               onToggleView={(localId) =>
                 setExpandedViewId((current) => (current === localId ? null : localId))

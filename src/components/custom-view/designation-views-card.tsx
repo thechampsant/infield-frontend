@@ -9,8 +9,6 @@ interface Props {
   designation: Designation;
   views: DraftView[];
   projectId: string;
-  month: number;
-  year: number;
   expandedViewId: string | null;
   onToggleView: (localId: string) => void;
   onChangeView: (localId: string, view: DraftView) => void;
@@ -23,8 +21,6 @@ export function DesignationViewsCard({
   designation,
   views,
   projectId,
-  month,
-  year,
   expandedViewId,
   onToggleView,
   onChangeView,
@@ -66,8 +62,6 @@ export function DesignationViewsCard({
                     projectId={projectId}
                     designationId={designation.id}
                     view={view}
-                    month={month}
-                    year={year}
                     onChange={(next) => onChangeView(view.localId, next)}
                     onSaved={onSaved}
                     onError={onError}
