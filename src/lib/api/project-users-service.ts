@@ -435,9 +435,17 @@ export const projectUsersService = {
     projectId: string,
     page = 1,
     pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
   ): Promise<ProjectUserListResult> {
+    const params = new URLSearchParams({
+      projectId,
+      page: String(page),
+      pageSize: String(clampListPageSize(pageSize)),
+    });
+    const term = search?.trim();
+    if (term) params.set("search", term);
     const res = await apiClient.get<PaginatedUsers | RawUser[]>(
-      `${BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${clampListPageSize(pageSize)}`,
+      `${BASE}?${params.toString()}`,
     );
     const rows = Array.isArray(res) ? res : (res.data ?? []);
     return {

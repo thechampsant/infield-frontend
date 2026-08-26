@@ -16,6 +16,8 @@ import type {
   UserStaticFields,
 } from "@/types/project-admin";
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -47,6 +49,8 @@ export default function UsersMasterPage() {
   const [uploading, setUploading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [meta, setMeta] = useState<ListMeta>({
     page: 1,
     pageSize: DEFAULT_LIST_PAGE_SIZE,
@@ -61,7 +65,7 @@ export default function UsersMasterPage() {
     setError(null);
     try {
       const [userList, formConfig, designations] = await Promise.all([
-        projectUsersService.listByProject(projectId, page, pageSize),
+        projectUsersService.listByProject(projectId, page, pageSize, debouncedSearch),
         projectUsersService.getFormFieldsConfig(projectId),
         designationService.listByProject(projectId).catch(() => []),
       ]);
@@ -69,7 +73,7 @@ export default function UsersMasterPage() {
       setMeta(userList.meta);
       // Deleting the last row of the final page can leave us past the end.
       if (page > userList.meta.totalPages) {
-        setPage(userList.meta.totalPages);
+        setPage(Math.max(1, userList.meta.totalPages));
       }
       if (formConfig) {
         setUdfFields(formConfig.runtimeUdfFields);
@@ -85,7 +89,20 @@ export default function UsersMasterPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, page, pageSize]);
+  }, [projectId, page, pageSize, debouncedSearch]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = search.trim();
+      setDebouncedSearch((prev) => {
+        if (prev !== next) {
+          setPage(1);
+        }
+        return next;
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [search]);
 
   useEffect(() => {
     load();
@@ -260,6 +277,8 @@ export default function UsersMasterPage() {
         updateStaticFields={staticFields.update}
         loading={loading}
         projectId={projectId}
+        searchValue={search}
+        onSearchChange={setSearch}
         pagination={{
           page: meta.page,
           pageSize,

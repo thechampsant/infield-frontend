@@ -21,6 +21,8 @@ interface StoreTableProps {
   projectId: string;
   /** `stores` holds only the current page; counts come from here. */
   pagination: ServerPagination;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
@@ -34,27 +36,19 @@ export function StoreTable({
   loading,
   projectId,
   pagination,
+  searchValue,
+  onSearchChange,
   onOpenUDFConfig,
   onRefresh,
   onExport,
 }: StoreTableProps) {
-  const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [editId, setEditId] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
 
   const status = (s: StoreRecord) => (s.isActive ? "active" : "inactive") as "active" | "inactive";
 
-  const filtered = stores
-    .filter((s) => filter === "all" || status(s) === filter)
-    .filter((s) => {
-      if (!search) return true;
-      const q = search.toLowerCase();
-      return (
-        s.storeName.toLowerCase().includes(q) ||
-        s.storeCode.toLowerCase().includes(q)
-      );
-    });
+  const filtered = stores.filter((s) => filter === "all" || status(s) === filter);
 
   // The list API returns active stores only, so every row on every page is active.
   const total = pagination.totalCount;
@@ -208,8 +202,8 @@ export function StoreTable({
         total={total}
         filtered={filtered.length}
         entityLabel="stores"
-        searchValue={search}
-        onSearchChange={setSearch}
+        searchValue={searchValue}
+        onSearchChange={onSearchChange}
         loading={loading}
         serverPagination={pagination}
         toolbarRight={

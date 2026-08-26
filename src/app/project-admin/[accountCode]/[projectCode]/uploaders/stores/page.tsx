@@ -10,6 +10,8 @@ import { AddStoreModal } from "@/components/project-admin/uploaders/stores/add-s
 import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
 import type { UDFField } from "@/types/project-admin";
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -32,6 +34,8 @@ export default function StoresMasterPage() {
   const [uploadResult, setUploadResult] = useState<BulkStoreResult | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [meta, setMeta] = useState<ListMeta>({
     page: 1,
     pageSize: DEFAULT_LIST_PAGE_SIZE,
@@ -47,7 +51,7 @@ export default function StoresMasterPage() {
     setError(null);
     try {
       const [storeList, fields] = await Promise.all([
-        storeService.listByProject(projectId, page, pageSize),
+        storeService.listByProject(projectId, page, pageSize, debouncedSearch),
         storeService.getFormFields(projectId),
       ]);
       setStores(storeList.data);
@@ -55,7 +59,7 @@ export default function StoresMasterPage() {
       setUdfFields(fields);
       // Deleting the last row of the final page can leave us past the end.
       if (page > storeList.meta.totalPages) {
-        setPage(storeList.meta.totalPages);
+        setPage(Math.max(1, storeList.meta.totalPages));
       }
     } catch (err) {
       setError(formatApiError(err, "Failed to load stores"));
@@ -63,7 +67,20 @@ export default function StoresMasterPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, page, pageSize]);
+  }, [projectId, page, pageSize, debouncedSearch]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = search.trim();
+      setDebouncedSearch((prev) => {
+        if (prev !== next) {
+          setPage(1);
+        }
+        return next;
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [search]);
 
   useEffect(() => {
     load();
@@ -249,6 +266,8 @@ export default function StoresMasterPage() {
         udfFields={udfFields}
         loading={loading}
         projectId={projectId}
+        searchValue={search}
+        onSearchChange={setSearch}
         pagination={{
           page: meta.page,
           pageSize,

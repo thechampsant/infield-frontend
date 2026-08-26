@@ -248,9 +248,17 @@ export const storeService = {
     projectId: string,
     page = 1,
     pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
   ): Promise<StoreListResult> {
+    const params = new URLSearchParams({
+      projectId,
+      page: String(page),
+      pageSize: String(clampListPageSize(pageSize)),
+    });
+    const term = search?.trim();
+    if (term) params.set("search", term);
     const res = await apiClient.get<PaginatedStores | RawStore[]>(
-      `${BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${clampListPageSize(pageSize)}`,
+      `${BASE}?${params.toString()}`,
     );
     return normalizeStoresResponse(res);
   },

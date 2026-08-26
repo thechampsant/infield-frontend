@@ -330,9 +330,7 @@ export function DataTable({
             <span
               style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}
             >
-              {searchValue.trim()
-                ? `Showing ${displayedRows.length} matching on page ${serverPagination.page} of ${serverPagination.totalPages}`
-                : `Showing ${rangeStart}–${rangeEnd} of ${serverPagination.totalCount} ${entityLabel}`}
+              {`Showing ${rangeStart}–${rangeEnd} of ${serverPagination.totalCount} ${entityLabel}`}
             </span>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
