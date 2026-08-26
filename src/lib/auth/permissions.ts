@@ -43,10 +43,25 @@ export function canNavigateBackToProjects(
 /** Path segments under project-admin that require module-config:update */
 export function isModuleConfigPath(pathname: string): boolean {
   return (
+    pathname.includes("/uploaders") ||
     pathname.includes("/modules") ||
     pathname.includes("/web-modules") ||
     pathname.includes("/form-builder") ||
+    pathname.includes("/master-data") ||
     pathname.includes("/configuration/module-toggles") ||
     pathname.includes("/configuration/attendance-rules")
   );
+}
+
+/** Default project-admin landing based on whether the user can manage setup. */
+export function projectAdminLandingPath(
+  accountCode: string,
+  projectCode: string,
+  user: BackendUser | null | undefined,
+): string {
+  const base = `/project-admin/${accountCode}/${projectCode}`;
+  if (canManageModules(user)) {
+    return `${base}/uploaders/roles`;
+  }
+  return `${base}/reports`;
 }
