@@ -94,7 +94,11 @@ function projectAdminLandingRoute(user: BackendUser): string | null {
     user.projectCode &&
     isWebAccessAllowedForProjectLanding(user.access)
   ) {
-    return projectAdminUploadersEntryPath(user.accountCode, user.projectCode);
+    return projectAdminLandingPath(
+      user.accountCode,
+      user.projectCode,
+      user,
+    );
   }
 
   const first = (user.projects ?? []).find(
@@ -107,7 +111,11 @@ function projectAdminLandingRoute(user: BackendUser): string | null {
     first.projectCode &&
     isWebAccessAllowedForProjectLanding(user.access)
   ) {
-    return projectAdminUploadersEntryPath(first.accountCode, first.projectCode);
+    return projectAdminLandingPath(
+      first.accountCode,
+      first.projectCode,
+      user,
+    );
   }
 
   return null;
