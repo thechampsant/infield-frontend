@@ -963,6 +963,100 @@ export function ClaimsFormBuilderV2({
           </label>
         </div>
 
+        {/* NUMBER: same min/max + mobile validation as top-level fields */}
+        {selectedChildField.type === "NUMBER" && (
+          <div className="claims-fb-formGroup">
+            <label style={{ display: "block", marginBottom: 6 }}>
+              Number Validation
+            </label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>
+                  Min value
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  disabled={childConfig.isMobileNumber === true}
+                  value={
+                    childConfig.isMobileNumber === true
+                      ? ""
+                      : String(childConfig.minValue ?? "")
+                  }
+                  onChange={(event) =>
+                    replaceRepeatableChildConfig(parentIndex, childIndex, (current) => {
+                      const next = { ...current };
+                      if (event.target.value !== "") {
+                        next.minValue = Number(event.target.value);
+                      } else {
+                        delete next.minValue;
+                      }
+                      return next;
+                    })
+                  }
+                  placeholder="No limit"
+                  style={{
+                    opacity: childConfig.isMobileNumber === true ? 0.4 : 1,
+                    cursor:
+                      childConfig.isMobileNumber === true ? "not-allowed" : undefined,
+                  }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>
+                  Max value
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  disabled={childConfig.isMobileNumber === true}
+                  value={
+                    childConfig.isMobileNumber === true
+                      ? ""
+                      : String(childConfig.maxValue ?? "")
+                  }
+                  onChange={(event) =>
+                    replaceRepeatableChildConfig(parentIndex, childIndex, (current) => {
+                      const next = { ...current };
+                      if (event.target.value !== "") {
+                        next.maxValue = Number(event.target.value);
+                      } else {
+                        delete next.maxValue;
+                      }
+                      return next;
+                    })
+                  }
+                  placeholder="No limit"
+                  style={{
+                    opacity: childConfig.isMobileNumber === true ? 0.4 : 1,
+                    cursor:
+                      childConfig.isMobileNumber === true ? "not-allowed" : undefined,
+                  }}
+                />
+              </div>
+            </div>
+            <div className="claims-fb-toggles">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={childConfig.isMobileNumber === true}
+                  onChange={(event) =>
+                    replaceRepeatableChildConfig(parentIndex, childIndex, (current) => {
+                      const next = { ...current, isMobileNumber: event.target.checked };
+                      if (event.target.checked) {
+                        delete next.minValue;
+                        delete next.maxValue;
+                      }
+                      return next;
+                    })
+                  }
+                />
+                Mobile number validation (10-digit Indian)
+              </label>
+            </div>
+          </div>
+        )}
+
         {(selectedChildField.type === "SELECT" || selectedChildField.type === "DROPDOWN") && (
           <>
             <div className="claims-fb-toggles">
