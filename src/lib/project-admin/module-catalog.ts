@@ -76,10 +76,12 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
   {
     id: "custom-view",
     name: "Custom View",
-    description: "Custom dashboards per role.",
+    description:
+      "Configure one or more Excel-driven views per designation, with independent columns and uploads.",
     accent: "purple",
     defaultEnabled: true,
     comingSoon: false,
+    configPath: "modules/custom-view",
   },
   {
     id: "form-builder",
