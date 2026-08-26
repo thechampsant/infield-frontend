@@ -1,9 +1,5 @@
-/**
- * Super Admin admin-user APIs (Account Admin / Project Admin).
- * GET/POST/DELETE /api/v1/admin-users
- */
-
 import { apiClient } from "./api-client";
+import type { AdminAccessArea } from "@/lib/auth/permissions";
 
 const BASE = "/api/v1/admin-users";
 
@@ -19,6 +15,7 @@ export interface AdminUser {
   accountId?: string | null;
   projectId?: string | null;
   isActive?: boolean;
+  adminAccess?: AdminAccessArea[];
 }
 
 export interface CreateAdminUserInput {
@@ -28,6 +25,7 @@ export interface CreateAdminUserInput {
   email: string;
   accountId?: string;
   projectId?: string;
+  adminAccess?: AdminAccessArea[];
 }
 
 export interface CreateAdminUserResult {
@@ -46,6 +44,19 @@ interface RawAdminUser {
   accountId?: string | null;
   projectId?: string | null;
   isActive?: boolean;
+  adminAccess?: string[];
+}
+
+function normalizeAdminAccess(raw: unknown): AdminAccessArea[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.filter(
+    (item): item is AdminAccessArea =>
+      item === "uploaders" ||
+      item === "modules" ||
+      item === "web-modules" ||
+      item === "form-builder" ||
+      item === "reports",
+  );
 }
 
 function normalizeAdminUser(raw: RawAdminUser): AdminUser {
@@ -60,6 +71,7 @@ function normalizeAdminUser(raw: RawAdminUser): AdminUser {
     accountId: raw.accountId != null ? String(raw.accountId) : null,
     projectId: raw.projectId != null ? String(raw.projectId) : null,
     isActive: raw.isActive !== false,
+    adminAccess: normalizeAdminAccess(raw.adminAccess),
   };
 }
 
@@ -87,6 +99,17 @@ export const adminUsersService = {
       user: normalizeAdminUser(result?.user ?? {}),
       tempPassword: String(result?.tempPassword ?? ""),
     };
+  },
+
+  async updateAccess(
+    userId: string,
+    adminAccess: AdminAccessArea[],
+  ): Promise<AdminUser> {
+    const raw = await apiClient.patch<RawAdminUser>(
+      `${BASE}/${encodeURIComponent(userId)}`,
+      { adminAccess },
+    );
+    return normalizeAdminUser(raw ?? {});
   },
 
   async deactivate(userId: string): Promise<AdminUser> {

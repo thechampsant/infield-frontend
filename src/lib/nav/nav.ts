@@ -112,26 +112,50 @@ export function projectAdminBase(accountCode: string, projectCode: string): stri
   return `/project-admin/${accountCode}/${projectCode}`;
 }
 
-/** Design-spec drawer nav: Uploaders, Modules, Web Modules, Form Builder, Reports. */
+/** Design-spec drawer nav: include each setup item only when that area is granted. */
 export function projectAdminDrawerNav(
   accountCode: string,
   projectCode: string,
-  options?: { canManageModules?: boolean },
+  options?: {
+    canManageModules?: boolean;
+    adminAccess?: Array<
+      "uploaders" | "modules" | "web-modules" | "form-builder" | "reports"
+    >;
+  },
 ): ProjectAdminDrawerItem[] {
   const base = projectAdminBase(accountCode, projectCode);
-  const canManage = options?.canManageModules !== false;
+  const access = options?.adminAccess;
+  const has = (area: NonNullable<typeof access>[number]) =>
+    access ? access.includes(area) : options?.canManageModules !== false;
+
   const items: ProjectAdminDrawerItem[] = [];
-
-  if (canManage) {
-    items.push(
-      { label: "Uploaders", href: `${base}/uploaders/designations`, icon: "users" },
-      { label: "Modules", href: `${base}/modules`, icon: "settings" },
-      { label: "Web Modules", href: `${base}/web-modules`, icon: "settings" },
-      { label: "Form Builder", href: `${base}/form-builder`, icon: "fileText" },
-    );
+  if (has("uploaders")) {
+    items.push({
+      label: "Uploaders",
+      href: `${base}/uploaders/designations`,
+      icon: "users",
+    });
   }
-
-  items.push({ label: "Reports", href: `${base}/reports`, icon: "pieChart" });
+  if (has("modules")) {
+    items.push({ label: "Modules", href: `${base}/modules`, icon: "settings" });
+  }
+  if (has("web-modules")) {
+    items.push({
+      label: "Web Modules",
+      href: `${base}/web-modules`,
+      icon: "settings",
+    });
+  }
+  if (has("form-builder")) {
+    items.push({
+      label: "Form Builder",
+      href: `${base}/form-builder`,
+      icon: "fileText",
+    });
+  }
+  if (has("reports")) {
+    items.push({ label: "Reports", href: `${base}/reports`, icon: "pieChart" });
+  }
   return items;
 }
 

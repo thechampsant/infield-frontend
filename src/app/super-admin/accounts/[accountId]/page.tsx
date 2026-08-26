@@ -22,6 +22,12 @@ import {
   type AddAdminUserFormValues,
 } from "@/components/accounts/add-admin-user-modal";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import {
+  ADMIN_ACCESS_LABELS,
+  DEFAULT_PROJECT_ADMIN_ACCESS,
+  parseAdminAccess,
+  type AdminAccessArea,
+} from "@/lib/auth/permissions";
 
 export default function AccountDetailPage() {
   const router = useRouter();
@@ -49,6 +55,10 @@ export default function AccountDetailPage() {
   const [addProjectAdminFor, setAddProjectAdminFor] = useState<Project | null>(
     null,
   );
+  const [editAccessAdmin, setEditAccessAdmin] = useState<{
+    admin: AdminUser;
+    projectId: string;
+  } | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   useSetBreadcrumbs(
@@ -216,6 +226,7 @@ export default function AccountDetailPage() {
       email: data.email,
       accountId: account.id,
       projectId: addProjectAdminFor.id,
+      adminAccess: data.adminAccess,
     });
     setTempPassword(result.tempPassword);
     const admins = await adminUsersService.listByProject(addProjectAdminFor.id);
@@ -264,6 +275,24 @@ export default function AccountDetailPage() {
   function closeAddProjectAdmin() {
     setAddProjectAdminFor(null);
     setTempPassword(null);
+  }
+
+  async function handleSaveProjectAdminAccess(adminAccess: AdminAccessArea[]) {
+    if (!editAccessAdmin) return;
+    await adminUsersService.updateAccess(editAccessAdmin.admin.id, adminAccess);
+    const admins = await adminUsersService.listByProject(editAccessAdmin.projectId);
+    setProjectAdminsById((prev) => ({
+      ...prev,
+      [editAccessAdmin.projectId]: admins,
+    }));
+    setEditAccessAdmin(null);
+    setToast({ message: "Project Admin access updated", type: "success" });
+  }
+
+  function accessSummary(admin: AdminUser): string {
+    const areas =
+      parseAdminAccess(admin.adminAccess) ?? DEFAULT_PROJECT_ADMIN_ACCESS;
+    return areas.map((area) => ADMIN_ACCESS_LABELS[area]).join(", ");
   }
 
   if (loading) {
@@ -629,6 +658,7 @@ export default function AccountDetailPage() {
                           <tr>
                             <th>Name</th>
                             <th>Email</th>
+                            <th>Access</th>
                             <th>Status</th>
                             <th className="text-right">Action</th>
                           </tr>
@@ -641,6 +671,9 @@ export default function AccountDetailPage() {
                                   "—"}
                               </td>
                               <td>{admin.email}</td>
+                              <td style={{ fontSize: 12, color: "var(--if2-text-muted)" }}>
+                                {accessSummary(admin)}
+                              </td>
                               <td>
                                 <span className="status-pill status-active">
                                   <span className="status-dot" />
@@ -648,6 +681,18 @@ export default function AccountDetailPage() {
                                 </span>
                               </td>
                               <td className="text-right">
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ marginRight: 8 }}
+                                  onClick={() =>
+                                    setEditAccessAdmin({
+                                      admin,
+                                      projectId: project.id,
+                                    })
+                                  }
+                                >
+                                  Access
+                                </button>
                                 <button
                                   className="btn btn-danger btn-sm"
                                   onClick={() =>
@@ -705,8 +750,23 @@ export default function AccountDetailPage() {
         title={`Add Project Admin${addProjectAdminFor ? ` — ${addProjectAdminFor.name}` : ""}`}
         roleLabel="Project Admin"
         tempPassword={tempPassword}
+        showSetupAccess
         onClose={closeAddProjectAdmin}
         onCreate={handleCreateProjectAdmin}
+      />
+      <AddAdminUserModal
+        isOpen={!!editAccessAdmin}
+        title={`Edit access — ${editAccessAdmin ? `${editAccessAdmin.admin.firstName} ${editAccessAdmin.admin.lastName}`.trim() || editAccessAdmin.admin.email : ""}`}
+        roleLabel="Project Admin"
+        tempPassword={null}
+        accessOnly
+        showSetupAccess
+        initialAdminAccess={
+          parseAdminAccess(editAccessAdmin?.admin.adminAccess) ??
+          DEFAULT_PROJECT_ADMIN_ACCESS
+        }
+        onClose={() => setEditAccessAdmin(null)}
+        onSaveAccess={handleSaveProjectAdminAccess}
       />
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
