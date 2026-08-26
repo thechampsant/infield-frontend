@@ -276,6 +276,19 @@ export type {
   UploadDocumentInput,
 } from "./documents-service";
 
+export { customViewService } from "./custom-view-service";
+export type {
+  CreateCustomViewInput,
+  CustomViewColumnNode,
+  CustomViewColumnNodeType,
+  CustomViewColumnValueType,
+  CustomViewConfiguration,
+  CustomViewStatus,
+  CustomViewTaggingLogic,
+  CustomViewUploadResult,
+  UpdateCustomViewInput,
+} from "./custom-view-service";
+
 // Re-export types
 export type { AdminApi } from "./admin";
 export * from "./types";

@@ -47,6 +47,7 @@ export interface Designation {
   projectId?: string;
   permissions?: string[];
   access?: DesignationAccess;
+  externalCode?: string;
 }
 
 export interface PermissionOption {
@@ -72,6 +73,7 @@ interface RawDesignation {
   projectId?: string;
   permissions?: string[];
   access?: DesignationAccess;
+  externalCode?: string;
 }
 
 function normalizeDesignation(raw: RawDesignation): Designation {
@@ -91,6 +93,7 @@ function normalizeDesignation(raw: RawDesignation): Designation {
     projectId: raw.projectId,
     permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
     access: raw.access,
+    externalCode: raw.externalCode,
   };
 }
 
