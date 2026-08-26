@@ -11,8 +11,8 @@ import {
 import { projectAdminBase } from "@/lib/nav/nav";
 
 /**
- * Web-only: redirects away from module configuration routes when the user
- * lacks module-config:update. Reports and other non-module routes stay open.
+ * Web-only: redirects away from setup/module routes when the user lacks
+ * module-config:update. Reports stay open; Uploaders/Modules/etc. go to Reports.
  */
 export function ModuleConfigAccessGuard({
   accountCode,

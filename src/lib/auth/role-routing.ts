@@ -1,6 +1,6 @@
 import type { BackendUser } from "@/lib/api/types";
 import { authService } from "@/lib/api/auth-service";
-import { projectAdminUploadersEntryPath } from "@/lib/project-admin/setup-paths";
+import { projectAdminLandingPath } from "@/lib/auth/permissions";
 
 /**
  * Maps a backend role to its landing route after login.
@@ -94,7 +94,12 @@ function singleActiveProjectRoute(user: BackendUser): string | null {
   const [project] = activeProjects;
   if (!project.accountCode || !project.projectCode) return null;
 
-  return projectAdminUploadersEntryPath(project.accountCode, project.projectCode);
+  // Report-only users land on Reports; setup users still open Uploaders → Roles.
+  return projectAdminLandingPath(
+    project.accountCode,
+    project.projectCode,
+    user,
+  );
 }
 
 function isWebAccessAllowedForProjectLanding(
