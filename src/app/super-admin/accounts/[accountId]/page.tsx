@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { formatApiError, getAdminApi } from "@/lib/api";
+import { adminUsersService, formatApiError, getAdminApi } from "@/lib/api";
+import type { AdminUser } from "@/lib/api/admin-users-service";
 import type { Account, Project } from "@/lib/api/types";
 import { useSetBreadcrumbs } from "@/components/shell/master-shell";
 import { projectAdminUploadersEntryPath } from "@/lib/project-admin/setup-paths";
@@ -16,6 +17,10 @@ import {
   EditAccountModal,
   type EditAccountValues,
 } from "@/components/accounts/edit-account-modal";
+import {
+  AddAdminUserModal,
+  type AddAdminUserFormValues,
+} from "@/components/accounts/add-admin-user-modal";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 
 export default function AccountDetailPage() {
@@ -25,6 +30,13 @@ export default function AccountDetailPage() {
 
   const [account, setAccount] = useState<Account | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [accountAdmins, setAccountAdmins] = useState<AdminUser[]>([]);
+  const [projectAdminsById, setProjectAdminsById] = useState<
+    Record<string, AdminUser[]>
+  >({});
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +44,12 @@ export default function AccountDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+
+  const [addAccountAdminOpen, setAddAccountAdminOpen] = useState(false);
+  const [addProjectAdminFor, setAddProjectAdminFor] = useState<Project | null>(
+    null,
+  );
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   useSetBreadcrumbs(
     account
@@ -43,11 +61,39 @@ export default function AccountDetailPage() {
       : null,
   );
 
-  const loadProjects = useCallback(async (code: string) => {
-    const api = getAdminApi();
-    const res = await api.listProjects(code, { pageSize: 100 });
-    setProjects(res.items);
+  const loadAccountAdmins = useCallback(async (id: string) => {
+    const admins = await adminUsersService.listByAccount(id);
+    setAccountAdmins(admins);
   }, []);
+
+  const loadProjectAdmins = useCallback(async (projectList: Project[]) => {
+    const entries = await Promise.all(
+      projectList.map(async (project) => {
+        if (!project.id) return [null, [] as AdminUser[]] as const;
+        try {
+          const admins = await adminUsersService.listByProject(project.id);
+          return [project.id, admins] as const;
+        } catch {
+          return [project.id, [] as AdminUser[]] as const;
+        }
+      }),
+    );
+    const next: Record<string, AdminUser[]> = {};
+    for (const [id, admins] of entries) {
+      if (id) next[id] = admins;
+    }
+    setProjectAdminsById(next);
+  }, []);
+
+  const loadProjects = useCallback(
+    async (code: string) => {
+      const api = getAdminApi();
+      const res = await api.listProjects(code, { pageSize: 100 });
+      setProjects(res.items);
+      await loadProjectAdmins(res.items);
+    },
+    [loadProjectAdmins],
+  );
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -56,13 +102,16 @@ export default function AccountDetailPage() {
       const api = getAdminApi();
       const acc = await api.getAccount(accountId);
       setAccount(acc);
-      await loadProjects(acc.code);
+      await Promise.all([
+        loadProjects(acc.code),
+        loadAccountAdmins(acc.id),
+      ]);
     } catch (err) {
       setError(formatApiError(err, "Failed to load account"));
     } finally {
       setLoading(false);
     }
-  }, [accountId, loadProjects]);
+  }, [accountId, loadProjects, loadAccountAdmins]);
 
   useEffect(() => {
     fetchAll();
@@ -142,6 +191,79 @@ export default function AccountDetailPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleCreateAccountAdmin(data: AddAdminUserFormValues) {
+    if (!account) return;
+    const result = await adminUsersService.create({
+      role: "ACCOUNT_ADMIN",
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      accountId: account.id,
+    });
+    setTempPassword(result.tempPassword);
+    await loadAccountAdmins(account.id);
+    setToast({ message: "Account Admin created", type: "success" });
+  }
+
+  async function handleCreateProjectAdmin(data: AddAdminUserFormValues) {
+    if (!account || !addProjectAdminFor?.id) return;
+    const result = await adminUsersService.create({
+      role: "PROJECT_ADMIN",
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      accountId: account.id,
+      projectId: addProjectAdminFor.id,
+    });
+    setTempPassword(result.tempPassword);
+    const admins = await adminUsersService.listByProject(addProjectAdminFor.id);
+    setProjectAdminsById((prev) => ({
+      ...prev,
+      [addProjectAdminFor.id]: admins,
+    }));
+    setToast({ message: "Project Admin created", type: "success" });
+  }
+
+  async function handleDeactivateAdmin(
+    admin: AdminUser,
+    scope: "account" | "project",
+    projectId?: string,
+  ) {
+    const name = `${admin.firstName} ${admin.lastName}`.trim() || admin.email;
+    if (
+      !window.confirm(
+        `Deactivate ${name}? They will no longer be able to sign in.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await adminUsersService.deactivate(admin.id);
+      if (scope === "account" && account) {
+        await loadAccountAdmins(account.id);
+      } else if (scope === "project" && projectId) {
+        const admins = await adminUsersService.listByProject(projectId);
+        setProjectAdminsById((prev) => ({ ...prev, [projectId]: admins }));
+      }
+      setToast({ message: "Admin deactivated", type: "success" });
+    } catch (err) {
+      setToast({
+        message: formatApiError(err, "Failed to deactivate admin"),
+        type: "error",
+      });
+    }
+  }
+
+  function closeAddAccountAdmin() {
+    setAddAccountAdminOpen(false);
+    setTempPassword(null);
+  }
+
+  function closeAddProjectAdmin() {
+    setAddProjectAdminFor(null);
+    setTempPassword(null);
   }
 
   if (loading) {
@@ -294,6 +416,80 @@ export default function AccountDetailPage() {
         </div>
       </div>
 
+      {/* Account Admins */}
+      <div className="data-table-wrap" style={{ marginBottom: "var(--if2-sp-24)" }}>
+        <div className="data-table-toolbar">
+          <div className="dt-toolbar-left">
+            <div className="dt-count">
+              {accountAdmins.length} Account Admin
+              {accountAdmins.length === 1 ? "" : "s"}
+            </div>
+          </div>
+          <div className="dt-toolbar-right">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setTempPassword(null);
+                setAddAccountAdminOpen(true);
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add Account Admin
+            </button>
+          </div>
+        </div>
+
+        {accountAdmins.length === 0 ? (
+          <div
+            style={{
+              padding: "var(--if2-sp-24) var(--if2-sp-20)",
+              fontSize: 12,
+              color: "var(--if2-text-muted)",
+            }}
+          >
+            No Account Admins for this account yet.
+          </div>
+        ) : (
+          <table className="admin-users-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th className="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accountAdmins.map((admin) => (
+                <tr key={admin.id}>
+                  <td>
+                    {`${admin.firstName} ${admin.lastName}`.trim() || "—"}
+                  </td>
+                  <td>{admin.email}</td>
+                  <td>
+                    <span className="status-pill status-active">
+                      <span className="status-dot" />
+                      Active
+                    </span>
+                  </td>
+                  <td className="text-right">
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => handleDeactivateAdmin(admin, "account")}
+                    >
+                      Deactivate
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       {/* Projects table */}
       <div className="data-table-wrap">
         <div className="data-table-toolbar">
@@ -316,6 +512,7 @@ export default function AccountDetailPage() {
           <span>Code</span>
           <span>Status</span>
           <span className="text-center">Workers</span>
+          <span>Admins</span>
           <span className="text-right">Action</span>
         </div>
 
@@ -332,37 +529,145 @@ export default function AccountDetailPage() {
         ) : (
           projects.map((project) => {
             const pActive = project.status === "Active";
+            const admins = project.id
+              ? projectAdminsById[project.id] ?? []
+              : [];
+            const expanded = expandedProjectId === project.id;
             return (
-              <div className="proj-detail-grid" key={project.id || project.code}>
-                <div className="proj-name-cell">
-                  <span className={`proj-dot ${pActive ? "active" : "inactive"}`} />
-                  {project.name}
+              <div key={project.id || project.code}>
+                <div className="proj-detail-grid">
+                  <div className="proj-name-cell">
+                    <span className={`proj-dot ${pActive ? "active" : "inactive"}`} />
+                    {project.name}
+                  </div>
+                  <div>
+                    <span className="code-chip">{project.code}</span>
+                  </div>
+                  <div>
+                    <span className={`status-pill ${pActive ? "status-active" : "status-inactive"}`}>
+                      <span className="status-dot" />
+                      {pActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className="proj-workers">—</div>
+                  <div className="proj-admins-cell">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() =>
+                        setExpandedProjectId(
+                          expanded ? null : project.id || null,
+                        )
+                      }
+                      disabled={!project.id}
+                    >
+                      {admins.length} admin{admins.length === 1 ? "" : "s"}
+                      {expanded ? " ▴" : " ▾"}
+                    </button>
+                  </div>
+                  <div className="text-right">
+                    <button
+                      className="proj-go-btn"
+                      onClick={() =>
+                        router.push(
+                          projectAdminUploadersEntryPath(
+                            account.code,
+                            project.code,
+                          ),
+                        )
+                      }
+                    >
+                      Go to Project
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <span className="code-chip">{project.code}</span>
-                </div>
-                <div>
-                  <span className={`status-pill ${pActive ? "status-active" : "status-inactive"}`}>
-                    <span className="status-dot" />
-                    {pActive ? "Active" : "Inactive"}
-                  </span>
-                </div>
-                <div className="proj-workers">—</div>
-                <div className="text-right">
-                  <button
-                    className="proj-go-btn"
-                    onClick={() =>
-                      router.push(
-                        projectAdminUploadersEntryPath(account.code, project.code),
-                      )
-                    }
-                  >
-                    Go to Project
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </button>
-                </div>
+
+                {expanded && project.id ? (
+                  <div className="proj-admins-panel">
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: "var(--if2-navy)",
+                        }}
+                      >
+                        Project Admins — {project.name}
+                      </div>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => {
+                          setTempPassword(null);
+                          setAddProjectAdminFor(project);
+                        }}
+                      >
+                        Add Project Admin
+                      </button>
+                    </div>
+                    {admins.length === 0 ? (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--if2-text-muted)",
+                        }}
+                      >
+                        No Project Admins for this project yet.
+                      </div>
+                    ) : (
+                      <table className="admin-users-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th className="text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {admins.map((admin) => (
+                            <tr key={admin.id}>
+                              <td>
+                                {`${admin.firstName} ${admin.lastName}`.trim() ||
+                                  "—"}
+                              </td>
+                              <td>{admin.email}</td>
+                              <td>
+                                <span className="status-pill status-active">
+                                  <span className="status-dot" />
+                                  Active
+                                </span>
+                              </td>
+                              <td className="text-right">
+                                <button
+                                  className="btn btn-danger btn-sm"
+                                  onClick={() =>
+                                    handleDeactivateAdmin(
+                                      admin,
+                                      "project",
+                                      project.id,
+                                    )
+                                  }
+                                >
+                                  Deactivate
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                ) : null}
               </div>
             );
           })
@@ -386,6 +691,22 @@ export default function AccountDetailPage() {
         account={account}
         onClose={() => setEditOpen(false)}
         onSave={handleEditSave}
+      />
+      <AddAdminUserModal
+        isOpen={addAccountAdminOpen}
+        title="Add Account Admin"
+        roleLabel="Account Admin"
+        tempPassword={tempPassword}
+        onClose={closeAddAccountAdmin}
+        onCreate={handleCreateAccountAdmin}
+      />
+      <AddAdminUserModal
+        isOpen={!!addProjectAdminFor}
+        title={`Add Project Admin${addProjectAdminFor ? ` — ${addProjectAdminFor.name}` : ""}`}
+        roleLabel="Project Admin"
+        tempPassword={tempPassword}
+        onClose={closeAddProjectAdmin}
+        onCreate={handleCreateProjectAdmin}
       />
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
