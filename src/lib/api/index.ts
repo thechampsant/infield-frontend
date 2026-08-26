@@ -289,6 +289,14 @@ export type {
   UpdateCustomViewInput,
 } from "./custom-view-service";
 
+export { adminUsersService } from "./admin-users-service";
+export type {
+  AdminUser,
+  AdminUserRole,
+  CreateAdminUserInput,
+  CreateAdminUserResult,
+} from "./admin-users-service";
+
 // Re-export types
 export type { AdminApi } from "./admin";
 export * from "./types";
