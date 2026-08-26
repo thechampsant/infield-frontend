@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { adminUsersService, formatApiError, getAdminApi } from "@/lib/api";
 import type { AdminUser } from "@/lib/api/admin-users-service";
@@ -126,12 +126,6 @@ export default function AccountDetailPage() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  const stats = useMemo(() => {
-    const active = projects.filter((p) => p.status === "Active").length;
-    const inactive = projects.length - active;
-    return { total: projects.length, active, inactive };
-  }, [projects]);
 
   async function handleCreateProject(data: ProjectFormValues) {
     if (!account) return;
@@ -416,32 +410,6 @@ export default function AccountDetailPage() {
             <span className="status-dot" />
             {active ? "Active" : "Inactive"}
           </span>
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div className="stat-row">
-        <div className="stat-card">
-          <div className="stat-label">Total Projects</div>
-          <div className="stat-value">{stats.total}</div>
-          <div className="stat-sub">
-            {stats.active} active · {stats.inactive} inactive
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Total Workers</div>
-          <div className="stat-value">—</div>
-          <div className="stat-sub">Pending analytics API</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Active Managers</div>
-          <div className="stat-value">—</div>
-          <div className="stat-sub">Pending analytics API</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Attendance Today</div>
-          <div className="stat-value">—</div>
-          <div className="stat-sub">Pending analytics API</div>
         </div>
       </div>
 
