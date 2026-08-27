@@ -104,6 +104,14 @@ export interface AutoApprovalRulesDto {
   approveAllLevels?: boolean;
 }
 
+export interface RegularizationReasonOptionDto {
+  key: string;
+  label: string;
+  isActive?: boolean;
+  displayOrder?: number;
+  requiresRemarks?: boolean;
+}
+
 export interface RegularizationConfigDto {
   isEnabled: boolean;
   windowType: RegWindowType;
@@ -114,6 +122,7 @@ export interface RegularizationConfigDto {
   maxRequestsLimit?: number;
   isApprovalFlowEnabled: boolean;
   approvalHierarchy: string[];
+  reasonOptions?: RegularizationReasonOptionDto[];
   autoRejectRules?: string | AutoRejectRulesDto;
   autoApprovalRules?: AutoApprovalRulesDto;
 }
@@ -210,6 +219,11 @@ export interface ApprovalLevelForm {
   designationName: string;
 }
 
+export interface RegularizationReasonOptionForm extends RegularizationReasonOptionDto {
+  /** Present only after loading a saved row, used for inline key-change caution. */
+  originalKey?: string;
+}
+
 export interface AttendanceConfigForm {
   id?: string;
   name: string;
@@ -274,6 +288,7 @@ export interface AttendanceConfigForm {
   regMaxRequestCount: number;
   regApprovalEnabled: boolean;
   approvalLevels: ApprovalLevelForm[];
+  regReasonOptions: RegularizationReasonOptionForm[];
   autoApprovalEnabled: boolean;
   autoApprovalAfterDays: number;
   autoApprovalAllLevels: boolean;
@@ -303,6 +318,17 @@ export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
   { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
   { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
   { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+];
+
+export const DEFAULT_REGULARIZATION_REASON_OPTIONS: RegularizationReasonOptionForm[] = [
+  { key: "forgot_to_punch", label: "Forgot to Punch", isActive: true, displayOrder: 1, requiresRemarks: false },
+  { key: "system_biometric_error", label: "System / Biometric Error", isActive: true, displayOrder: 2, requiresRemarks: false },
+  { key: "client_visit_offsite", label: "Client Visit / Offsite", isActive: true, displayOrder: 3, requiresRemarks: false },
+  { key: "work_from_home", label: "Work From Home", isActive: true, displayOrder: 4, requiresRemarks: false },
+  { key: "on_duty_field_work", label: "On Duty - Field Work", isActive: true, displayOrder: 5, requiresRemarks: false },
+  { key: "emergency_medical", label: "Emergency / Medical", isActive: true, displayOrder: 6, requiresRemarks: false },
+  { key: "transport_issue", label: "Transport Issue", isActive: true, displayOrder: 7, requiresRemarks: false },
+  { key: "other", label: "Other", isActive: true, displayOrder: 99, requiresRemarks: true },
 ];
 
 export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
@@ -369,6 +395,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   regMaxRequestCount: 5,
   regApprovalEnabled: true,
   approvalLevels: [],
+  regReasonOptions: [],
   autoApprovalEnabled: false,
   autoApprovalAfterDays: 3,
   autoApprovalAllLevels: false,
@@ -508,6 +535,16 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
       Array.isArray(reg?.approvalHierarchy) && reg.approvalHierarchy.length
         ? reg.approvalHierarchy.map((id) => ({ designationId: id, designationName: '' }))
         : [],
+    regReasonOptions: Array.isArray(reg?.reasonOptions)
+      ? reg.reasonOptions.map((option) => ({
+          key: option.key ?? "",
+          label: option.label ?? "",
+          isActive: option.isActive ?? true,
+          displayOrder: option.displayOrder,
+          requiresRemarks: Boolean(option.requiresRemarks),
+          originalKey: option.key ?? "",
+        }))
+      : [],
     autoApprovalEnabled: Boolean(reg?.autoApprovalRules?.isEnabled),
     autoApprovalAfterDays: reg?.autoApprovalRules?.afterDays ?? DEFAULT_CONFIG_FORM.autoApprovalAfterDays,
     autoApprovalAllLevels: Boolean(reg?.autoApprovalRules?.approveAllLevels),
@@ -597,6 +634,15 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       approvalHierarchy: form.approvalLevels
         .map((a) => a.designationId.trim())
         .filter(Boolean),
+      reasonOptions: form.regReasonOptions.map((option) => ({
+        key: option.key.trim(),
+        label: option.label.trim(),
+        isActive: option.isActive ?? true,
+        displayOrder: Number.isFinite(Number(option.displayOrder))
+          ? Number(option.displayOrder)
+          : undefined,
+        requiresRemarks: Boolean(option.requiresRemarks),
+      })),
       autoApprovalRules: {
         isEnabled: form.autoApprovalEnabled,
         afterDays: form.autoApprovalAfterDays,

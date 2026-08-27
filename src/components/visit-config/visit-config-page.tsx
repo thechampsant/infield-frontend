@@ -518,8 +518,6 @@ export function VisitConfigPage({
       claimDistanceCapping: {
         isEnabled: editor.reimbursementEnabled && editor.claimDistanceCappingEnabled,
         maxDistanceKm: Number(editor.claimMaxDistanceKm) || 0,
-        perKmRate: Number(editor.perKmRate) || 0,
-        multiplicationFactor: Number(editor.multiplicationFactor) || 0,
       },
       ...(editor.visitType === "store" && editor.storeMappingMode === "pjp"
         ? { landingPageConfig: editor.landingPageConfig }

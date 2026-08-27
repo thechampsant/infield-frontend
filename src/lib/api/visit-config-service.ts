@@ -57,8 +57,6 @@ export interface VisitApprovalWorkflowConfig {
 export interface VisitClaimDistanceCappingConfig {
   isEnabled: boolean;
   maxDistanceKm: number;
-  perKmRate: number;
-  multiplicationFactor: number;
 }
 
 export interface VisitConfigDocument {
@@ -232,11 +230,6 @@ export function normalizeVisitConfig(
     claimDistanceCapping: {
       isEnabled: bool(claimDistanceCapping.isEnabled),
       maxDistanceKm: num(claimDistanceCapping.maxDistanceKm),
-      perKmRate: num(claimDistanceCapping.perKmRate, num(reimbursement.perKmRate)),
-      multiplicationFactor: num(
-        claimDistanceCapping.multiplicationFactor,
-        num(reimbursement.multiplicationFactor, 1),
-      ),
     },
     landingPageConfig: {
       udfSchemaKey: text(landing.udfSchemaKey),

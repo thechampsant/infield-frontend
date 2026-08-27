@@ -8,10 +8,12 @@ import type {
   PhotoDirection,
   PhotoSource,
   RegWindowType,
+  RegularizationReasonOptionForm,
   ShiftAssignmentMode,
 } from "@/lib/api/attendance-config";
 import {
   DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE,
+  DEFAULT_REGULARIZATION_REASON_OPTIONS,
   attendanceConfigService,
 } from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
@@ -1085,7 +1087,7 @@ function RegularizationSettings({
       <SettingRow
         label="Enable regularization"
         checked={form.regularizationEnabled}
-        onChange={(v) => onChange("regularizationEnabled", v)}
+        onChange={(v) => setRegularizationEnabled(form, onChange, v)}
       />
 
       {form.regularizationEnabled && (
@@ -1146,6 +1148,150 @@ function RegularizationSettings({
               <FieldError message={errors.regDateRange} />
             </>
           )}
+
+          <div className="section-divider">Reason options</div>
+          {form.regReasonOptions.filter((option) => option.isActive ?? true).length === 0 ? (
+            <div className="flat-mode-note" style={{ color: "var(--amber-700, #b45309)" }}>
+              No active regularization reasons are configured. Mobile will not show reason buttons for report-based regularization.
+            </div>
+          ) : null}
+          {form.regReasonOptions.length > 0 ? (
+            <div className="att-type-table-wrap">
+              <table className="att-type-table reg-reason-table">
+                <thead>
+                  <tr>
+                    <th>Label</th>
+                    <th>Key</th>
+                    <th>Active</th>
+                    <th>Requires remarks</th>
+                    <th>Order</th>
+                    <th>Reorder</th>
+                    <th>Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.regReasonOptions.map((reason, i) => (
+                    <tr key={`${reason.originalKey || reason.key || "reason"}-${i}`}>
+                      <td>
+                        <input
+                          className="form-input reg-reason-label"
+                          value={reason.label}
+                          onChange={(e) =>
+                            updateReasonOption(form, onChange, i, "label", e.target.value)
+                          }
+                          placeholder="Forgot to Punch"
+                        />
+                      </td>
+                      <td>
+                        <div className="reg-reason-key-cell">
+                          <input
+                            className="form-input reg-reason-key"
+                            value={reason.key}
+                            onChange={(e) =>
+                              updateReasonOption(form, onChange, i, "key", e.target.value)
+                            }
+                            placeholder="forgot_to_punch"
+                          />
+                          {reason.originalKey ? (
+                            <span className="reg-reason-caution">
+                              Changing this saved key may affect old records/reporting. Prefer renaming the label.
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
+                        <Toggle
+                          checked={reason.isActive ?? true}
+                          onChange={(v) => updateReasonOption(form, onChange, i, "isActive", v)}
+                        />
+                      </td>
+                      <td>
+                        <Toggle
+                          checked={Boolean(reason.requiresRemarks)}
+                          onChange={(v) =>
+                            updateReasonOption(form, onChange, i, "requiresRemarks", v)
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          className="wh-input reg-reason-order"
+                          min={0}
+                          value={reason.displayOrder ?? i + 1}
+                          onChange={(e) =>
+                            updateReasonOption(
+                              form,
+                              onChange,
+                              i,
+                              "displayOrder",
+                              numberValue(e.target.value),
+                            )
+                          }
+                        />
+                      </td>
+                      <td>
+                        <div className="reg-reason-reorder">
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            type="button"
+                            disabled={i === 0}
+                            onClick={() => moveReasonOption(form, onChange, i, -1)}
+                          >
+                            Up
+                          </button>
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            type="button"
+                            disabled={i === form.regReasonOptions.length - 1}
+                            onClick={() => moveReasonOption(form, onChange, i, 1)}
+                          >
+                            Down
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-danger-ghost"
+                          type="button"
+                          onClick={() => removeReasonOption(form, onChange, i)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flat-mode-note">
+              Add reasons admins want mobile users to choose while raising regularization.
+            </div>
+          )}
+          <FieldError message={errors.regReasonOptions} />
+          <div className="reg-reason-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={() => addReasonOption(form, onChange)}
+            >
+              + Add reason
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              disabled={form.regReasonOptions.length > 0}
+              onClick={() =>
+                onChange(
+                  "regReasonOptions",
+                  DEFAULT_REGULARIZATION_REASON_OPTIONS.map((option) => ({ ...option })),
+                )
+              }
+            >
+              Use defaults
+            </button>
+          </div>
 
           <div className="section-divider">Max requests</div>
           <SettingRow
@@ -1303,6 +1449,74 @@ function RegularizationSettings({
         </>
       )}
     </div>
+  );
+}
+
+function setRegularizationEnabled(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  enabled: boolean,
+) {
+  onChange("regularizationEnabled", enabled);
+  if (enabled && form.regReasonOptions.length === 0) {
+    onChange(
+      "regReasonOptions",
+      DEFAULT_REGULARIZATION_REASON_OPTIONS.map((option) => ({ ...option })),
+    );
+  }
+}
+
+function updateReasonOption<K extends keyof RegularizationReasonOptionForm>(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  idx: number,
+  field: K,
+  value: RegularizationReasonOptionForm[K],
+) {
+  onChange(
+    "regReasonOptions",
+    form.regReasonOptions.map((reason, i) =>
+      i === idx ? { ...reason, [field]: value } : reason,
+    ),
+  );
+}
+
+function addReasonOption(form: AttendanceConfigForm, onChange: ChangeFn) {
+  const nextOrder =
+    Math.max(0, ...form.regReasonOptions.map((reason) => Number(reason.displayOrder) || 0)) + 1;
+  onChange("regReasonOptions", [
+    ...form.regReasonOptions,
+    {
+      key: `new_reason_${nextOrder}`,
+      label: "New reason",
+      isActive: true,
+      displayOrder: nextOrder,
+      requiresRemarks: false,
+    },
+  ]);
+}
+
+function removeReasonOption(form: AttendanceConfigForm, onChange: ChangeFn, idx: number) {
+  onChange(
+    "regReasonOptions",
+    form.regReasonOptions.filter((_, i) => i !== idx),
+  );
+}
+
+function moveReasonOption(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  idx: number,
+  direction: -1 | 1,
+) {
+  const target = idx + direction;
+  if (target < 0 || target >= form.regReasonOptions.length) return;
+  const next = [...form.regReasonOptions];
+  const [moved] = next.splice(idx, 1);
+  next.splice(target, 0, moved);
+  onChange(
+    "regReasonOptions",
+    next.map((reason, i) => ({ ...reason, displayOrder: i + 1 })),
   );
 }
 
