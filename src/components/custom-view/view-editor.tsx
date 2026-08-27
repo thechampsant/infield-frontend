@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Upload, X } from "lucide-react";
 import {
   customViewService,
@@ -122,6 +122,8 @@ export function ViewEditor({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUploader, setShowUploader] = useState(!view.latestFileName);
+  const persistPromiseRef = useRef<Promise<CustomViewConfiguration | void> | null>(null);
+  const viewIdRef = useRef(view.id);
   const month = view.periodMonth;
   const year = view.periodYear;
 
@@ -137,6 +139,49 @@ export function ViewEditor({
     setShowUploader(!view.latestFileName);
   }, [view.latestFileName]);
 
+  useEffect(() => {
+    viewIdRef.current = view.id;
+  }, [view.id]);
+
+  async function persistView(next: DraftView): Promise<CustomViewConfiguration> {
+    const payload = {
+      name: next.name.trim(),
+      taggingLogic: next.taggingLogic,
+      columnStructure: next.columnStructure,
+    };
+    const id = viewIdRef.current ?? next.id;
+    const saved = id
+      ? await customViewService.update(projectId, id, payload)
+      : await customViewService.create({ projectId, designationId, ...payload });
+    viewIdRef.current = saved.id;
+    onSaved(saved, next.localId);
+    return saved;
+  }
+
+  function persistColumnStructure(columnStructure: CustomViewColumnNode[]) {
+    const nextView = { ...view, columnStructure };
+    onChange(nextView);
+    if (!isViewConfigured(nextView)) {
+      onError("Name, tagging, and the locked identity column are required.");
+      return;
+    }
+    setSaving(true);
+    const run = (async () => {
+      try {
+        return await persistView(nextView);
+      } catch (err) {
+        onError(formatApiError(err, "Failed to save view"));
+        throw err;
+      } finally {
+        setSaving(false);
+      }
+    })();
+    persistPromiseRef.current = run;
+    void run.finally(() => {
+      if (persistPromiseRef.current === run) persistPromiseRef.current = null;
+    });
+  }
+
   async function handleSave() {
     if (!isViewConfigured(view)) {
       onError("Name, tagging, and the locked identity column are required.");
@@ -144,15 +189,7 @@ export function ViewEditor({
     }
     setSaving(true);
     try {
-      const payload = {
-        name: view.name.trim(),
-        taggingLogic: view.taggingLogic,
-        columnStructure: view.columnStructure,
-      };
-      const saved = view.id
-        ? await customViewService.update(projectId, view.id, payload)
-        : await customViewService.create({ projectId, designationId, ...payload });
-      onSaved(saved, view.localId);
+      await persistView(view);
     } catch (err) {
       onError(formatApiError(err, "Failed to save view"));
     } finally {
@@ -161,12 +198,20 @@ export function ViewEditor({
   }
 
   async function handleDownload() {
-    if (!view.id) {
+    try {
+      if (persistPromiseRef.current) {
+        await persistPromiseRef.current;
+      }
+    } catch {
+      return;
+    }
+    const id = viewIdRef.current;
+    if (!id) {
       onError("Save the view before downloading a template.");
       return;
     }
     try {
-      const blob = await customViewService.downloadTemplate(projectId, view.id, month, year);
+      const blob = await customViewService.downloadTemplate(projectId, id, month, year);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -237,7 +282,9 @@ export function ViewEditor({
 
       <ColumnStructureBuilder
         structure={view.columnStructure}
+        busy={saving || uploading}
         onChange={(columnStructure) => onChange({ ...view, columnStructure })}
+        onReorder={persistColumnStructure}
       />
 
       <div className="cv-excel-period">

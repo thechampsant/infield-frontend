@@ -238,7 +238,7 @@
 
 .custom-view-page .cv-col-row {
   display: grid;
-  grid-template-columns: 110px 1fr 120px 32px;
+  grid-template-columns: 110px 1fr 120px 32px 32px 32px;
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
@@ -333,6 +333,11 @@
   justify-content: center;
   cursor: pointer;
   color: var(--text-mid, #3a5272);
+}
+
+.custom-view-page .cv-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .custom-view-page .cv-actions {
