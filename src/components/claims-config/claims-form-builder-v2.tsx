@@ -290,9 +290,13 @@ function expressionFromFormulaTerms(terms: FormulaTerm[]): Array<Record<string, 
   });
 }
 
-function numericChildFields(group: UdfSchemaField | undefined): UdfSchemaField[] {
+function formulaEligibleChildFields(group: UdfSchemaField | undefined): UdfSchemaField[] {
   if (!group) return [];
-  return childFields(group).filter((field) => field.status !== false && (field.type === "NUMBER" || field.type === "FORMULA"));
+  return childFields(group).filter(
+    (field) =>
+      field.status !== false
+      && (field.type === "NUMBER" || field.type === "FORMULA" || field.type === "CASCADING_SELECT"),
+  );
 }
 
 function datasourceKeysFromFields(fields: UdfSchemaField[]): string[] {
@@ -863,9 +867,11 @@ export function ClaimsFormBuilderV2({
     const parentIndex = selectedChild.parentIndex;
     const childIndex = selectedChild.childIndex;
     const childConfig = configRecord(selectedChildField);
-    const formulaNumberFields = childFields(fields[parentIndex])
+    const formulaSourceFields = childFields(fields[parentIndex])
       .filter((field, index) =>
-        index !== childIndex && field.status !== false && field.type === "NUMBER",
+        index !== childIndex
+        && field.status !== false
+        && (field.type === "NUMBER" || field.type === "CASCADING_SELECT"),
       );
     const formulaTerms = formulaTermsFromExpression(childConfig.expression);
     const commitChildFormulaTerms = (terms: FormulaTerm[]) => {
@@ -1323,9 +1329,9 @@ export function ClaimsFormBuilderV2({
           <>
             <div className="claims-fb-formGroup">
               <label>Formula Expression</label>
-              {formulaNumberFields.length === 0 ? (
+              {formulaSourceFields.length === 0 ? (
                 <p className="claims-fb-propertiesHint">
-                  Add a NUMBER child field before configuring this formula.
+                  Add a NUMBER or Cascading Select child field before configuring this formula.
                 </p>
               ) : (
                 <div className="claims-fb-formulaBuilder">
@@ -1340,8 +1346,8 @@ export function ClaimsFormBuilderV2({
                           commitChildFormulaTerms(next);
                         }}
                       >
-                        <option value="">Select number field...</option>
-                        {formulaNumberFields.map((field) => (
+                        <option value="">Select field...</option>
+                        {formulaSourceFields.map((field) => (
                           <option key={field.fieldKey} value={field.fieldKey}>
                             {field.label} ({field.fieldKey})
                           </option>
@@ -1395,7 +1401,7 @@ export function ClaimsFormBuilderV2({
                           operator: next[next.length - 1].operator || "ADD",
                         };
                       }
-                      next.push({ fieldKey: formulaNumberFields[0]?.fieldKey ?? "" });
+                      next.push({ fieldKey: formulaSourceFields[0]?.fieldKey ?? "" });
                       commitChildFormulaTerms(next);
                     }}
                   >
@@ -2456,8 +2462,8 @@ export function ClaimsFormBuilderV2({
                             });
                           }}
                         >
-                          <option value="">Select numeric field...</option>
-                          {numericChildFields(
+                          <option value="">Select field...</option>
+                          {formulaEligibleChildFields(
                             fields.find(
                               (field) =>
                                 field.fieldKey ===
