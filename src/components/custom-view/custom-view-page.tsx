@@ -7,22 +7,10 @@ import {
   customViewService,
   designationService,
   formatApiError,
-  roleService,
-  type BackendRole,
   type CustomViewConfiguration,
   type Designation,
 } from "@/lib/api";
-import type { PermissionOption } from "@/lib/api/designation-service";
-import {
-  accessForRole,
-  permissionsForRole,
-  type DesignationAccess,
-} from "@/lib/designations/backend-roles";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
-import {
-  AddDesignationModal,
-  type NewDesignationInput,
-} from "@/components/designations/add-designation-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { DesignationPicker } from "./designation-picker";
@@ -31,14 +19,43 @@ import { ViewManagementTable } from "./view-management-table";
 import {
   configToDraft,
   createEmptyDraft,
+  currentIstPeriod,
   type DraftView,
 } from "./view-editor";
+
+const PAGE_SIZE = 20;
 
 interface Props {
   projectId: string;
   projectName: string;
   accountCode: string;
   projectCode: string;
+}
+
+function draftToPendingConfig(
+  designationId: string,
+  view: DraftView,
+): CustomViewConfiguration {
+  return {
+    id: view.id!,
+    projectId: "",
+    designationId,
+    designationName: "",
+    designationCode: "",
+    name: view.name || "Untitled view",
+    taggingLogic: view.taggingLogic,
+    columnStructure: view.columnStructure,
+    columnCount: view.columnStructure.length,
+    status: view.status || "draft",
+    latestPeriodMonth: view.periodMonth,
+    latestPeriodYear: view.periodYear,
+    latestFileName: view.latestFileName ?? null,
+    latestFileSize: view.latestFileSize ?? null,
+    latestRowCount: view.latestRowCount ?? 0,
+    latestUploadedAt: null,
+    updatedAt: null,
+    createdAt: null,
+  };
 }
 
 export function CustomViewPage({
@@ -49,9 +66,11 @@ export function CustomViewPage({
 }: Props) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [designations, setDesignations] = useState<Designation[]>([]);
-  const [roles, setRoles] = useState<BackendRole[]>([]);
-  const [permissionOptions, setPermissionOptions] = useState<PermissionOption[]>([]);
   const [configs, setConfigs] = useState<CustomViewConfiguration[]>([]);
+  const [tableViews, setTableViews] = useState<CustomViewConfiguration[]>([]);
+  const [tableTotal, setTableTotal] = useState(0);
+  const [tablePage, setTablePage] = useState(1);
+  const [tableLoading, setTableLoading] = useState(false);
   const [draftsByDesignation, setDraftsByDesignation] = useState<
     Record<string, DraftView[]>
   >({});
@@ -60,24 +79,49 @@ export function CustomViewPage({
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "paused" | "draft"
   >("all");
+  const initialPeriod = currentIstPeriod();
+  const [downloadMonth, setDownloadMonth] = useState(initialPeriod.month);
+  const [downloadYear, setDownloadYear] = useState(initialPeriod.year);
   const [loading, setLoading] = useState(true);
-  const [addOpen, setAddOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<CustomViewConfiguration | null>(
     null,
   );
   const didAutoSelect = useRef(false);
 
-  const roleById = useMemo(
-    () => new Map(roles.map((role) => [role.id, role] as const)),
-    [roles],
-  );
+  const yearOptions = useMemo(() => {
+    const current = currentIstPeriod().year;
+    return [...new Set([current - 2, current - 1, current, current + 1, downloadYear])].sort(
+      (a, b) => a - b,
+    );
+  }, [downloadYear]);
+
+  const loadTable = useCallback(async () => {
+    if (!projectId) return;
+    setTableLoading(true);
+    try {
+      const page = await customViewService.listPage(projectId, {
+        page: tablePage,
+        limit: PAGE_SIZE,
+        status: statusFilter,
+      });
+      setTableViews(page.items);
+      setTableTotal(page.total);
+    } catch (err) {
+      setToast({
+        message: formatApiError(err, "Failed to load View Management"),
+        type: "error",
+      });
+    } finally {
+      setTableLoading(false);
+    }
+  }, [projectId, tablePage, statusFilter]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
     try {
-      const [designationResult, viewResult, roleList, permissionList] = await Promise.all([
+      const [designationResult, viewResult] = await Promise.all([
         designationService.listByProject(projectId),
         customViewService.list(projectId).then(
           (views) => ({ views, error: null as string | null }),
@@ -86,14 +130,10 @@ export function CustomViewPage({
             error: formatApiError(err, "Failed to load Custom View configurations"),
           }),
         ),
-        roleService.listByProject(projectId).catch(() => []),
-        designationService.listPermissionOptions(projectId).catch(() => []),
       ]);
 
       setDesignations(designationResult);
       setConfigs(viewResult.views);
-      setRoles(roleList);
-      setPermissionOptions(permissionList);
 
       const grouped: Record<string, DraftView[]> = {};
       for (const view of viewResult.views) {
@@ -128,6 +168,10 @@ export function CustomViewPage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadTable();
+  }, [loadTable]);
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setSelectedIds(ids);
@@ -168,6 +212,15 @@ export function CustomViewPage({
       }
       return [...prev, saved];
     });
+    setTableViews((prev) => {
+      const index = prev.findIndex((item) => item.id === saved.id);
+      if (index >= 0) {
+        const next = [...prev];
+        next[index] = saved;
+        return next;
+      }
+      return prev;
+    });
     setDraftsByDesignation((prev) => {
       const list = prev[saved.designationId] || [];
       return {
@@ -185,8 +238,9 @@ export function CustomViewPage({
 
   const handleSaved = useCallback((saved: CustomViewConfiguration, localId: string) => {
     upsertSaved(saved, localId);
+    void loadTable();
     setToast({ message: "View saved", type: "success" });
-  }, [upsertSaved]);
+  }, [upsertSaved, loadTable]);
 
   const handleEdit = useCallback((view: CustomViewConfiguration) => {
     setSelectedIds((prev) =>
@@ -208,12 +262,13 @@ export function CustomViewPage({
       try {
         const saved = await customViewService.pause(projectId, view.id);
         upsertSaved(saved, view.id);
+        void loadTable();
         setToast({ message: "View paused", type: "success" });
       } catch (err) {
         setToast({ message: formatApiError(err, "Failed to pause view"), type: "error" });
       }
     },
-    [projectId, upsertSaved],
+    [projectId, upsertSaved, loadTable],
   );
 
   const handleResume = useCallback(
@@ -221,12 +276,31 @@ export function CustomViewPage({
       try {
         const saved = await customViewService.resume(projectId, view.id);
         upsertSaved(saved, view.id);
+        void loadTable();
         setToast({ message: "View resumed", type: "success" });
       } catch (err) {
         setToast({ message: formatApiError(err, "Failed to resume view"), type: "error" });
       }
     },
-    [projectId, upsertSaved],
+    [projectId, upsertSaved, loadTable],
+  );
+
+  const handleRemoveFromCard = useCallback(
+    (designationId: string, view: DraftView) => {
+      if (!view.id) {
+        setDraftsByDesignation((prev) => ({
+          ...prev,
+          [designationId]: (prev[designationId] || []).filter(
+            (item) => item.localId !== view.localId,
+          ),
+        }));
+        setExpandedViewId((current) => (current === view.localId ? null : current));
+        return;
+      }
+      const existing = configs.find((item) => item.id === view.id);
+      setPendingRemove(existing || draftToPendingConfig(designationId, view));
+    },
+    [configs],
   );
 
   const handleConfirmRemove = useCallback(async () => {
@@ -243,58 +317,64 @@ export function CustomViewPage({
       }));
       setExpandedViewId((current) => (current === pendingRemove.id ? null : current));
       setPendingRemove(null);
+      setTableTotal((prev) => {
+        const next = Math.max(0, prev - 1);
+        const maxPage = Math.max(1, Math.ceil(next / PAGE_SIZE));
+        if (tablePage > maxPage) {
+          setTablePage(maxPage);
+        } else {
+          void loadTable();
+        }
+        return next;
+      });
       setToast({ message: "View removed", type: "success" });
     } catch (err) {
       setToast({ message: formatApiError(err, "Failed to remove view"), type: "error" });
     } finally {
       setRemoving(false);
     }
-  }, [pendingRemove, projectId]);
+  }, [pendingRemove, projectId, loadTable, tablePage]);
 
-  const handleCreateDesignation = useCallback(
-    async (items: NewDesignationInput[]) => {
-      const payload = items.map((item) => {
-        const role = roleById.get(item.roleId);
-        const roleName = role?.roleName ?? "";
-        const itemAccess = item.access as DesignationAccess | undefined;
-        const access = itemAccess || accessForRole(roleName);
-        return {
+  const handleDownloadData = useCallback(
+    async (view: CustomViewConfiguration) => {
+      try {
+        const blob = await customViewService.downloadData(
           projectId,
-          name: item.name,
-          externalCode: item.name,
-          roleId: item.roleId,
-          permissions: item.permissions?.length
-            ? item.permissions
-            : permissionsForRole(roleName),
-          access,
-        };
-      });
-      await designationService.create(payload);
-      setAddOpen(false);
-      setToast({
-        message:
-          items.length > 1
-            ? `${items.length} designations created.`
-            : "Designation created.",
-        type: "success",
-      });
-      const previousIds = new Set(designations.map((item) => item.id));
-      const nextDesignations = await designationService.listByProject(projectId);
-      setDesignations(nextDesignations);
-      const created = nextDesignations.filter((item) => !previousIds.has(item.id));
-      if (created.length > 0) {
-        setSelectedIds((prev) => [...prev, ...created.map((item) => item.id)]);
-        setDraftsByDesignation((prev) => {
-          const next = { ...prev };
-          for (const item of created) {
-            if (!next[item.id]) next[item.id] = [];
-          }
-          return next;
-        });
+          view.id,
+          downloadMonth,
+          downloadYear,
+        );
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `${view.name || "custom-view"}_${String(downloadMonth).padStart(2, "0")}-${downloadYear}.xlsx`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        setToast({ message: formatApiError(err, "Failed to download data"), type: "error" });
       }
     },
-    [projectId, roleById, designations],
+    [projectId, downloadMonth, downloadYear],
   );
+
+  const handleStatusFilterChange = useCallback(
+    (value: "all" | "active" | "paused" | "draft") => {
+      setStatusFilter(value);
+      setTablePage(1);
+    },
+    [],
+  );
+
+  const removeConfirmMessage = useMemo(() => {
+    if (!pendingRemove) return "";
+    const name = pendingRemove.name || "this view";
+    if (pendingRemove.status === "active") {
+      return `Remove "${name}"? Field users will no longer see this view, and month data will no longer be downloadable from this screen. This cannot be undone.`;
+    }
+    return `Remove "${name}"? Field users will no longer see this view, and month data will no longer be downloadable from this screen. This cannot be undone.`;
+  }, [pendingRemove]);
 
   const selectedDesignations = useMemo(
     () => designations.filter((item) => selectedIds.includes(item.id)),
@@ -335,7 +415,6 @@ export function CustomViewPage({
           designations={designations}
           selectedIds={selectedIds}
           onChange={handleSelectionChange}
-          onAddNew={() => setAddOpen(true)}
         />
         {loading ? (
           <div className="cv-empty">Loading views…</div>
@@ -359,6 +438,7 @@ export function CustomViewPage({
                 handleChangeView(designation.id, localId, view)
               }
               onAddView={() => handleAddView(designation.id)}
+              onRemoveView={(view) => handleRemoveFromCard(designation.id, view)}
               onSaved={handleSaved}
               onError={(message) => setToast({ message, type: "error" })}
             />
@@ -368,14 +448,27 @@ export function CustomViewPage({
 
       <section className="cv-section">
         <ViewManagementTable
-          views={configs}
+          views={tableViews}
           designations={designations}
           statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
+          onStatusFilterChange={handleStatusFilterChange}
+          downloadMonth={downloadMonth}
+          downloadYear={downloadYear}
+          yearOptions={yearOptions}
+          onDownloadPeriodChange={(month, year) => {
+            setDownloadMonth(month);
+            setDownloadYear(year);
+          }}
+          page={tablePage}
+          pageSize={PAGE_SIZE}
+          total={tableTotal}
+          onPageChange={setTablePage}
+          loading={tableLoading}
           onEdit={handleEdit}
           onPause={handlePause}
           onResume={handleResume}
           onRemove={setPendingRemove}
+          onDownloadData={(view) => void handleDownloadData(view)}
         />
       </section>
 
@@ -384,22 +477,10 @@ export function CustomViewPage({
         onClose={() => !removing && setPendingRemove(null)}
         onConfirm={() => void handleConfirmRemove()}
         title="Remove view"
-        message={
-          pendingRemove
-            ? `Remove "${pendingRemove.name}"? Field users will no longer see this view. This cannot be undone.`
-            : ""
-        }
+        message={removeConfirmMessage}
         confirmLabel="Remove"
         variant="danger"
         isLoading={removing}
-      />
-
-      <AddDesignationModal
-        isOpen={addOpen}
-        roles={roles}
-        permissionOptions={permissionOptions}
-        onClose={() => setAddOpen(false)}
-        onCreate={handleCreateDesignation}
       />
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />

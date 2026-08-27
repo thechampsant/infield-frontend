@@ -1,21 +1,19 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 import type { Designation } from "@/lib/api";
 
 interface Props {
   designations: Designation[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
-  onAddNew?: () => void;
 }
 
 export function DesignationPicker({
   designations,
   selectedIds,
   onChange,
-  onAddNew,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -53,7 +51,7 @@ export function DesignationPicker({
         >
           <span>
             {selectedIds.length === 0
-              ? "Search or add a new designation"
+              ? "Search designations"
               : `${selectedIds.length} selected`}
           </span>
           <ChevronDown size={16} />
@@ -64,12 +62,6 @@ export function DesignationPicker({
         <button type="button" className="cv-btn cv-btn-sm cv-btn-secondary" onClick={() => onChange([])}>
           Clear All
         </button>
-        {onAddNew && (
-          <button type="button" className="cv-btn cv-btn-sm cv-btn-secondary" onClick={onAddNew}>
-            <Plus size={12} />
-            Add new
-          </button>
-        )}
       </div>
       {open && (
         <div className="cv-selector-dropdown">
