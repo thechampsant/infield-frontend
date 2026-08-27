@@ -225,6 +225,34 @@ export function ViewEditor({
     }
   }
 
+  async function handleDownloadData() {
+    try {
+      if (persistPromiseRef.current) {
+        await persistPromiseRef.current;
+      }
+    } catch {
+      return;
+    }
+    const id = viewIdRef.current;
+    if (!id) {
+      onError("Save the view before downloading data.");
+      return;
+    }
+    try {
+      const blob = await customViewService.downloadData(projectId, id, month, year);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${view.name || "custom-view"}_${String(month).padStart(2, "0")}-${year}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      onError(formatApiError(err, "Failed to download data"));
+    }
+  }
+
   async function handleUpload(file: File) {
     if (!view.id) {
       onError("Save the view before uploading data.");
@@ -291,8 +319,8 @@ export function ViewEditor({
         <div>
           <div className="cv-label">Excel period for this view</div>
           <div className="cv-muted">
-            Download template and upload apply only to this month. Save view does not
-            change period.
+            Download template, download data, and upload apply only to this month. Save view does
+            not change period.
           </div>
         </div>
         <div className="cv-period">
@@ -324,10 +352,16 @@ export function ViewEditor({
       </div>
 
       <div className="cv-field-row">
-        <button type="button" className="cv-btn cv-btn-secondary" onClick={handleDownload} disabled={!view.id}>
-          <Download size={14} />
-          Download template
-        </button>
+        <div className="cv-actions" style={{ justifyContent: "flex-start" }}>
+          <button type="button" className="cv-btn cv-btn-secondary" onClick={handleDownload} disabled={!view.id}>
+            <Download size={14} />
+            Download template
+          </button>
+          <button type="button" className="cv-btn cv-btn-secondary" onClick={handleDownloadData} disabled={!view.id}>
+            <Download size={14} />
+            Download data
+          </button>
+        </div>
         <div className="cv-field">
           {fileLabel && !showUploader ? (
             <div className="cv-file">

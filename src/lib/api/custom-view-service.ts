@@ -43,6 +43,13 @@ export interface CustomViewUploadResult {
   rowCount: number;
 }
 
+export interface CustomViewListPage {
+  items: CustomViewConfiguration[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export interface CreateCustomViewInput {
   projectId: string;
   designationId: string;
@@ -128,6 +135,32 @@ export const customViewService = {
     return Array.isArray(result) ? result.map(normalizeConfig) : [];
   },
 
+  async listPage(
+    projectId: string,
+    options: {
+      page: number;
+      limit?: number;
+      status?: CustomViewStatus | "all";
+      designationId?: string;
+    },
+  ): Promise<CustomViewListPage> {
+    const extra: Record<string, string | number> = {
+      page: options.page,
+      limit: options.limit ?? 20,
+    };
+    if (options.designationId) extra.designationId = options.designationId;
+    if (options.status && options.status !== "all") extra.status = options.status;
+    const result = await apiClient.get<unknown>(`${BASE}?${qs(projectId, extra)}`);
+    const payload = record(result);
+    const items = Array.isArray(payload.items) ? payload.items.map(normalizeConfig) : [];
+    return {
+      items,
+      total: asNumber(payload.total),
+      page: asNumber(payload.page, options.page),
+      limit: asNumber(payload.limit, options.limit ?? 20),
+    };
+  },
+
   async get(projectId: string, id: string): Promise<CustomViewConfiguration> {
     const result = await apiClient.get<unknown>(`${BASE}/${encodeURIComponent(id)}?${qs(projectId)}`);
     return normalizeConfig(result);
@@ -189,6 +222,12 @@ export const customViewService = {
   downloadTemplate(projectId: string, id: string, month: number, year: number): Promise<Blob> {
     return apiClient.getBlob(
       `${BASE}/${encodeURIComponent(id)}/template?${qs(projectId, { month, year })}`,
+    );
+  },
+
+  downloadData(projectId: string, id: string, month: number, year: number): Promise<Blob> {
+    return apiClient.getBlob(
+      `${BASE}/${encodeURIComponent(id)}/export?${qs(projectId, { month, year })}`,
     );
   },
 

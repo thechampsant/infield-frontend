@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { CustomViewConfiguration, Designation } from "@/lib/api";
 import { ViewEditor, isViewConfigured, type DraftView } from "./view-editor";
@@ -13,6 +13,7 @@ interface Props {
   onToggleView: (localId: string) => void;
   onChangeView: (localId: string, view: DraftView) => void;
   onAddView: () => void;
+  onRemoveView: (view: DraftView) => void;
   onSaved: (saved: CustomViewConfiguration, localId: string) => void;
   onError: (message: string) => void;
 }
@@ -25,6 +26,7 @@ export function DesignationViewsCard({
   onToggleView,
   onChangeView,
   onAddView,
+  onRemoveView,
   onSaved,
   onError,
 }: Props) {
@@ -53,9 +55,20 @@ export function DesignationViewsCard({
                   <button type="button" className="cv-btn cv-btn-secondary" onClick={() => onToggleView(view.localId)}>
                     {view.name || "Untitled view"}
                   </button>
-                  <span className={`cv-badge ${configured ? "cv-badge-ready" : "cv-badge-incomplete"}`}>
-                    {configured ? "Configured" : "Incomplete"}
-                  </span>
+                  <div className="cv-actions">
+                    <span className={`cv-badge ${configured ? "cv-badge-ready" : "cv-badge-incomplete"}`}>
+                      {configured ? "Configured" : "Incomplete"}
+                    </span>
+                    <button
+                      type="button"
+                      className="cv-icon-btn"
+                      title="Remove view"
+                      aria-label={`Remove ${view.name || "untitled view"}`}
+                      onClick={() => onRemoveView(view)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 {expanded && (
                   <ViewEditor

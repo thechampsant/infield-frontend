@@ -283,6 +283,7 @@ export type {
   CustomViewColumnNodeType,
   CustomViewColumnValueType,
   CustomViewConfiguration,
+  CustomViewListPage,
   CustomViewStatus,
   CustomViewTaggingLogic,
   CustomViewUploadResult,
