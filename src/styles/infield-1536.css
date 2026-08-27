@@ -706,6 +706,44 @@
   width: 104px;
   min-width: 104px;
 }
+.att-config-page .reg-reason-table {
+  min-width: 980px;
+}
+.att-config-page .reg-reason-label {
+  min-width: 180px;
+}
+.att-config-page .reg-reason-key-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.att-config-page .reg-reason-key {
+  min-width: 210px;
+  font-family: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+}
+.att-config-page .reg-reason-caution {
+  max-width: 240px;
+  color: var(--color-warning);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+}
+.att-config-page .reg-reason-order {
+  width: 76px;
+  min-width: 76px;
+}
+.att-config-page .reg-reason-reorder,
+.att-config-page .reg-reason-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.att-config-page .reg-reason-reorder {
+  justify-content: center;
+}
 
 /* ── Approval flow ────────────────────────────────────────────────────────── */
 

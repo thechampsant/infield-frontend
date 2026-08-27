@@ -960,6 +960,35 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
     ) {
       errors.autoRejectAfterDays = "Auto reject days must be between 0 and 90.";
     }
+
+    const seenReasonKeys = new Set<string>();
+    const duplicateReasonKeys = new Set<string>();
+    for (const reason of form.regReasonOptions) {
+      const key = reason.key.trim();
+      const label = reason.label.trim();
+      if (!label) {
+        errors.regReasonOptions = "Regularization reason labels are required.";
+        break;
+      }
+      if (!key) {
+        errors.regReasonOptions = "Regularization reason keys are required.";
+        break;
+      }
+      if (!/^[a-z0-9_]+$/.test(key)) {
+        errors.regReasonOptions =
+          "Regularization reason keys can use only lowercase letters, numbers, and underscores.";
+        break;
+      }
+      if (seenReasonKeys.has(key)) {
+        duplicateReasonKeys.add(key);
+      }
+      seenReasonKeys.add(key);
+    }
+    if (duplicateReasonKeys.size > 0) {
+      errors.regReasonOptions = `Duplicate regularization reason key: ${Array.from(
+        duplicateReasonKeys,
+      ).join(", ")}`;
+    }
   }
 
   if (form.randomAttendanceEnabled) {
