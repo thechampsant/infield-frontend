@@ -9,11 +9,22 @@ import {
   type AdminAccessArea,
 } from "@/lib/auth/permissions";
 
+export interface ApprovalsDesignationOption {
+  id: string;
+  label: string;
+}
+
 export interface AddAdminUserFormValues {
   firstName: string;
   lastName: string;
   email: string;
   adminAccess?: AdminAccessArea[];
+}
+
+export interface SaveProjectAdminAccessValues {
+  adminAccess: AdminAccessArea[];
+  /** null clears the linked designation. */
+  designationId: string | null;
 }
 
 export function AddAdminUserModal({
@@ -24,6 +35,10 @@ export function AddAdminUserModal({
   showSetupAccess = false,
   accessOnly = false,
   initialAdminAccess,
+  showApprovalsDesignation = false,
+  approvalsDesignationOptions = [],
+  initialDesignationId = null,
+  designationsLoading = false,
   onClose,
   onCreate,
   onSaveAccess,
@@ -36,9 +51,13 @@ export function AddAdminUserModal({
   showSetupAccess?: boolean;
   accessOnly?: boolean;
   initialAdminAccess?: AdminAccessArea[];
+  showApprovalsDesignation?: boolean;
+  approvalsDesignationOptions?: ApprovalsDesignationOption[];
+  initialDesignationId?: string | null;
+  designationsLoading?: boolean;
   onClose: () => void;
   onCreate?: (data: AddAdminUserFormValues) => Promise<void>;
-  onSaveAccess?: (adminAccess: AdminAccessArea[]) => Promise<void>;
+  onSaveAccess?: (data: SaveProjectAdminAccessValues) => Promise<void>;
 }) {
   const [form, setForm] = useState<AddAdminUserFormValues>({
     firstName: "",
@@ -46,6 +65,7 @@ export function AddAdminUserModal({
     email: "",
     adminAccess: [...DEFAULT_PROJECT_ADMIN_ACCESS],
   });
+  const [designationId, setDesignationId] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -60,11 +80,12 @@ export function AddAdminUserModal({
           ? [...initialAdminAccess]
           : [...DEFAULT_PROJECT_ADMIN_ACCESS],
       });
+      setDesignationId(initialDesignationId ?? "");
       setErrors({});
       setSubmitting(false);
       setCopied(false);
     }
-  }, [isOpen, tempPassword, initialAdminAccess]);
+  }, [isOpen, tempPassword, initialAdminAccess, initialDesignationId]);
 
   if (!isOpen) return null;
 
@@ -97,7 +118,12 @@ export function AddAdminUserModal({
     setSubmitting(true);
     try {
       if (accessOnly) {
-        await onSaveAccess?.(form.adminAccess ?? []);
+        await onSaveAccess?.({
+          adminAccess: form.adminAccess ?? [],
+          designationId: showApprovalsDesignation
+            ? designationId || null
+            : (initialDesignationId ?? null),
+        });
       } else if (onCreate) {
         await onCreate({
           firstName: form.firstName.trim(),
@@ -156,6 +182,48 @@ export function AddAdminUserModal({
       </div>
       {errors.adminAccess && (
         <div className="form-error">{errors.adminAccess}</div>
+      )}
+    </div>
+  );
+
+  const approvalsDesignationField = showApprovalsDesignation && accessOnly && (
+    <div className="form-group">
+      <label className="form-label">Approvals designation</label>
+      <p
+        style={{
+          margin: "0 0 8px",
+          fontSize: 12,
+          color: "var(--if2-text-muted)",
+        }}
+      >
+        Optional. Link a same-project Manager designation so this Project Admin
+        can approve on mobile and web inbox.
+      </p>
+      <select
+        className={`form-input ${errors.designationId ? "error" : ""}`}
+        value={designationId}
+        disabled={designationsLoading || submitting}
+        onChange={(e) => setDesignationId(e.target.value)}
+      >
+        <option value="">None — setup only</option>
+        {approvalsDesignationOptions.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {designationsLoading && (
+        <div style={{ fontSize: 12, color: "var(--if2-text-muted)", marginTop: 6 }}>
+          Loading designations…
+        </div>
+      )}
+      {!designationsLoading && approvalsDesignationOptions.length === 0 && (
+        <div style={{ fontSize: 12, color: "var(--if2-text-muted)", marginTop: 6 }}>
+          No Manager designations in this project yet.
+        </div>
+      )}
+      {errors.designationId && (
+        <div className="form-error">{errors.designationId}</div>
       )}
     </div>
   );
@@ -274,6 +342,7 @@ export function AddAdminUserModal({
               )}
 
               {setupAccessFields}
+              {approvalsDesignationField}
             </>
           )}
         </div>

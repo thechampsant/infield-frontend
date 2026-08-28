@@ -16,6 +16,8 @@ export interface AdminUser {
   projectId?: string | null;
   isActive?: boolean;
   adminAccess?: AdminAccessArea[];
+  /** Linked Manager designation for field approvals (Project Admin only). */
+  designationId?: string | null;
 }
 
 export interface CreateAdminUserInput {
@@ -33,6 +35,12 @@ export interface CreateAdminUserResult {
   tempPassword: string;
 }
 
+export interface UpdateAdminUserInput {
+  adminAccess?: AdminAccessArea[];
+  /** Pass null to clear the approvals designation. */
+  designationId?: string | null;
+}
+
 interface RawAdminUser {
   _id?: string;
   id?: string;
@@ -45,6 +53,8 @@ interface RawAdminUser {
   projectId?: string | null;
   isActive?: boolean;
   adminAccess?: string[];
+  designationId?: string | null;
+  designation?: string | { _id?: string; id?: string } | null;
 }
 
 function normalizeAdminAccess(raw: unknown): AdminAccessArea[] | undefined {
@@ -57,6 +67,20 @@ function normalizeAdminAccess(raw: unknown): AdminAccessArea[] | undefined {
       item === "form-builder" ||
       item === "reports",
   );
+}
+
+function normalizeDesignationId(raw: RawAdminUser): string | null {
+  if (raw.designationId != null && raw.designationId !== "") {
+    return String(raw.designationId);
+  }
+  if (typeof raw.designation === "string" && raw.designation) {
+    return raw.designation;
+  }
+  if (raw.designation && typeof raw.designation === "object") {
+    const id = raw.designation.id ?? raw.designation._id;
+    return id != null ? String(id) : null;
+  }
+  return null;
 }
 
 function normalizeAdminUser(raw: RawAdminUser): AdminUser {
@@ -72,6 +96,7 @@ function normalizeAdminUser(raw: RawAdminUser): AdminUser {
     projectId: raw.projectId != null ? String(raw.projectId) : null,
     isActive: raw.isActive !== false,
     adminAccess: normalizeAdminAccess(raw.adminAccess),
+    designationId: normalizeDesignationId(raw),
   };
 }
 
@@ -105,9 +130,16 @@ export const adminUsersService = {
     userId: string,
     adminAccess: AdminAccessArea[],
   ): Promise<AdminUser> {
+    return this.update(userId, { adminAccess });
+  },
+
+  async update(
+    userId: string,
+    input: UpdateAdminUserInput,
+  ): Promise<AdminUser> {
     const raw = await apiClient.patch<RawAdminUser>(
       `${BASE}/${encodeURIComponent(userId)}`,
-      { adminAccess },
+      input,
     );
     return normalizeAdminUser(raw ?? {});
   },

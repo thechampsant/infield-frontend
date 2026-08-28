@@ -20,14 +20,18 @@ import {
 import {
   AddAdminUserModal,
   type AddAdminUserFormValues,
+  type ApprovalsDesignationOption,
+  type SaveProjectAdminAccessValues,
 } from "@/components/accounts/add-admin-user-modal";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import {
   ADMIN_ACCESS_LABELS,
   DEFAULT_PROJECT_ADMIN_ACCESS,
   parseAdminAccess,
-  type AdminAccessArea,
 } from "@/lib/auth/permissions";
+import { designationService } from "@/lib/api/designation-service";
+import { roleService } from "@/lib/api/role-service";
+import { classifyRole } from "@/lib/designations/backend-roles";
 
 export default function AccountDetailPage() {
   const router = useRouter();
@@ -59,6 +63,9 @@ export default function AccountDetailPage() {
     admin: AdminUser;
     projectId: string;
   } | null>(null);
+  const [approvalsDesignationOptions, setApprovalsDesignationOptions] =
+    useState<ApprovalsDesignationOption[]>([]);
+  const [designationsLoading, setDesignationsLoading] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   useSetBreadcrumbs(
@@ -271,10 +278,51 @@ export default function AccountDetailPage() {
     setTempPassword(null);
   }
 
-  async function handleSaveProjectAdminAccess(adminAccess: AdminAccessArea[]) {
+  async function openEditProjectAdmin(admin: AdminUser, projectId: string) {
+    setEditAccessAdmin({ admin, projectId });
+    setApprovalsDesignationOptions([]);
+    setDesignationsLoading(true);
+    try {
+      const [designations, roles] = await Promise.all([
+        designationService.listByProject(projectId),
+        roleService.listByProject(projectId),
+      ]);
+      const roleById = new Map(roles.map((role) => [role.id, role]));
+      const options: ApprovalsDesignationOption[] = [];
+      for (const designation of designations) {
+        const role = roleById.get(designation.roleId);
+        const roleName = role?.roleName ?? designation.roleName ?? "";
+        const level = role?.level ?? designation.roleLevel;
+        const isManager =
+          (typeof level === "number" && level >= 2 && level <= 11) ||
+          classifyRole(roleName) === "manager";
+        if (!isManager) continue;
+        const levelLabel =
+          typeof level === "number" ? `L${level}` : roleName || "Manager";
+        options.push({
+          id: designation.id,
+          label: `${designation.name} (${levelLabel})`,
+        });
+      }
+      setApprovalsDesignationOptions(options);
+    } catch {
+      setApprovalsDesignationOptions([]);
+    } finally {
+      setDesignationsLoading(false);
+    }
+  }
+
+  async function handleSaveProjectAdminAccess(
+    data: SaveProjectAdminAccessValues,
+  ) {
     if (!editAccessAdmin) return;
-    await adminUsersService.updateAccess(editAccessAdmin.admin.id, adminAccess);
-    const admins = await adminUsersService.listByProject(editAccessAdmin.projectId);
+    await adminUsersService.update(editAccessAdmin.admin.id, {
+      adminAccess: data.adminAccess,
+      designationId: data.designationId,
+    });
+    const admins = await adminUsersService.listByProject(
+      editAccessAdmin.projectId,
+    );
     setProjectAdminsById((prev) => ({
       ...prev,
       [editAccessAdmin.projectId]: admins,
@@ -286,7 +334,11 @@ export default function AccountDetailPage() {
   function accessSummary(admin: AdminUser): string {
     const areas =
       parseAdminAccess(admin.adminAccess) ?? DEFAULT_PROJECT_ADMIN_ACCESS;
-    return areas.map((area) => ADMIN_ACCESS_LABELS[area]).join(", ");
+    const setup = areas.map((area) => ADMIN_ACCESS_LABELS[area]).join(", ");
+    if (admin.designationId) {
+      return `${setup} · Approvals linked`;
+    }
+    return setup;
   }
 
   if (loading) {
@@ -653,10 +705,7 @@ export default function AccountDetailPage() {
                                   className="btn btn-secondary btn-sm"
                                   style={{ marginRight: 8 }}
                                   onClick={() =>
-                                    setEditAccessAdmin({
-                                      admin,
-                                      projectId: project.id,
-                                    })
+                                    openEditProjectAdmin(admin, project.id)
                                   }
                                 >
                                   Access
@@ -729,6 +778,10 @@ export default function AccountDetailPage() {
         tempPassword={null}
         accessOnly
         showSetupAccess
+        showApprovalsDesignation
+        approvalsDesignationOptions={approvalsDesignationOptions}
+        designationsLoading={designationsLoading}
+        initialDesignationId={editAccessAdmin?.admin.designationId ?? null}
         initialAdminAccess={
           parseAdminAccess(editAccessAdmin?.admin.adminAccess) ??
           DEFAULT_PROJECT_ADMIN_ACCESS
