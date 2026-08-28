@@ -33,6 +33,9 @@ export interface CustomViewConfiguration {
   latestFileSize: number | null;
   latestRowCount: number;
   latestUploadedAt: string | null;
+  /** Row count for the requested list period; null when that period has no upload */
+  periodRowCount: number | null;
+  periodHasData: boolean;
   updatedAt: string | null;
   createdAt: string | null;
 }
@@ -115,6 +118,8 @@ function normalizeConfig(raw: unknown): CustomViewConfiguration {
     latestFileSize: item.latestFileSize == null ? null : asNumber(item.latestFileSize),
     latestRowCount: asNumber(item.latestRowCount),
     latestUploadedAt: item.latestUploadedAt ? asString(item.latestUploadedAt) : null,
+    periodRowCount: item.periodRowCount == null ? null : asNumber(item.periodRowCount),
+    periodHasData: item.periodHasData === true,
     updatedAt: item.updatedAt ? asString(item.updatedAt) : null,
     createdAt: item.createdAt ? asString(item.createdAt) : null,
   };
@@ -142,6 +147,8 @@ export const customViewService = {
       limit?: number;
       status?: CustomViewStatus | "all";
       designationId?: string;
+      month?: number;
+      year?: number;
     },
   ): Promise<CustomViewListPage> {
     const extra: Record<string, string | number> = {
@@ -150,6 +157,8 @@ export const customViewService = {
     };
     if (options.designationId) extra.designationId = options.designationId;
     if (options.status && options.status !== "all") extra.status = options.status;
+    if (options.month != null) extra.month = options.month;
+    if (options.year != null) extra.year = options.year;
     const result = await apiClient.get<unknown>(`${BASE}?${qs(projectId, extra)}`);
     const payload = record(result);
     const items = Array.isArray(payload.items) ? payload.items.map(normalizeConfig) : [];

@@ -53,6 +53,8 @@ function draftToPendingConfig(
     latestFileSize: view.latestFileSize ?? null,
     latestRowCount: view.latestRowCount ?? 0,
     latestUploadedAt: null,
+    periodRowCount: null,
+    periodHasData: false,
     updatedAt: null,
     createdAt: null,
   };
@@ -104,6 +106,8 @@ export function CustomViewPage({
         page: tablePage,
         limit: PAGE_SIZE,
         status: statusFilter,
+        month: downloadMonth,
+        year: downloadYear,
       });
       setTableViews(page.items);
       setTableTotal(page.total);
@@ -115,7 +119,7 @@ export function CustomViewPage({
     } finally {
       setTableLoading(false);
     }
-  }, [projectId, tablePage, statusFilter]);
+  }, [projectId, tablePage, statusFilter, downloadMonth, downloadYear]);
 
   const load = useCallback(async () => {
     if (!projectId) return;

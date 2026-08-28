@@ -62,7 +62,7 @@ export function ViewManagementTable({
       <div className="cv-toolbar" style={{ marginBottom: 8, flexWrap: "wrap" }}>
         <h2 className="cv-section-title">View Management</h2>
         <div className="cv-period" style={{ marginLeft: "auto" }}>
-          <span className="cv-period-label">Download period</span>
+          <span className="cv-period-label">Period</span>
           <select
             className="cv-select"
             value={downloadMonth}
@@ -101,7 +101,8 @@ export function ViewManagementTable({
         </div>
       </div>
       <div className="cv-muted" style={{ marginBottom: 8 }}>
-        Download data uses the toolbar month and year. Changing period does not hide views.
+        Rows uploaded and download use the toolbar month and year. Views stay listed even when
+        that period has no data.
       </div>
       <div className="cv-table-wrap">
         <table className="cv-table">
@@ -128,21 +129,21 @@ export function ViewManagementTable({
               views.map((view) => {
                 const designation = designationById.get(view.designationId);
                 const code = view.designationCode || designation?.externalCode || designation?.name || "—";
-                const period =
-                  view.latestPeriodMonth && view.latestPeriodYear
-                    ? `${String(view.latestPeriodMonth).padStart(2, "0")}-${view.latestPeriodYear}`
-                    : "—";
+                const periodLabel = `${String(downloadMonth).padStart(2, "0")}-${downloadYear}`;
+                const hasPeriodData = view.periodHasData;
+                const periodRows = hasPeriodData ? (view.periodRowCount ?? 0) : null;
                 return (
                   <tr key={view.id}>
                     <td><span className="cv-code">{code}</span></td>
                     <td>
                       <div>{view.name}</div>
                       <div className="cv-muted">
-                        {period} · {view.taggingLogic} · Updated {formatUpdated(view.updatedAt)}
+                        {periodLabel} · {view.taggingLogic} · Updated {formatUpdated(view.updatedAt)}
+                        {!hasPeriodData ? " · No data for this period" : ""}
                       </div>
                     </td>
                     <td>{view.columnCount}</td>
-                    <td>{view.latestRowCount}</td>
+                    <td>{periodRows == null ? "—" : periodRows}</td>
                     <td>
                       <span className={`cv-badge ${view.status === "active" ? "cv-badge-active" : view.status === "paused" ? "cv-badge-paused" : "cv-badge-incomplete"}`}>
                         {view.status === "active" ? "Active" : view.status === "paused" ? "Paused" : "Draft"}
@@ -153,7 +154,7 @@ export function ViewManagementTable({
                         <button
                           type="button"
                           className="cv-icon-btn"
-                          title={`Download data (${String(downloadMonth).padStart(2, "0")}-${downloadYear})`}
+                          title={`Download data (${periodLabel})`}
                           onClick={() => onDownloadData(view)}
                         >
                           <Download size={14} />
