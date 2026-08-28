@@ -105,7 +105,7 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
 export type ProjectAdminDrawerItem = {
   label: string;
   href: string;
-  icon: "users" | "settings" | "fileText" | "pieChart";
+  icon: "users" | "settings" | "fileText" | "pieChart" | "inbox";
 };
 
 export function projectAdminBase(accountCode: string, projectCode: string): string {

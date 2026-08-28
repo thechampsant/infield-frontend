@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronLeft,
   LayoutGrid,
+  Inbox,
 } from "lucide-react";
 import { projectAdminBase, projectAdminDrawerNav } from "@/lib/nav/nav";
 import {
@@ -28,7 +29,14 @@ const ICONS = {
   settings: Settings,
   fileText: FileText,
   pieChart: PieChart,
+  inbox: Inbox,
 } as const;
+
+function canOpenApprovalsInbox(user: ReturnType<typeof useAuth>["user"]): boolean {
+  if (!user) return false;
+  if (user.access === "BOTH") return true;
+  return Boolean(user.designation?.id);
+}
 
 export function ProjectAdminDrawer({
   accountCode,
@@ -51,6 +59,7 @@ export function ProjectAdminDrawer({
   const pathname = usePathname() ?? "/";
   const { user } = useAuth();
   const showBackToProjects = canNavigateBackToProjects(user);
+  const showApprovalsInbox = canOpenApprovalsInbox(user);
   const navItems = projectAdminDrawerNav(accountCode, projectCode, {
     adminAccess: resolvedAdminAccess(user),
   });
@@ -150,6 +159,22 @@ export function ProjectAdminDrawer({
             </Link>
           );
         })}
+
+        {showApprovalsInbox ? (
+          <>
+            {expanded && <div className="pa-nav-section">Approvals</div>}
+            <Link
+              href="/workspace/inbox"
+              className={`pa-nav-link${pathname.startsWith("/workspace/inbox") ? " active" : ""}`}
+              title="Inbox"
+            >
+              <span style={{ flexShrink: 0 }}>
+                <Inbox size={18} />
+              </span>
+              {expanded && <span>Inbox</span>}
+            </Link>
+          </>
+        ) : null}
 
         {/* Dynamic menu items */}
         {dynamicItems.length > 0 && (
