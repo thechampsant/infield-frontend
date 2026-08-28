@@ -42,7 +42,24 @@ export function DesignationViewsCard({
           </h3>
           <div className="cv-muted">{views.length} view{views.length === 1 ? "" : "s"}</div>
         </div>
-        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        <div className="cv-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="cv-btn cv-btn-sm cv-btn-secondary"
+            onClick={onAddView}
+          >
+            <Plus size={12} />
+            Add view
+          </button>
+          <button
+            type="button"
+            className="cv-icon-btn"
+            aria-label={open ? "Collapse" : "Expand"}
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
       </div>
       {open && (
         <>
@@ -83,10 +100,6 @@ export function DesignationViewsCard({
               </div>
             );
           })}
-          <button type="button" className="cv-btn cv-add-view" onClick={onAddView}>
-            <Plus size={14} />
-            Add view for {code}
-          </button>
         </>
       )}
     </div>
