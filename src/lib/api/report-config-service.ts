@@ -84,7 +84,7 @@ export interface ReportOutputSettings {
 export interface ReportDateFilterConfig {
   fieldKey?: string;
   sourceKey?: string;
-  valueType?: "date" | "number" | "istDateInfo";
+  valueType?: "date" | "number" | "istDateInfo" | "dateString";
   timezone?: string;
 }
 
