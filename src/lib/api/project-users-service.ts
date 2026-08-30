@@ -63,7 +63,7 @@ export interface ProjectUserListResult {
   meta: ListMeta;
 }
 
-interface BulkUploadResult {
+export interface BulkUploadResult {
   total: number;
   successCount: number;
   createdCount?: number;
