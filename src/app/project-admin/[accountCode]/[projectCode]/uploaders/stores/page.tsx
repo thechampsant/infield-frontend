@@ -121,7 +121,7 @@ export default function StoresMasterPage() {
       }
       if (result.invalidCount > 0) {
         setError(
-          `Upload completed: ${result.successCount} stores added, ${result.invalidCount} rows had errors.`,
+          `Upload completed: ${result.createdCount ?? 0} created, ${result.updatedCount ?? 0} updated, ${result.invalidCount} rows had errors.`,
         );
       }
     } catch (err) {
@@ -229,7 +229,9 @@ export default function StoresMasterPage() {
             marginBottom: 16,
           }}
         >
-          Successfully imported {uploadResult.successCount} of {uploadResult.total} stores.
+          Successfully upserted {uploadResult.successCount} of {uploadResult.total} stores
+          {` (${uploadResult.createdCount ?? 0} created, ${uploadResult.updatedCount ?? 0} updated)`}.
+          Existing store codes are updated; new codes are created.
         </div>
       )}
 

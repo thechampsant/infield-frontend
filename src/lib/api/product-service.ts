@@ -49,8 +49,10 @@ export interface ProductListResult {
 export interface BulkProductResult {
   total: number;
   successCount: number;
+  createdCount?: number;
+  updatedCount?: number;
   invalidCount: number;
-  successes?: { id: string; productCode: string }[];
+  successes?: { id: string; productCode: string; action?: string }[];
   errors: {
     row?: string | number;
     productCode?: string;

@@ -143,7 +143,7 @@ export default function UsersMasterPage() {
       }
       if (result.invalidCount > 0) {
         setError(
-          `Upload completed: ${result.successCount} users added, ${result.invalidCount} rows had errors.`,
+          `Upload completed: ${result.createdCount ?? 0} created, ${result.updatedCount ?? 0} updated, ${result.invalidCount} rows had errors.`,
         );
       }
     } catch (err) {
@@ -241,7 +241,9 @@ export default function UsersMasterPage() {
             marginBottom: 16,
           }}
         >
-          Successfully imported {uploadResult.successCount} of {uploadResult.total} users.
+          Successfully upserted {uploadResult.successCount} of {uploadResult.total} users
+          {` (${uploadResult.createdCount ?? 0} created, ${uploadResult.updatedCount ?? 0} updated)`}.
+          Existing employee IDs are updated; new IDs are created.
         </div>
       )}
 

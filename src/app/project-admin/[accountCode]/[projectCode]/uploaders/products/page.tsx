@@ -108,7 +108,7 @@ export default function ProductsMasterPage() {
       }
       if (result.invalidCount > 0) {
         setError(
-          `Upload completed: ${result.successCount} products added, ${result.invalidCount} rows had errors.`,
+          `Upload completed: ${result.createdCount ?? 0} created, ${result.updatedCount ?? 0} updated, ${result.invalidCount} rows had errors.`,
         );
       }
     } catch (err) {
@@ -177,7 +177,9 @@ export default function ProductsMasterPage() {
 
       {uploadResult && uploadResult.successCount > 0 && !error && (
         <div className="pa-info-banner" style={{ color: "var(--green, #16a34a)", background: "var(--green-light, #f0fdf4)", borderColor: "var(--green-mid, #86efac)", marginBottom: 16 }}>
-          Successfully imported {uploadResult.successCount} of {uploadResult.total} products.
+          Successfully upserted {uploadResult.successCount} of {uploadResult.total} products
+          {` (${uploadResult.createdCount ?? 0} created, ${uploadResult.updatedCount ?? 0} updated)`}.
+          Existing product codes are updated; new codes are created.
         </div>
       )}
 

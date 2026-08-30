@@ -66,8 +66,10 @@ export interface ProjectUserListResult {
 interface BulkUploadResult {
   total: number;
   successCount: number;
+  createdCount?: number;
+  updatedCount?: number;
   invalidCount: number;
-  successes: { id: string; email: string; employeeId: string }[];
+  successes: { id: string; email: string; employeeId: string; action?: string }[];
   errors: { row?: string | number; data?: unknown; errors: string[] }[];
 }
 
