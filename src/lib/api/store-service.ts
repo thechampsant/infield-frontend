@@ -58,8 +58,10 @@ export interface StoreListResult {
 export interface BulkStoreResult {
   total: number;
   successCount: number;
+  createdCount?: number;
+  updatedCount?: number;
   invalidCount: number;
-  successes: { id: string; storeCode: string }[];
+  successes: { id: string; storeCode: string; action?: string }[];
   errors: { row?: string | number; data?: unknown; errors: string[] }[];
 }
 
