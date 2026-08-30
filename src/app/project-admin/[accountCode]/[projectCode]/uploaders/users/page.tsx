@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { designationService } from "@/lib/api/designation-service";
 import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
-import { projectUsersService } from "@/lib/api/project-users-service";
+import { projectUsersService, type BulkUploadResult } from "@/lib/api/project-users-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { DesignationsRequiredBanner } from "@/components/project-admin/uploaders/designations-required-banner";
 import { UserTable } from "@/components/project-admin/uploaders/users/user-table";
@@ -40,12 +40,7 @@ export default function UsersMasterPage() {
   const [designationCount, setDesignationCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [uploadResult, setUploadResult] = useState<{
-    total: number;
-    successCount: number;
-    invalidCount: number;
-    errors: { row?: string | number; data?: unknown; errors: string[] }[];
-  } | null>(null);
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(null);
   const [uploading, setUploading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
