@@ -301,6 +301,8 @@ function normalizeUdfSchemaFields(payload: unknown): UdfSchemaField[] {
           : config,
       summaryKey:
         typeof field.summaryKey === "boolean" ? field.summaryKey : false,
+      includeInProfileView:
+        typeof field.includeInProfileView === "boolean" ? field.includeInProfileView : false,
       visibilityRules: Array.isArray(field.visibilityRules)
         ? (field.visibilityRules as UdfSchemaField["visibilityRules"])
         : undefined,
@@ -403,6 +405,9 @@ function normalizeUserSchemaFieldForSave(
     order: field.order ?? index + 1,
     ...(field.status !== undefined ? { status: field.status } : {}),
     ...(field.summaryKey !== undefined ? { summaryKey: field.summaryKey } : {}),
+    ...(field.includeInProfileView !== undefined
+      ? { includeInProfileView: field.includeInProfileView }
+      : {}),
     ...(field.visibilityRules ? { visibilityRules: field.visibilityRules } : {}),
   };
 

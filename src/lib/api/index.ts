@@ -97,6 +97,7 @@ export type {
 } from "./claims-config-service";
 export { visitConfigService, normalizeVisitConfig } from "./visit-config-service";
 export type {
+  ApprovalAutoAction,
   JourneyTabDocument,
   LandingFieldSet,
   StoreDetail,

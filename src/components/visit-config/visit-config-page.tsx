@@ -11,6 +11,7 @@ import {
   type JourneyTabDocument,
   type StoreDetail,
   type UdfSchemaField,
+  type ApprovalAutoAction,
   type UpsertVisitConfigInput,
   type VisitApprovalApproverType,
   type VisitApprovalLevel,
@@ -26,6 +27,21 @@ type ScopeMode = "single" | "multiple";
 type BuilderTarget =
   | { kind: "landing"; fieldSet: "pjp_only" | "all_mapped" }
   | { kind: "tab"; tab: JourneyTabDocument };
+
+function autoActionDaysForSave(level: VisitApprovalLevel): number {
+  if (level.autoAction === "None") return 0;
+  return Number(level.autoActionDays) || 0;
+}
+
+function patchAutoAction(
+  action: ApprovalAutoAction,
+  currentDays: number,
+): Pick<VisitApprovalLevel, "autoAction" | "autoActionDays"> {
+  return {
+    autoAction: action,
+    autoActionDays: action === "None" ? 0 : currentDays || 1,
+  };
+}
 
 interface EditorState {
   designationIds: string[];
@@ -108,7 +124,8 @@ function toEditor(config: VisitConfigDocument): EditorState {
       ...level,
       level: index + 1,
       approverType: level.approverType ?? "direct_manager",
-      autoRejectDays: level.autoRejectDays || 1,
+      autoAction: level.autoAction ?? "None",
+      autoActionDays: level.autoAction === "None" ? 0 : level.autoActionDays || 1,
     })),
     claimDistanceCappingEnabled: config.claimDistanceCapping.isEnabled,
     claimMaxDistanceKm: String(config.claimDistanceCapping.maxDistanceKm),
@@ -166,9 +183,22 @@ function validate(editor: EditorState): string[] {
       if (level.approverType === "designation" && !level.approverDesignationId) {
         errors.push(`Select an approver designation for approval level ${levelNumber}.`);
       }
-      const autoRejectDays = Number(level.autoRejectDays);
-      if (!Number.isFinite(autoRejectDays) || autoRejectDays < 1 || autoRejectDays > 30) {
-        errors.push("Visit approval auto reject days must be between 1 and 30.");
+      if (
+        level.autoAction !== "None" &&
+        level.autoAction !== "AutoApprove" &&
+        level.autoAction !== "AutoReject"
+      ) {
+        errors.push(`Approval level ${levelNumber} must use a valid auto action.`);
+      }
+      const autoActionDays = Number(level.autoActionDays);
+      if (
+        level.autoAction !== "None" &&
+        (!Number.isFinite(autoActionDays) ||
+          !Number.isInteger(autoActionDays) ||
+          autoActionDays < 1 ||
+          autoActionDays > 30)
+      ) {
+        errors.push(`Approval level ${levelNumber} auto action days must be between 1 and 30.`);
       }
     });
   }
@@ -382,7 +412,8 @@ export function VisitConfigPage({
             level: current.approvalLevels.length + 1,
             label: current.approvalLevels.length === 0 ? "Manager Approval" : "",
             approverType: "direct_manager",
-            autoRejectDays: 3,
+            autoAction: "None",
+            autoActionDays: 0,
           },
         ],
       };
@@ -511,7 +542,8 @@ export function VisitConfigPage({
               label: level.label?.trim() || undefined,
               approverType: level.approverType ?? "direct_manager",
               approverDesignationId: level.approverDesignationId || undefined,
-              autoRejectDays: Number(level.autoRejectDays) || 0,
+              autoAction: level.autoAction ?? "None",
+              autoActionDays: autoActionDaysForSave(level),
             }))
           : [],
       },
@@ -1031,7 +1063,8 @@ export function VisitConfigPage({
                                       level: 1,
                                       label: "Manager Approval",
                                       approverType: "direct_manager",
-                                      autoRejectDays: 3,
+                                      autoAction: "None",
+                                      autoActionDays: 0,
                                     },
                                   ]
                                 : current.approvalLevels,
@@ -1102,15 +1135,36 @@ export function VisitConfigPage({
                                 </select>
                               </label>
                               <label>
-                                Auto Reject Days
+                                Auto Action
+                                <select
+                                  value={level.autoAction ?? "None"}
+                                  onChange={(event) =>
+                                    patchApprovalLevel(
+                                      index,
+                                      patchAutoAction(
+                                        event.target.value as ApprovalAutoAction,
+                                        Number(level.autoActionDays),
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <option value="None">None</option>
+                                  <option value="AutoApprove">Auto Approve</option>
+                                  <option value="AutoReject">Auto Reject</option>
+                                </select>
+                              </label>
+                              <label>
+                                After days
                                 <input
                                   type="number"
                                   min={1}
                                   max={30}
-                                  value={level.autoRejectDays}
+                                  step={1}
+                                  disabled={(level.autoAction ?? "None") === "None"}
+                                  value={(level.autoAction ?? "None") === "None" ? 0 : level.autoActionDays}
                                   onChange={(event) =>
                                     patchApprovalLevel(index, {
-                                      autoRejectDays: Number(event.target.value),
+                                      autoActionDays: Number(event.target.value),
                                     })
                                   }
                                 />
