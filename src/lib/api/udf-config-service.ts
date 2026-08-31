@@ -143,6 +143,7 @@ export interface UdfSchemaField {
   order?: number;
   status?: boolean;
   summaryKey?: boolean;
+  includeInProfileView?: boolean;
   view_type?: "default" | "table";
   visibilityRules?: UdfVisibilityRule[];
 }
@@ -335,6 +336,8 @@ function normalizeSchemaField(rawValue: unknown, index: number): UdfSchemaField 
     status: typeof raw.status === "boolean" ? raw.status : undefined,
     summaryKey:
       typeof raw.summaryKey === "boolean" ? raw.summaryKey : undefined,
+    includeInProfileView:
+      typeof raw.includeInProfileView === "boolean" ? raw.includeInProfileView : undefined,
     view_type:
       raw.view_type === "table" || raw.view_type === "default"
         ? raw.view_type

@@ -12,6 +12,7 @@ const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 
 export type ClaimCapType = "fixed" | "conditional" | "no-cap";
 export type ClaimApprovalMode = "App" | "Web" | "Both";
+export type ApprovalAutoAction = "None" | "AutoApprove" | "AutoReject";
 
 export interface ClaimsBackdateConfig {
   isEnabled: boolean;
@@ -35,6 +36,8 @@ export interface ClaimApprovalLevel {
   order: number;
   designationId: string;
   mode: ClaimApprovalMode;
+  autoAction: ApprovalAutoAction;
+  autoActionDays: number;
 }
 
 export interface ClaimApprovalWorkflow {
@@ -174,6 +177,17 @@ function booleanValue(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function normalizeAutoAction(value: unknown): ApprovalAutoAction {
+  const raw = stringValue(value);
+  if (raw === "AutoApprove" || raw === "AutoReject") return raw;
+  return "None";
+}
+
+function normalizeAutoActionDays(action: ApprovalAutoAction, value: unknown): number {
+  if (action === "None") return 0;
+  return Math.min(30, Math.max(1, numberValue(value) ?? 1));
+}
+
 function normalizeClaimCapType(value: unknown): ClaimCapType {
   const raw = stringValue(value).toLowerCase();
   if (raw === "fixed" || raw === "conditional" || raw === "no-cap") return raw;
@@ -278,10 +292,13 @@ function normalizeApprovalWorkflow(value: unknown): ClaimApprovalWorkflow | unde
   const levels = Array.isArray(raw.levels)
     ? raw.levels.map((item, index) => {
         const level = asRecord(item);
+        const autoAction = normalizeAutoAction(level.autoAction);
         return {
           order: numberValue(level.order) ?? index + 1,
           designationId: stringValue(level.designationId),
           mode: (stringValue(level.mode) || "Both") as ClaimApprovalMode,
+          autoAction,
+          autoActionDays: normalizeAutoActionDays(autoAction, level.autoActionDays),
         };
       })
     : [];

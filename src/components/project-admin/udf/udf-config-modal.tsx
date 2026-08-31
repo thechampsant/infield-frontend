@@ -761,6 +761,18 @@ export function UDFConfigModal({
                     />
                     Summary Key
                   </label>
+                  {scope === "user" && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(field.includeInProfileView)}
+                        onChange={(e) =>
+                          updateField(index, { includeInProfileView: e.target.checked })
+                        }
+                      />
+                      Show in profile
+                    </label>
+                  )}
                 </div>
 
                 {(field.type === "SELECT" || field.type === "DROPDOWN") && (

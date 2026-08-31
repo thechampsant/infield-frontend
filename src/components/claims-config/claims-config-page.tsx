@@ -16,7 +16,9 @@ import {
   featureWizardService,
   formatApiError,
   getWizardFlow,
+  type ApprovalAutoAction,
   type ClaimApprovalMode,
+  type ClaimApprovalWorkflow,
   type ClaimConditionalCapCondition,
   type ClaimsTemplateDocument,
   type Designation,
@@ -45,6 +47,8 @@ type EditorApprovalLevel = {
   order: string;
   designationId: string;
   mode: ClaimApprovalMode;
+  autoAction: ApprovalAutoAction;
+  autoActionDays: string;
 };
 
 type EditorClaimType = {
@@ -102,6 +106,8 @@ function createEmptyApprovalLevel(index: number): EditorApprovalLevel {
     order: String(index + 1),
     designationId: "",
     mode: "Both",
+    autoAction: "None",
+    autoActionDays: "0",
   };
 }
 
@@ -187,6 +193,11 @@ function toEditorTemplate(template: ClaimsTemplateDocument | null): EditorTempla
                     order: String(level.order ?? index + 1),
                     designationId: level.designationId,
                     mode: level.mode,
+                    autoAction: level.autoAction ?? "None",
+                    autoActionDays:
+                      (level.autoAction ?? "None") === "None"
+                        ? "0"
+                        : String(level.autoActionDays || 1),
                   })),
                 }
               : undefined,
@@ -228,6 +239,30 @@ function persistDraftClaimTypes(projectId: string, templateId: string, claimType
 function removeDraftClaimTypes(projectId: string, templateId: string) {
   if (typeof window === "undefined" || !templateId) return;
   window.localStorage.removeItem(storageKey(projectId, templateId));
+}
+
+function patchApprovalAutoAction(
+  action: ApprovalAutoAction,
+  currentDays: string,
+): Pick<EditorApprovalLevel, "autoAction" | "autoActionDays"> {
+  return {
+    autoAction: action,
+    autoActionDays: action === "None" ? "0" : currentDays === "0" ? "1" : currentDays || "1",
+  };
+}
+
+function buildApprovalWorkflow(claimType: EditorClaimType): ClaimApprovalWorkflow | undefined {
+  if (!claimType.approvalWorkflow?.levels.length) return undefined;
+  return {
+    isEnabled: true,
+    levels: claimType.approvalWorkflow.levels.map((level, i) => ({
+      order: Number(level.order) || i + 1,
+      designationId: level.designationId,
+      mode: level.mode,
+      autoAction: level.autoAction ?? "None",
+      autoActionDays: (level.autoAction ?? "None") === "None" ? 0 : Number(level.autoActionDays) || 0,
+    })),
+  };
 }
 
 function flowCompletion(flow: FeatureWizardDocument["flows"][number] | null): {
@@ -324,6 +359,30 @@ function validateClaimTypes(claimTypes: EditorClaimType[]): string[] {
         errors.push(`${name || `Claim type ${index + 1}`}: KM field key is required when per-km rate is enabled.`);
       }
     }
+
+    claimType.approvalWorkflow?.levels.forEach((level, levelIndex) => {
+      const label = `${name || `Claim type ${index + 1}`}: approval level ${levelIndex + 1}`;
+      if (!level.designationId) {
+        errors.push(`${label} needs a designation.`);
+      }
+      if (
+        level.autoAction !== "None" &&
+        level.autoAction !== "AutoApprove" &&
+        level.autoAction !== "AutoReject"
+      ) {
+        errors.push(`${label} must use a valid auto action.`);
+      }
+      const autoActionDays = Number(level.autoActionDays);
+      if (
+        level.autoAction !== "None" &&
+        (!Number.isFinite(autoActionDays) ||
+          !Number.isInteger(autoActionDays) ||
+          autoActionDays < 1 ||
+          autoActionDays > 30)
+      ) {
+        errors.push(`${label} auto action days must be between 1 and 30.`);
+      }
+    });
   });
   return errors;
 }
@@ -642,16 +701,7 @@ export function ClaimsConfigPage({
         const updatedClaimTypes: EditorClaimType[] = [];
         
         for (const claimType of activeTemplate.claimTypes) {
-          const approvalWorkflow = claimType.approvalWorkflow?.levels.length
-            ? {
-                isEnabled: true,
-                levels: claimType.approvalWorkflow.levels.map((level, i) => ({
-                  order: Number(level.order) || i + 1,
-                  designationId: level.designationId,
-                  mode: level.mode,
-                })),
-              }
-            : undefined;
+          const approvalWorkflow = buildApprovalWorkflow(claimType);
 
           const claimTypePayload = {
             name: claimType.name.trim(),
@@ -753,16 +803,7 @@ export function ClaimsConfigPage({
         const updatedClaimTypes: EditorClaimType[] = [];
         
         for (const claimType of activeTemplate.claimTypes) {
-          const approvalWorkflow = claimType.approvalWorkflow?.levels.length
-            ? {
-                isEnabled: true,
-                levels: claimType.approvalWorkflow.levels.map((level, i) => ({
-                  order: Number(level.order) || i + 1,
-                  designationId: level.designationId,
-                  mode: level.mode,
-                })),
-              }
-            : undefined;
+          const approvalWorkflow = buildApprovalWorkflow(claimType);
 
           const claimTypePayload = {
             name: claimType.name.trim(),
@@ -1553,6 +1594,51 @@ export function ClaimsConfigPage({
                                             <option key={mode} value={mode}>{mode}</option>
                                           ))}
                                         </select>
+                                        <select
+                                          className="form-input"
+                                          aria-label="Auto action"
+                                          value={level.autoAction ?? "None"}
+                                          onChange={(e) =>
+                                            updateClaimType(claimType.id, {
+                                              approvalWorkflow: {
+                                                levels: claimType.approvalWorkflow!.levels.map((item) =>
+                                                  item.id === level.id
+                                                    ? {
+                                                        ...item,
+                                                        ...patchApprovalAutoAction(
+                                                          e.target.value as ApprovalAutoAction,
+                                                          item.autoActionDays,
+                                                        ),
+                                                      }
+                                                    : item
+                                                ),
+                                              },
+                                            })
+                                          }
+                                        >
+                                          <option value="None">None</option>
+                                          <option value="AutoApprove">Auto Approve</option>
+                                          <option value="AutoReject">Auto Reject</option>
+                                        </select>
+                                        <input
+                                          className="form-input"
+                                          aria-label="After days"
+                                          type="number"
+                                          min={1}
+                                          max={30}
+                                          step={1}
+                                          disabled={(level.autoAction ?? "None") === "None"}
+                                          value={(level.autoAction ?? "None") === "None" ? "0" : level.autoActionDays}
+                                          onChange={(e) =>
+                                            updateClaimType(claimType.id, {
+                                              approvalWorkflow: {
+                                                levels: claimType.approvalWorkflow!.levels.map((item) =>
+                                                  item.id === level.id ? { ...item, autoActionDays: e.target.value } : item
+                                                ),
+                                              },
+                                            })
+                                          }
+                                        />
                                         <button
                                           className="claims-cardBtn danger"
                                           onClick={() =>

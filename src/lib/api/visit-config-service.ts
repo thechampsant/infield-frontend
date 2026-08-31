@@ -40,13 +40,16 @@ export interface LandingFieldSet {
 }
 
 export type VisitApprovalApproverType = "direct_manager" | "designation";
+export type ApprovalAutoAction = "None" | "AutoApprove" | "AutoReject";
 
 export interface VisitApprovalLevel {
   level: number;
   label?: string;
   approverType?: VisitApprovalApproverType;
   approverDesignationId?: string;
-  autoRejectDays: number;
+  autoAction: ApprovalAutoAction;
+  autoActionDays: number;
+  autoRejectDays?: number;
 }
 
 export interface VisitApprovalWorkflowConfig {
@@ -161,6 +164,41 @@ function num(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function normalizeAutoAction(value: unknown): ApprovalAutoAction {
+  const raw = text(value);
+  if (raw === "AutoApprove" || raw === "AutoReject") return raw;
+  return "None";
+}
+
+function normalizeApprovalAutoAction(level: Raw): {
+  autoAction: ApprovalAutoAction;
+  autoActionDays: number;
+  autoRejectDays?: number;
+} {
+  const legacyAutoRejectDays = num(level.autoRejectDays);
+  const autoAction = normalizeAutoAction(level.autoAction);
+  if (autoAction !== "None") {
+    return {
+      autoAction,
+      autoActionDays: Math.min(30, Math.max(1, num(level.autoActionDays, 1))),
+      autoRejectDays: legacyAutoRejectDays || undefined,
+    };
+  }
+  if (legacyAutoRejectDays > 0) {
+    const days = Math.min(30, Math.max(1, legacyAutoRejectDays));
+    return {
+      autoAction: "AutoReject",
+      autoActionDays: days,
+      autoRejectDays: days,
+    };
+  }
+  return {
+    autoAction: "None",
+    autoActionDays: 0,
+    autoRejectDays: undefined,
+  };
+}
+
 export function normalizeVisitConfig(
   value: unknown,
   fallback: { projectId: string; designationId: string },
@@ -214,6 +252,7 @@ export function normalizeVisitConfig(
         (item, index) => {
           const level = record(item);
           const approverType = text(level.approverType);
+          const autoAction = normalizeApprovalAutoAction(level);
           return {
             level: num(level.level, index + 1),
             label: text(level.label),
@@ -222,7 +261,7 @@ export function normalizeVisitConfig(
                 ? approverType
                 : "direct_manager",
             approverDesignationId: text(level.approverDesignationId) || undefined,
-            autoRejectDays: num(level.autoRejectDays, 1),
+            ...autoAction,
           };
         },
       ),
