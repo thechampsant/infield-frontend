@@ -63,6 +63,21 @@ function formatCellValue(value: unknown, column: ReportSelectedColumn): React.Re
     );
   }
 
+  // Google Maps links from Orient location columns
+  if (typeof value === "string" && value.startsWith("https://www.google.com/maps")) {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 font-semibold text-[#1e5fa8] hover:text-[#174d88]"
+      >
+        <MapPin className="h-3.5 w-3.5" />
+        <span className="text-sm">View Map</span>
+      </a>
+    );
+  }
+
   // Location → map link
   if (fieldType === "LOCATION" && typeof value === "string") {
     return (
@@ -83,28 +98,14 @@ function formatCellValue(value: unknown, column: ReportSelectedColumn): React.Re
     return value ? "Yes" : "No";
   }
 
-  // Date
-  if (fieldType === "DATE" && value) {
-    try {
-      return new Date(value as string).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return String(value);
-    }
-  }
-
   // Object type — dynamically extract best readable representation
   // Handles ISTDateInfo and any future nested object fields
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
 
-    // ISTDateInfo pattern: has full_iso (local datetime string)
+    // ISTDateInfo: show full_iso as-is (e.g. Claim Date)
     if (typeof obj.full_iso === 'string') {
-      // Show date only: "2026-03-27"
-      return obj.full_iso.split('T')[0];
+      return obj.full_iso;
     }
 
     // Has a datejs ISO string (UTC date)
@@ -143,6 +144,19 @@ function formatCellValue(value: unknown, column: ReportSelectedColumn): React.Re
       .map(([k, v]) => `${k}: ${v}`)
       .join(', ');
     return entries || JSON.stringify(obj);
+  }
+
+  // Date (string / Date only — objects handled above)
+  if (fieldType === "DATE" && value) {
+    try {
+      return new Date(value as string).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return String(value);
+    }
   }
 
   return String(value);
@@ -193,9 +207,9 @@ export function ReportDataTable({
         <table className="min-w-full divide-y divide-[#dde6f0]">
           <thead className="bg-[#f7fafd]">
             <tr>
-              {columns.map((col) => (
+              {columns.map((col, colIndex) => (
                 <th
-                  key={col.fieldKey}
+                  key={`${col.fieldKey}-${colIndex}`}
                   className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.08em] text-[#3a5272]"
                 >
                   {col.headerName}
@@ -211,9 +225,9 @@ export function ReportDataTable({
           <tbody className="divide-y divide-[#dde6f0] bg-white">
             {data.map((row, rowIndex) => (
               <tr key={rowIndex} className="hover:bg-[#f7fafd]">
-                {columns.map((col) => (
+                {columns.map((col, colIndex) => (
                   <td
-                    key={col.fieldKey}
+                    key={`${col.fieldKey}-${colIndex}`}
                     className="whitespace-nowrap px-4 py-3 text-sm text-[#3a5272]"
                   >
                     {formatCellValue(row[col.headerName], col)}

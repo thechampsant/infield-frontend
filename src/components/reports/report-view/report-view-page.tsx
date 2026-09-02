@@ -4,6 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarDays, Download, Filter, Loader2, Play } from "lucide-react";
 import { reportConfigService } from "@/lib/api/report-config-service";
+import { orientReportService } from "@/lib/api/orient-report-service";
+import {
+  isOrientProject,
+  sourceKeyToOrientExportType,
+  ORIENT_PROJECT_ID,
+  defaultOrientLoadDateRange,
+} from "@/lib/orient/orient-report.constants";
+import { useProjectContext } from "@/lib/project-admin/project-context";
 import type {
   ReportConfigDocument,
   ReportCalculatedField,
@@ -30,6 +38,7 @@ export function ReportViewPage({
 }: ReportViewPageProps) {
   const router = useRouter();
   const baseUrl = `/project-admin/${accountCode}/${projectCode}/reports`;
+  const { projectId: contextProjectId } = useProjectContext();
 
   const [config, setConfig] = useState<ReportConfigDocument | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,9 +57,10 @@ export function ReportViewPage({
   // Filter state
   const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
 
-  // Global date range state
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  // Global date range state — Orient defaults to last 7 days for fast Load
+  const orientDefaults = isOrientProject(projectCode) ? defaultOrientLoadDateRange() : null;
+  const [fromDate, setFromDate] = useState(orientDefaults?.fromDate ?? "");
+  const [toDate, setToDate] = useState(orientDefaults?.toDate ?? "");
   const [activePreset, setActivePreset] = useState<ReportDatePresetId | null>(null);
 
   // Export state
@@ -122,22 +132,49 @@ export function ReportViewPage({
       setLoadingData(true);
       setLoadError(null);
 
+      const orientType = sourceKeyToOrientExportType(config.primarySource?.sourceKey);
+      const useOrientApi = isOrientProject(projectCode) && !!orientType;
+      const orientProjectId =
+        contextProjectId || config.projectId || ORIENT_PROJECT_ID;
+
       const timeout = setTimeout(() => {
-        setLoadingData(false);
-        setLoadError("Request timed out. Please try again.");
-      }, 60000);
+        setLoadError(
+          "Still loading… large reports can take a few minutes. Keep waiting or narrow the date range.",
+        );
+      }, 45000);
 
       try {
-        const result = await reportConfigService.executeReport({
-          reportId,
-          filters: filterValues,
-          page: requestedPage,
-          pageSize,
-          fromDate: fromDate || undefined,
-          toDate: toDate || undefined,
-        });
+        const result = useOrientApi
+          ? await orientReportService.executeReport({
+              exportType: orientType,
+              projectId: orientProjectId,
+              page: requestedPage,
+              pageSize,
+              fromDate: fromDate || undefined,
+              toDate: toDate || undefined,
+            })
+          : await reportConfigService.executeReport({
+              reportId,
+              filters: filterValues,
+              page: requestedPage,
+              pageSize,
+              fromDate: fromDate || undefined,
+              toDate: toDate || undefined,
+            });
         clearTimeout(timeout);
+        setLoadError(null);
         setData(result.data || []);
+        if (result.columns?.length) {
+          setColumns(
+            result.columns.map((c, i) => ({
+              fieldKey: `orient-col-${i}`,
+              sourceKey: config.primarySource?.sourceKey || "",
+              headerName: c.key,
+              order: i,
+              fieldType: c.type as ReportSelectedColumn["fieldType"],
+            })),
+          );
+        }
         const meta = "meta" in result ? result.meta : undefined;
         setTotalCount(meta?.totalCount ?? result.totalCount ?? 0);
         setPage(requestedPage);
@@ -151,7 +188,7 @@ export function ReportViewPage({
         setLoadingData(false);
       }
     },
-    [config, reportId, filterValues, page, pageSize, fromDate, toDate],
+    [config, reportId, filterValues, page, pageSize, fromDate, toDate, projectCode, contextProjectId],
   );
 
   // Handle export
@@ -159,26 +196,42 @@ export function ReportViewPage({
     if (!config) return;
     setExporting(true);
 
+    const orientType = sourceKeyToOrientExportType(config.primarySource?.sourceKey);
+    const useOrientApi = isOrientProject(projectCode) && !!orientType;
+    const orientProjectId =
+      contextProjectId || config.projectId || ORIENT_PROJECT_ID;
+
     const timeout = setTimeout(() => {
-      setExporting(false);
-      setLoadError("Export timed out. Please apply filters to reduce the dataset.");
-    }, 120000);
+      setLoadError(
+        "Export is still running… large Excel files can take several minutes. Keep this tab open.",
+      );
+    }, 60000);
 
     try {
-      const blob = await reportConfigService.exportReport({
-        reportId,
-        filters: filterValues,
-        format: config.outputSettings?.fileFormat || "xls",
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
-      });
+      const blob = useOrientApi
+        ? await orientReportService.exportReport({
+            exportType: orientType,
+            projectId: orientProjectId,
+            fromDate: fromDate || undefined,
+            toDate: toDate || undefined,
+          })
+        : await reportConfigService.exportReport({
+            reportId,
+            filters: filterValues,
+            format: config.outputSettings?.fileFormat || "xls",
+            fromDate: fromDate || undefined,
+            toDate: toDate || undefined,
+          });
       clearTimeout(timeout);
+      setLoadError(null);
 
       // Trigger download
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${config.reportName || "report"}.${config.outputSettings?.fileFormat === "csv" ? "csv" : "xlsx"}`;
+      a.download = `${config.reportName || "report"}.${
+        useOrientApi || config.outputSettings?.fileFormat !== "csv" ? "xlsx" : "csv"
+      }`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -191,7 +244,7 @@ export function ReportViewPage({
     } finally {
       setExporting(false);
     }
-  }, [config, reportId, filterValues, fromDate, toDate]);
+  }, [config, reportId, filterValues, fromDate, toDate, projectCode, contextProjectId]);
 
   // Handle page change
   const handlePageChange = useCallback(
@@ -260,25 +313,6 @@ export function ReportViewPage({
           <CalendarDays className="h-4 w-4 text-[#1e5fa8]" />
           <h3 className="text-sm font-bold text-[#0c1929]">Date Range</h3>
         </div>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {REPORT_DATE_PRESETS.map((preset) => {
-            const selected = activePreset === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => applyPreset(preset.id)}
-                className={
-                  selected
-                    ? "rounded-md border border-[#1e5fa8] bg-[#1e5fa8] px-3 py-1.5 text-xs font-bold text-white"
-                    : "rounded-md border border-[#c8d8eb] bg-white px-3 py-1.5 text-xs font-bold text-[#3a5272] hover:border-[#1e5fa8] hover:bg-[#f7fafd] hover:text-[#1e5fa8]"
-                }
-              >
-                {preset.label}
-              </button>
-            );
-          })}
-        </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[180px]">
             <label className="mb-1 block text-xs font-semibold text-[#3a5272]">From Date</label>
@@ -301,10 +335,19 @@ export function ReportViewPage({
           {(fromDate || toDate) && (
             <button
               type="button"
-              onClick={clearDateRange}
+              onClick={() => {
+                if (isOrientProject(projectCode)) {
+                  const d = defaultOrientLoadDateRange();
+                  setFromDate(d.fromDate);
+                  setToDate(d.toDate);
+                } else {
+                  setFromDate("");
+                  setToDate("");
+                }
+              }}
               className="rounded-md px-3 py-2 text-xs font-bold text-[#7a95b5] hover:bg-[#f7fafd] hover:text-[#3a5272]"
             >
-              Clear
+              {isOrientProject(projectCode) ? "Reset (7 days)" : "Clear"}
             </button>
           )}
         </div>
