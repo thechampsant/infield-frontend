@@ -34,6 +34,11 @@ const SLA_COLORS: Record<string, { bg: string; color: string }> = {
   Breached: { bg: "#fee2e2", color: "#dc2626" },
 };
 
+function isSendBackAction(actionKey: string): boolean {
+  const normalized = actionKey.toLowerCase().replace(/_/g, "-");
+  return normalized === "send-back" || normalized === "sendback";
+}
+
 export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) {
   // List state
   const [items, setItems] = useState<InboxItem[]>([]);
@@ -72,7 +77,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
 
   // Remark dialog state
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
-  const [remarkAction, setRemarkAction] = useState<"reject" | "send-back" | "approve">("reject");
+  const [remarkAction, setRemarkAction] = useState<"reject" | "approve">("reject");
   const [remarkTargetIds, setRemarkTargetIds] = useState<string[]>([]);
   const [remarkRequired, setRemarkRequired] = useState(true);
   const [remarkText, setRemarkText] = useState("");
@@ -188,13 +193,14 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   // Handle a per-item action button from the detail dialog
   const handleItemAction = (item: InboxItem, action: InboxAvailableAction) => {
     const key = action.actionKey;
+    if (isSendBackAction(key)) return;
     // Approve with no confirmation → send default "Approved"
     if (key === "approve" && !action.confirmationRequired) {
       void runApprove(item.inboxItemId, "Approved");
       return;
     }
     // Otherwise open confirmation/remarks dialog
-    setRemarkAction(key as "reject" | "send-back" | "approve");
+    setRemarkAction(key as "reject" | "approve");
     setRemarkTargetIds([item.inboxItemId]);
     setRemarkRequired(action.remarksRequired);
     setRemarkText("");
@@ -202,7 +208,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   };
 
   // Bulk action openers
-  const openBulkRemark = (action: "reject" | "send-back") => {
+  const openBulkRemark = (action: "reject") => {
     setRemarkAction(action);
     setRemarkTargetIds(Array.from(selectedIds));
     setRemarkRequired(true);
@@ -237,15 +243,11 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
       } else if (remarkAction === "reject") {
         if (single) await inboxItemsService.reject(ids[0], remarks);
         else await inboxItemsService.bulkReject(ids, remarks);
-      } else {
-        if (single) await inboxItemsService.sendBack(ids[0], remarks);
-        else await inboxItemsService.bulkSendBack(ids, remarks);
       }
 
       setRemarkDialogOpen(false);
       setDetailItem(null);
-      const label =
-        remarkAction === "approve" ? "approved" : remarkAction === "reject" ? "rejected" : "sent back";
+      const label = remarkAction === "approve" ? "approved" : "rejected";
       setToast({
         type: "success",
         message: single ? `Request ${label}.` : `${ids.length} requests ${label}.`,
@@ -260,11 +262,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   };
 
   const remarkTitle =
-    remarkAction === "approve"
-      ? "Approve Request"
-      : remarkAction === "reject"
-        ? "Reject Request"
-        : "Send Back Request";
+    remarkAction === "approve" ? "Approve Request" : "Reject Request";
 
   // ─── Render ─────────────────────────────────────────────────────────────
 
@@ -398,14 +396,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             onClick={() => openBulkRemark("reject")}
           >
             Reject All
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ fontSize: 12, padding: "5px 12px" }}
-            onClick={() => openBulkRemark("send-back")}
-          >
-            Send Back All
           </button>
         </div>
       )}
@@ -620,7 +610,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           detailItem ? (
             <div style={{ display: "flex", gap: 8, width: "100%", justifyContent: "flex-end" }}>
               {detailItem.availableActions
-                .filter((a) => a.enabled)
+                .filter((a) => a.enabled && !isSendBackAction(a.actionKey))
                 .map((action) => {
                   const tone = actionTone(action.color);
                   const hex = toneColor(tone);
