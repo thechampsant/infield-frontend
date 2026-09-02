@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     proxyClientMaxBodySize: "100mb",
+    // Default dev proxy timeout is 30s — bulk Excel uploads (product/store master) need longer.
+    proxyTimeout: 300_000, // 5 minutes
   },
   async rewrites() {
     return [
