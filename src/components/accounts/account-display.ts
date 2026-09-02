@@ -2,7 +2,7 @@
 export function initials(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return "AC";
-  return trimmed.slice(0, 2).toUpperCase();
+  return trimmed.slice(0, 2).toUpperCase(); 
 }
 
 const AVATAR_COLORS = [
