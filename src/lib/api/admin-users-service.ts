@@ -15,7 +15,7 @@ export interface AdminUser {
   accountId?: string | null;
   projectId?: string | null;
   isActive?: boolean;
-  adminAccess?: AdminAccessArea[] ;
+  adminAccess?: AdminAccessArea[];
   /** Linked Manager designation for field approvals (Project Admin only). */
   designationId?: string | null;
 }
