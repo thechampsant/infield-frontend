@@ -36,6 +36,15 @@ export interface InboxDisplayField {
   displayOrder: number;
 }
 
+export interface InboxDisplaySection {
+  sectionKey: string;
+  sectionTitle: string;
+  sectionType: string; // "fields" | "timeline" | "attachments"
+  displayOrder: number;
+  collapseState?: string;
+  fields: InboxDisplayField[];
+}
+
 export interface InboxAvailableAction {
   actionKey: string;
   label: string;
@@ -53,12 +62,9 @@ export interface InboxStatusConfig {
 }
 
 export interface InboxDisplayMetadata {
-  fields: InboxDisplayField[];
-  sections: unknown[];
+  sections: InboxDisplaySection[];
   actions: unknown[];
   statusConfig: Record<string, InboxStatusConfig>;
-  formatTemplates: Record<string, unknown>;
-  attachmentConfig: unknown | null;
 }
 
 export type InboxSlaStatus = "OnTime" | "Warning" | "Breached";
@@ -80,6 +86,8 @@ export interface InboxItem {
   moduleData: Record<string, unknown>;
   displayMetadata: InboxDisplayMetadata;
   availableActions: InboxAvailableAction[];
+  attachments: unknown[];
+  timeline: unknown[];
 }
 
 export interface InboxPagination {
@@ -90,8 +98,9 @@ export interface InboxPagination {
 }
 
 export interface InboxSummary {
-  total: number;
-  byModule: Record<string, number>;
+  pending?: number;
+  total?: number;
+  byModule?: Record<string, number>;
 }
 
 export interface InboxFilterOption {
@@ -187,16 +196,17 @@ function normalizeItem(raw: Record<string, unknown>): InboxItem {
     escalationStatus: (raw.escalationStatus as string) ?? null,
     moduleData: (raw.moduleData as Record<string, unknown>) ?? {},
     displayMetadata: {
-      fields: Array.isArray(displayMetadata.fields) ? displayMetadata.fields : [],
-      sections: Array.isArray(displayMetadata.sections) ? displayMetadata.sections : [],
+      sections: Array.isArray(displayMetadata.sections)
+        ? (displayMetadata.sections as InboxDisplaySection[])
+        : [],
       actions: Array.isArray(displayMetadata.actions) ? displayMetadata.actions : [],
       statusConfig: (displayMetadata.statusConfig as Record<string, InboxStatusConfig>) ?? {},
-      formatTemplates: (displayMetadata.formatTemplates as Record<string, unknown>) ?? {},
-      attachmentConfig: displayMetadata.attachmentConfig ?? null,
     },
     availableActions: Array.isArray(raw.availableActions)
       ? (raw.availableActions as InboxAvailableAction[])
       : [],
+    attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
+    timeline: Array.isArray(raw.timeline) ? raw.timeline : [],
   };
 }
 
