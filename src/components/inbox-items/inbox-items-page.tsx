@@ -346,14 +346,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           >
             Reject All
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ fontSize: 12, padding: "5px 12px" }}
-            onClick={() => openBulkRemark("send-back")}
-          >
-            Send Back All
-          </button>
         </div>
       )}
 
@@ -567,7 +559,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           detailItem ? (
             <div style={{ display: "flex", gap: 8, width: "100%", justifyContent: "flex-end" }}>
               {detailItem.availableActions
-                .filter((a) => a.enabled)
+                .filter((a) => a.enabled && a.actionKey !== "send-back")
                 .map((action) => {
                   const tone = actionTone(action.color);
                   const hex = toneColor(tone);
