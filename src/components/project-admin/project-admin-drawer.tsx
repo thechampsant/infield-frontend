@@ -249,12 +249,12 @@ export function ProjectAdminDrawer({
             />
             {dynamicItems.map((item) => {
               const base = projectAdminBase(accountCode, projectCode);
-              const resolvedHref =
-                item.menuKey === "inbox"
+              const isInbox = item.menuKey === "inbox";
+              const label = isInbox ? "Inbox" : item.label;
+              const resolvedHref = isInbox
                   ? `${base}/inbox-items`
                   : item.route;
-              const active =
-                item.menuKey === "inbox"
+              const active = isInbox
                   ? pathname.includes("/inbox-items")
                   : pathname.includes(item.route);
               return (
@@ -262,12 +262,12 @@ export function ProjectAdminDrawer({
                   key={item.id}
                   href={resolvedHref}
                   className={`pa-nav-link${active ? " active" : ""}`}
-                  title={item.label}
+                  title={label}
                 >
                   <span style={{ flexShrink: 0 }}>
                     <LayoutGrid size={18} />
                   </span>
-                  {expanded && <span>{item.label}</span>}
+                  {expanded && <span>{label}</span>}
                 </Link>
               );
             })}

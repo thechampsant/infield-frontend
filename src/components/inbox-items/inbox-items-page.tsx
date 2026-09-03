@@ -8,7 +8,6 @@ import {
   type InboxItem,
   type InboxFilters,
   type InboxPagination,
-  type InboxAvailableSort,
   type InboxAvailableAction,
 } from "@/lib/api/inbox-items-service";
 import {
@@ -48,19 +47,16 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  // Dynamic filters/sorts from API. Module options are captured from the
+  // Dynamic filters from API. Module options are captured from the
   // unfiltered response and kept stable so the dropdown always shows every
   // module even after a filter is applied (a filtered response only reports
   // the filtered module).
   const [moduleOptions, setModuleOptions] = useState<{ value: string; label: string }[]>([]);
-  const [slaOptions, setSlaOptions] = useState<{ value: string; label: string }[]>([]);
-  const [availableSorts, setAvailableSorts] = useState<InboxAvailableSort[]>([]);
 
-  // Filters
+  // Filters — sort fixed to newest submitted first
   const [filterModule, setFilterModule] = useState("");
-  const [filterSla, setFilterSla] = useState("");
-  const [sortBy, setSortBy] = useState("submittedDate");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const sortBy = "submittedDate";
+  const sortDirection = "desc" as const;
   const [page, setPage] = useState(1);
 
   // Selection for bulk actions
@@ -92,17 +88,15 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
         sortDirection,
       };
       if (filterModule) filters.module = filterModule;
-      if (filterSla) filters.slaStatus = filterSla;
 
       const res = await inboxItemsService.getAssignedToMe(filters);
       setItems(res.items);
       setPagination(res.pagination);
-      if (res.availableSorts.length > 0) setAvailableSorts(res.availableSorts);
 
-      // Capture module + SLA options only from the UNFILTERED response so the
+      // Capture module options only from the UNFILTERED response so the
       // full list stays available. Prefer availableFilters; fall back to
       // summary.byModule, then to the modules present in the returned items.
-      const isUnfiltered = !filterModule && !filterSla;
+      const isUnfiltered = !filterModule;
       if (isUnfiltered) {
         const moduleFilter = res.availableFilters.find((f) => f.filterKey === "module");
         let modOpts = moduleFilter?.options ?? [];
@@ -117,11 +111,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           modOpts = uniqueModules.map((m) => ({ value: m, label: capitalize(m) }));
         }
         if (modOpts.length > 0) setModuleOptions(modOpts);
-
-        const slaFilter = res.availableFilters.find((f) => f.filterKey === "slaStatus");
-        if (slaFilter?.options && slaFilter.options.length > 0) {
-          setSlaOptions(slaFilter.options);
-        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inbox items");
@@ -129,7 +118,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
       setLoading(false);
       setInitialLoaded(true);
     }
-  }, [projectId, page, filterModule, filterSla, sortBy, sortDirection]);
+  }, [projectId, page, filterModule]);
 
   useEffect(() => {
     loadItems();
@@ -137,7 +126,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
 
   useEffect(() => {
     setPage(1);
-  }, [filterModule, filterSla, sortBy, sortDirection]);
+  }, [filterModule]);
 
   // Selection helpers
   const toggleSelect = (id: string) => {
@@ -158,15 +147,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   };
 
   const moduleFilterOptions = moduleOptions;
-  // SLA has a stable known set; use API-provided when present, else default.
-  const slaFilterOptions =
-    slaOptions.length > 0
-      ? slaOptions
-      : [
-          { value: "OnTime", label: "On Time" },
-          { value: "Warning", label: "Warning" },
-          { value: "Breached", label: "Breached" },
-        ];
 
   // ─── Actions ────────────────────────────────────────────────────────────
 
@@ -305,39 +285,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             </option>
           ))}
         </select>
-
-        <select
-          className="form-input"
-          value={filterSla}
-          onChange={(e) => setFilterSla(e.target.value)}
-          style={{ width: "auto", minWidth: 130 }}
-        >
-          <option value="">All SLA</option>
-          {slaFilterOptions.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-
-        {availableSorts.length > 0 && (
-          <select
-            className="form-input"
-            value={`${sortBy}:${sortDirection}`}
-            onChange={(e) => {
-              const [key, dir] = e.target.value.split(":");
-              setSortBy(key);
-              setSortDirection(dir as "asc" | "desc");
-            }}
-            style={{ width: "auto", minWidth: 160 }}
-          >
-            {availableSorts.map((s) => (
-              <option key={s.sortKey} value={`${s.sortKey}:${s.defaultDirection}`}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        )}
 
         {/* Inline updating indicator (shown during refetch after first load) */}
         {initialLoaded && loading && (
