@@ -61,7 +61,9 @@ export function ReportViewPage({
   const orientDefaults = isOrientProject(projectCode) ? defaultOrientLoadDateRange() : null;
   const [fromDate, setFromDate] = useState(orientDefaults?.fromDate ?? "");
   const [toDate, setToDate] = useState(orientDefaults?.toDate ?? "");
-  const [activePreset, setActivePreset] = useState<ReportDatePresetId | null>(null);
+  const [activePreset, setActivePreset] = useState<ReportDatePresetId | null>(
+    orientDefaults ? "last7" : null,
+  );
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -313,6 +315,25 @@ export function ReportViewPage({
           <CalendarDays className="h-4 w-4 text-[#1e5fa8]" />
           <h3 className="text-sm font-bold text-[#0c1929]">Date Range</h3>
         </div>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {REPORT_DATE_PRESETS.map((preset) => {
+            const selected = activePreset === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset.id)}
+                className={
+                  selected
+                    ? "rounded-md border border-[#1e5fa8] bg-[#1e5fa8] px-3 py-1.5 text-xs font-bold text-white"
+                    : "rounded-md border border-[#c8d8eb] bg-white px-3 py-1.5 text-xs font-bold text-[#3a5272] hover:border-[#1e5fa8] hover:bg-[#f7fafd] hover:text-[#1e5fa8]"
+                }
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[180px]">
             <label className="mb-1 block text-xs font-semibold text-[#3a5272]">From Date</label>
@@ -340,9 +361,9 @@ export function ReportViewPage({
                   const d = defaultOrientLoadDateRange();
                   setFromDate(d.fromDate);
                   setToDate(d.toDate);
+                  setActivePreset("last7");
                 } else {
-                  setFromDate("");
-                  setToDate("");
+                  clearDateRange();
                 }
               }}
               className="rounded-md px-3 py-2 text-xs font-bold text-[#7a95b5] hover:bg-[#f7fafd] hover:text-[#3a5272]"
