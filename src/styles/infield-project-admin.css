@@ -197,6 +197,209 @@
   padding: 12px 16px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pa-shell .pa-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.pa-shell .pa-drawer--collapsed .pa-profile-chip {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.pa-shell .pa-profile-chip:hover {
+  background: var(--blue-light, #eff6ff);
+  border-color: var(--blue-mid, #bfdbfe);
+}
+
+.pa-shell .pa-profile-avatar,
+.pa-profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--navy, #0f172a);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.pa-shell .pa-profile-avatar--lg,
+.pa-profile-avatar--lg {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+
+.pa-shell .pa-profile-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pa-shell .pa-profile-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pa-shell .pa-profile-role {
+  font-size: 10px;
+  color: var(--text-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Portaled outside .pa-shell (drawer overflow:hidden) — keep selectors unscoped */
+.pa-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-end;
+  padding: 16px;
+}
+
+.pa-profile-panel {
+  width: min(320px, calc(100vw - 32px));
+  max-height: min(480px, calc(100vh - 32px));
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid var(--border, #e2e8f0);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: inherit;
+}
+
+.pa-profile-panel-hero {
+  padding: 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.pa-profile-panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pa-profile-panel-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.pa-profile-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #fff;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+}
+
+.pa-profile-panel-close:hover {
+  color: var(--navy, #0f172a);
+  background: #f8fafc;
+}
+
+.pa-profile-panel-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pa-profile-panel-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy, #0f172a);
+}
+
+.pa-profile-panel-sub {
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+  margin-top: 2px;
+}
+
+.pa-profile-panel-body {
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.pa-profile-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.pa-profile-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  color: var(--navy, #0f172a);
+  flex-shrink: 0;
+}
+
+.pa-profile-row-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.pa-profile-row-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy, #0f172a);
+  margin-top: 2px;
+  word-break: break-word;
 }
 
 .pa-shell .pa-signout-btn {
