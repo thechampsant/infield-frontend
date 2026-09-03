@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,6 +12,11 @@ import {
   LogOut,
   ChevronLeft,
   LayoutGrid,
+  Mail,
+  Phone,
+  User,
+  CalendarDays,
+  X,
 } from "lucide-react";
 import { projectAdminBase, projectAdminDrawerNav } from "@/lib/nav/nav";
 import {
@@ -30,6 +36,38 @@ const ICONS = {
   pieChart: PieChart,
 } as const;
 
+export type PaProfile = {
+  name: string;
+  role: string;
+  email: string;
+  mobile: string;
+  designation: string;
+  dateOfJoining: string;
+};
+
+function initialsFromName(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "PA"
+  );
+}
+
+function formatProfileDate(value?: string): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function ProjectAdminDrawer({
   accountCode,
   projectCode,
@@ -38,6 +76,7 @@ export function ProjectAdminDrawer({
   accountName,
   backHref,
   onLogout,
+  profile,
 }: {
   accountCode: string;
   projectCode: string;
@@ -46,8 +85,11 @@ export function ProjectAdminDrawer({
   accountName: string;
   backHref: string;
   onLogout: () => void;
+  profile: PaProfile;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
   const pathname = usePathname() ?? "/";
   const { user } = useAuth();
   const showBackToProjects = canNavigateBackToProjects(user);
@@ -55,8 +97,11 @@ export function ProjectAdminDrawer({
     adminAccess: resolvedAdminAccess(user),
   });
 
-  // Dynamic menu items
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -73,6 +118,47 @@ export function ProjectAdminDrawer({
       cancelled = true;
     };
   }, [projectId]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setProfileOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [profileOpen]);
+
+  const initials = initialsFromName(profile.name);
+  const roleLine = profile.designation
+    ? `${projectName} · ${profile.designation}`
+    : profile.role || `${projectName} · Admin`;
+  const dojDisplay = formatProfileDate(profile.dateOfJoining);
+
+  const detailRows: Array<{ icon: typeof User; label: string; value: string }> =
+    [];
+  if (profile.name) {
+    detailRows.push({ icon: User, label: "Full Name", value: profile.name });
+  }
+  if (profile.designation || roleLine) {
+    detailRows.push({
+      icon: Users,
+      label: "Role",
+      value: profile.designation || roleLine,
+    });
+  }
+  if (profile.email) {
+    detailRows.push({ icon: Mail, label: "E-Mail ID", value: profile.email });
+  }
+  if (profile.mobile) {
+    detailRows.push({ icon: Phone, label: "Mobile", value: profile.mobile });
+  }
+  if (dojDisplay) {
+    detailRows.push({
+      icon: CalendarDays,
+      label: "Date of Joining",
+      value: dojDisplay,
+    });
+  }
 
   return (
     <aside
@@ -151,7 +237,6 @@ export function ProjectAdminDrawer({
           );
         })}
 
-        {/* Dynamic menu items */}
         {dynamicItems.length > 0 && (
           <>
             <div
@@ -163,7 +248,6 @@ export function ProjectAdminDrawer({
               aria-hidden
             />
             {dynamicItems.map((item) => {
-              // Resolve route: inbox key goes to project-admin inbox-items page
               const base = projectAdminBase(accountCode, projectCode);
               const resolvedHref =
                 item.menuKey === "inbox"
@@ -192,11 +276,91 @@ export function ProjectAdminDrawer({
       </nav>
 
       <div className="pa-drawer-footer">
+        <button
+          type="button"
+          className="pa-profile-chip"
+          onClick={() => setProfileOpen(true)}
+          title={profile.name}
+          aria-label={`Open profile for ${profile.name}`}
+        >
+          <span className="pa-profile-avatar" aria-hidden>
+            {initials}
+          </span>
+          {expanded && (
+            <span className="pa-profile-copy">
+              <span className="pa-profile-name">{profile.name}</span>
+              <span className="pa-profile-role">{roleLine}</span>
+            </span>
+          )}
+        </button>
+
         <button type="button" className="pa-signout-btn" onClick={onLogout}>
           <LogOut size={14} style={{ flexShrink: 0 }} />
           {expanded && <span>Sign Out</span>}
         </button>
       </div>
+
+      {portalReady && profileOpen
+        ? createPortal(
+            <div
+              className="pa-profile-overlay"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="paProfileTitle"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setProfileOpen(false);
+              }}
+            >
+              <aside className="pa-profile-panel">
+                <div className="pa-profile-panel-hero">
+                  <div className="pa-profile-panel-top">
+                    <div className="pa-profile-panel-eyebrow" id="paProfileTitle">
+                      My Profile
+                    </div>
+                    <button
+                      type="button"
+                      className="pa-profile-panel-close"
+                      onClick={() => setProfileOpen(false)}
+                      aria-label="Close profile"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="pa-profile-panel-main">
+                    <div
+                      className="pa-profile-avatar pa-profile-avatar--lg"
+                      aria-hidden
+                    >
+                      {initials}
+                    </div>
+                    <div>
+                      <div className="pa-profile-panel-name">{profile.name}</div>
+                      <div className="pa-profile-panel-sub">{roleLine}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pa-profile-panel-body">
+                  {detailRows.map((row) => {
+                    const Icon = row.icon;
+                    return (
+                      <div key={row.label} className="pa-profile-row">
+                        <span className="pa-profile-row-icon" aria-hidden>
+                          <Icon size={14} />
+                        </span>
+                        <div>
+                          <div className="pa-profile-row-label">{row.label}</div>
+                          <div className="pa-profile-row-value">{row.value}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </aside>
+            </div>,
+            document.body,
+          )
+        : null}
     </aside>
   );
 }
