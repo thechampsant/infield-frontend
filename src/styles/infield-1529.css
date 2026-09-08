@@ -98,7 +98,7 @@
 }
 
 /* Reset only unstyled buttons; .btn / .btn-outline etc. set their own backgrounds */
-.if2-app button:not(.btn):not(.btn-outline):not(.btn-add-proj):not(.modal-tab):not(.modal-close):not(.so-btn) {
+.if2-app button:not(.btn):not(.btn-outline):not(.btn-add-proj):not(.modal-tab):not(.modal-close):not(.so-btn):not(.name-card):not(.ham-toggle):not(.signout-btn) {
   font-family: inherit;
   border: none;
   background: transparent;
@@ -190,13 +190,32 @@
 
 .drawer-foot { flex-shrink: 0; padding: var(--if2-sp-16); border-top: 1px solid var(--if2-border); }
 .signout-btn {
-  display: flex; align-items: center; gap: var(--if2-sp-12);
-  width: 100%; padding: var(--if2-sp-12); border-radius: var(--if2-r-md);
-  color: var(--if2-red); font-size: 13px; font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--if2-sp-8);
+  width: 100%;
+  padding: var(--if2-sp-12) var(--if2-sp-16);
+  border-radius: var(--if2-r-pill);
+  background: var(--if2-red-light);
+  border: 1px solid var(--if2-red-mid);
+  color: var(--if2-navy);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s, border-color .2s, box-shadow .2s;
 }
-.signout-btn:hover { background: var(--if2-red-light); }
-.signout-btn svg { width: 16px; height: 16px; stroke: var(--if2-red); stroke-width: 2; flex-shrink: 0; }
+.signout-btn:hover {
+  background: #ffe0de;
+  border-color: var(--if2-red);
+  box-shadow: 0 4px 16px rgba(232, 56, 45, .12);
+}
+.signout-btn svg { width: 14px; height: 14px; stroke: var(--if2-red); stroke-width: 2; flex-shrink: 0; }
 .app.collapsed .signout-btn .nav-text { display: none; }
+.app.collapsed .signout-btn {
+  padding: var(--if2-sp-12);
+  border-radius: 50%;
+}
 
 /* ------------------------------------------------------------
    MAIN + TOPBAR
@@ -235,10 +254,20 @@
 .bc-current { font-size: 12px; font-weight: 700; color: var(--if2-text); padding: var(--if2-sp-4) var(--if2-sp-8); border-radius: var(--if2-r-sm); white-space: nowrap; }
 .bc-sep     { color: var(--if2-border2); font-size: 13px; }
 
-.name-card { display: flex; align-items: center; gap: var(--if2-sp-8); padding: var(--if2-sp-4) var(--if2-sp-8); border-radius: var(--if2-r-md); }
+.name-card {
+  display: flex;
+  align-items: center;
+  gap: var(--if2-sp-8);
+  padding: var(--if2-sp-4) var(--if2-sp-12) var(--if2-sp-4) var(--if2-sp-4);
+  border: 1px solid var(--if2-border2);
+  background: var(--if2-surface2);
+  border-radius: var(--if2-r-pill);
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
 .nc-avatar {
   position: relative;
-  width: 32px; height: 32px; border-radius: var(--if2-r-md);
+  width: 32px; height: 32px; border-radius: 50%;
   background: linear-gradient(135deg, var(--if2-blue), var(--if2-blue-mid));
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 800; color: #fff;

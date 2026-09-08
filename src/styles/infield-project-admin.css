@@ -46,9 +46,29 @@
   width: 100%;
 }
 
+.pa-shell .pa-main-column {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.pa-shell .pa-topbar-host.if2-app {
+  flex-shrink: 0;
+  min-height: 0;
+  background: transparent;
+  position: relative;
+}
+
+.pa-shell .pa-topbar-host.if2-app::before {
+  display: none;
+}
+
 .pa-shell .pa-stage {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   padding: 32px;
   overflow-x: hidden;
   overflow-y: auto;
@@ -207,23 +227,29 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px;
-  background: var(--surface-2, #f8fafc);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  padding: 5px 14px 5px 5px;
+  background: #ebf2ff;
+  border: 1px solid #2b547e;
+  border-radius: 999px;
   cursor: pointer;
   text-align: left;
   color: inherit;
+  min-height: 44px;
+  transition: border-color .2s, background .2s;
 }
 
 .pa-shell .pa-drawer--collapsed .pa-profile-chip {
   justify-content: center;
-  padding: 8px 0;
+  padding: 5px;
+  border-radius: 50%;
+  min-height: 44px;
+  width: 44px;
+  margin: 0 auto;
 }
 
 .pa-shell .pa-profile-chip:hover {
-  background: var(--blue-light, #eff6ff);
-  border-color: var(--blue-mid, #bfdbfe);
+  border-color: #1e5fa8;
+  background: #f0f6ff;
 }
 
 .pa-shell .pa-profile-avatar,
@@ -231,15 +257,28 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: var(--navy, #0f172a);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue, #1e5fa8), var(--blue-mid, #2b7fd4));
   color: #fff;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
   flex-shrink: 0;
+  position: relative;
+}
+
+.pa-shell .pa-profile-status,
+.pa-profile-status {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--teal, #00a87a);
+  border: 2px solid #ebf2ff;
 }
 
 .pa-shell .pa-profile-avatar--lg,
@@ -408,16 +447,36 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 12px;
+  padding: 12px 16px;
   background: var(--red-light);
   border: 1px solid var(--red-mid);
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--red);
+  color: var(--navy, #0c1929);
   cursor: pointer;
   overflow: hidden;
   white-space: nowrap;
+  min-height: 44px;
+  transition: background .2s, border-color .2s, box-shadow .2s;
+}
+
+.pa-shell .pa-signout-btn:hover {
+  background: #ffe0de;
+  border-color: var(--red);
+  box-shadow: 0 4px 16px rgba(232, 56, 45, 0.12);
+}
+
+.pa-shell .pa-signout-btn svg {
+  stroke: var(--red);
+  flex-shrink: 0;
+}
+
+.pa-shell .pa-drawer--collapsed .pa-signout-btn {
+  padding: 12px;
+  border-radius: 50%;
+  width: 44px;
+  margin: 0 auto;
 }
 
 .pa-shell .pa-project-banner {

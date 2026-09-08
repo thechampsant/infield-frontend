@@ -576,7 +576,9 @@ function defaultBreadcrumbs(pathname: string): Breadcrumb[] {
 
   if (pathname.startsWith("/account-admin")) {
     const crumbs: Breadcrumb[] = [{ label: "Setup" }];
-    if (pathname.startsWith("/account-admin/projects")) {
+    if (pathname.startsWith("/account-admin/notifications")) {
+      crumbs.push({ label: "Notifications" });
+    } else if (pathname.startsWith("/account-admin/projects")) {
       crumbs.push({ label: "Projects" });
     }
     return crumbs;
@@ -585,7 +587,9 @@ function defaultBreadcrumbs(pathname: string): Breadcrumb[] {
   const crumbs: Breadcrumb[] = [
     { label: "Setup", href: "/super-admin/accounts" },
   ];
-  if (pathname.startsWith("/super-admin/accounts")) {
+  if (pathname.startsWith("/super-admin/notifications")) {
+    crumbs.push({ label: "Notifications" });
+  } else if (pathname.startsWith("/super-admin/accounts")) {
     crumbs.push({ label: "Accounts", href: "/super-admin/accounts" });
     if (pathname !== "/super-admin/accounts") {
       crumbs.push({ label: "Detail" });

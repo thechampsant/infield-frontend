@@ -12,8 +12,10 @@
   justify-content: center;
   background: var(--if2-red-light);
   border: 1px solid var(--if2-red-mid);
-  border-radius: var(--if2-r-lg);
-  transition: background .2s, border-color .2s, box-shadow .2s, transform .1s;
+  border-radius: var(--if2-r-pill, 999px);
+  color: var(--if2-navy);
+  min-height: 44px;
+  transition: background .2s, border-color .2s, box-shadow .2s;
 }
 .if2-app .signout-btn:hover {
   background: #ffe0de;
@@ -21,6 +23,7 @@
   box-shadow: 0 4px 16px rgba(232, 56, 45, .12);
 }
 .if2-app .signout-btn:focus-visible { outline: 2px solid var(--if2-red); outline-offset: 2px; }
+.if2-app .signout-btn svg { width: 14px; height: 14px; stroke: var(--if2-red); }
 
 /* ------------------------------------------------------------
    DRAWER HEAD - hamburger animation
@@ -137,33 +140,29 @@
    TOPBAR - name card hover / active
    ------------------------------------------------------------ */
 .if2-app .name-card {
-  border: 1px solid rgba(205, 220, 236, .95);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(246,250,255,.96) 100%);
-  border-radius: 18px;
-  padding: var(--if2-sp-5) var(--if2-sp-10) var(--if2-sp-5) var(--if2-sp-5);
+  border: 1px solid #2b547e;
+  background: #ebf2ff;
+  border-radius: var(--if2-r-pill, 999px);
+  padding: 5px 14px 5px 5px;
   cursor: pointer;
-  min-height: 46px;
-  box-shadow: 0 6px 18px rgba(30, 95, 168, .06);
-  transition: transform .15s, border-color .2s, background .2s, box-shadow .2s;
+  min-height: 44px;
+  box-shadow: none;
+  transition: border-color .2s, background .2s;
 }
 .if2-app .name-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(84, 144, 214, .5);
-  background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);
-  box-shadow: 0 10px 24px rgba(30, 95, 168, .12);
+  border-color: #1e5fa8;
+  background: #f0f6ff;
 }
 .if2-app .name-card.active-nav {
-  border-color: rgba(84, 144, 214, .65);
-  background: linear-gradient(180deg, #ffffff 0%, #ebf4ff 100%);
-  box-shadow: 0 10px 24px rgba(30, 95, 168, .14);
+  border-color: #1e5fa8;
+  background: #f0f6ff;
 }
 .if2-app .name-card:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
 .if2-app .nc-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.24);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  box-shadow: none;
 }
 .if2-app .nc-status { right: -1px; bottom: -1px; }
 .if2-app .nc-text {
@@ -187,10 +186,6 @@
   letter-spacing: .2px;
 }
 .if2-app .nc-caret {
-  width: 26px;
-  height: 26px;
-  border-radius: 10px;
-  background: rgba(224, 236, 249, .9);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -605,8 +600,8 @@
   .if2-app .nc-text { display: none; }
   .if2-app .name-card {
     padding: var(--if2-sp-4);
-    min-height: 42px;
-    border-radius: 14px;
+    min-height: 40px;
+    border-radius: 50%;
   }
   .if2-app .nc-caret { display: none; }
   .if2-app .pf-drawer { width: 100vw; }

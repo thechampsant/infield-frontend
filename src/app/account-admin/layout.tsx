@@ -60,6 +60,7 @@ export default function AccountAdminLayout({
         sections={accountAdminNav}
         brandTag="Account Admin"
         homeHref="/account-admin/projects"
+        notificationsHref="/account-admin/notifications"
         user={chip}
         onLogout={handleLogout}
       >

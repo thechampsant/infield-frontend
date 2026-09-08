@@ -1,7 +1,7 @@
 import { Bell } from "lucide-react";
 import { ComingSoonPanel } from "@/components/shell/coming-soon-panel";
 
-export default function WorkspaceNotificationsPage() {
+export default function SuperAdminNotificationsPage() {
   return (
     <div className="stage">
       <ComingSoonPanel
