@@ -24,6 +24,7 @@ export default function SuperAdminLayout({
       <MasterShell
         sections={superAdminNav}
         homeHref="/super-admin/accounts"
+        notificationsHref="/super-admin/notifications"
         user={{
           name: user?.email?.split("@")[0] || "Super Admin",
           role: "V5 Global · Admin",

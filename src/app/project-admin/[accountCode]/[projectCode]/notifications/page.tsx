@@ -1,0 +1,16 @@
+import { Bell } from "lucide-react";
+import { ComingSoonPanel } from "@/components/shell/coming-soon-panel";
+
+export default function ProjectNotificationsPage() {
+  return (
+    <div className="if2-app">
+      <div className="stage">
+        <ComingSoonPanel
+          moduleName="Notifications"
+          icon={Bell}
+          description="Real-time push alerts for attendance misses, claim approvals, scheme launches, and task deadlines — configurable per role so your team gets only what matters."
+        />
+      </div>
+    </div>
+  );
+}

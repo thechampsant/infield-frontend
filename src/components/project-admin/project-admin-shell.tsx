@@ -8,6 +8,7 @@ import {
   ProjectAdminDrawer,
   type PaProfile,
 } from "@/components/project-admin/project-admin-drawer";
+import { ProjectAdminTopbar } from "@/components/project-admin/project-admin-topbar";
 import {
   ProjectContextProvider,
   useProjectContext,
@@ -135,18 +136,27 @@ function ProjectAdminShellInner({ children }: { children: ReactNode }) {
         accountName={ctx.accountName}
         backHref={ctx.backHref}
         onLogout={handleLogout}
-        profile={profile}
       />
-      <main className="pa-stage" aria-label={`Project admin — ${profile.role}`}>
-        <div className="pa-content-wrap">
-          <ModuleConfigAccessGuard
-            accountCode={ctx.accountCode}
-            projectCode={ctx.projectCode}
-          >
-            {children}
-          </ModuleConfigAccessGuard>
-        </div>
-      </main>
+      <div className="pa-main-column">
+        <ProjectAdminTopbar
+          profile={profile}
+          projectName={ctx.projectName}
+          accountName={ctx.accountName}
+          accountCode={ctx.accountCode}
+          projectCode={ctx.projectCode}
+          onSignOut={handleLogout}
+        />
+        <main className="pa-stage" aria-label={`Project admin — ${profile.role}`}>
+          <div className="pa-content-wrap">
+            <ModuleConfigAccessGuard
+              accountCode={ctx.accountCode}
+              projectCode={ctx.projectCode}
+            >
+              {children}
+            </ModuleConfigAccessGuard>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
