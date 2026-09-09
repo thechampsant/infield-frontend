@@ -11,6 +11,8 @@ import type {
   UdfSourcePreviewItem,
 } from "@/lib/api";
 import { ArrowDown, ArrowUp, ChevronLeft, Copy, Info, Trash2 } from "lucide-react";
+import { FileFieldSettings } from "@/components/udf/file-field-settings";
+import { DEFAULT_FILE_FIELD_CONFIG } from "@/lib/udf/file-field-config";
 
 interface Props {
   projectId: string;
@@ -105,7 +107,7 @@ function createField(type: UdfFieldType, order: number): UdfSchemaField {
               : type === "SIGNATURE"
                 ? { signatureMode: true, format: "png" }
                 : type === "FILE"
-                  ? { multiple: false, maxCount: 1, accept: [] }
+                  ? { ...DEFAULT_FILE_FIELD_CONFIG }
                   : type === "REPEATABLE_GROUP"
                     ? { minRows: 1, maxRows: 10, fields: [] }
                     : type === "FORMULA"
@@ -2283,37 +2285,11 @@ export function ClaimsFormBuilderV2({
               )}
 
               {selectedField.type === "FILE" && (
-                <>
-                  <MediaSettings
-                    field={selectedField}
-                    onChange={(patch) => updateFieldConfig(selectedIndex!, patch)}
-                  />
-                  <div className="claims-fb-formGroup">
-                    <label>Accepted MIME Types</label>
-                    <input
-                      className="form-input"
-                      placeholder="application/pdf, image/*"
-                      value={
-                        Array.isArray(
-                          (selectedField.config as Record<string, unknown>)?.accept,
-                        )
-                          ? (
-                              (selectedField.config as Record<string, unknown>)
-                                .accept as unknown[]
-                            ).join(", ")
-                          : ""
-                      }
-                      onChange={(e) =>
-                        updateFieldConfig(selectedIndex!, {
-                          accept: e.target.value
-                            .split(",")
-                            .map((value) => value.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                    />
-                  </div>
-                </>
+                <FileFieldSettings
+                  config={configRecord(selectedField)}
+                  onChange={(patch) => updateFieldConfig(selectedIndex!, patch)}
+                  variant="claims"
+                />
               )}
 
               {selectedField.type === "REPEATABLE_GROUP" && enableAdvancedSalesFields && (

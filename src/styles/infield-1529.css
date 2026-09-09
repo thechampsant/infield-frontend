@@ -98,7 +98,7 @@
 }
 
 /* Reset only unstyled buttons; .btn / .btn-outline etc. set their own backgrounds */
-.if2-app button:not(.btn):not(.btn-outline):not(.btn-add-proj):not(.modal-tab):not(.modal-close):not(.so-btn):not(.name-card):not(.ham-toggle):not(.signout-btn) {
+.if2-app button:not(.btn):not(.btn-outline):not(.btn-add-proj):not(.modal-tab):not(.modal-close):not(.so-btn):not(.name-card):not(.ham-toggle):not(.signout-btn):not(.pf-close):not(.pf-copy):not(.pf-signout) {
   font-family: inherit;
   border: none;
   background: transparent;

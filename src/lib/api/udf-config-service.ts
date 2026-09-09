@@ -116,6 +116,9 @@ export interface UdfImageConfig extends UdfMediaConfig {
 }
 
 export interface UdfFileConfig extends UdfMediaConfig {
+  allowedExtensions?: string[];
+  maxFileSizeMB?: number;
+  /** Optional advanced MIME hints for mobile clients */
   accept?: string[];
 }
 
