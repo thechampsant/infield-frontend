@@ -35,6 +35,7 @@ export type PaProfile = {
   role: string;
   email: string;
   mobile: string;
+  employeeId: string;
   designation: string;
   dateOfJoining: string;
 };

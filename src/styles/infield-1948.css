@@ -114,13 +114,22 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background .15s, border-color .15s;
+  transition: background .2s, border-color .2s;
   flex-shrink: 0;
 }
-.if2-app .tb-icon-btn:hover { background: var(--if2-blue-pale); border-color: var(--if2-blue-light); }
-.if2-app .tb-icon-btn.active-nav { background: var(--if2-blue-pale); border-color: var(--if2-blue); }
+.if2-app .tb-icon-btn:hover {
+  background: var(--if2-blue-pale);
+  border-color: var(--if2-blue);
+}
+.if2-app .tb-icon-btn:hover svg {
+  stroke: var(--if2-blue);
+}
+.if2-app .tb-icon-btn.active-nav {
+  background: var(--if2-blue-pale);
+  border-color: var(--if2-blue);
+}
 .if2-app .tb-icon-btn:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
-.if2-app .tb-icon-btn svg { width: 16px; height: 16px; stroke: var(--if2-text-mid); stroke-width: 2; }
+.if2-app .tb-icon-btn svg { width: 16px; height: 16px; stroke: var(--if2-text-mid); stroke-width: 2; transition: stroke .2s; }
 .if2-app .tb-icon-btn.active-nav svg { stroke: var(--if2-blue); }
 
 .if2-app .tb-icon-btn .dot {
@@ -131,8 +140,13 @@
   height: 8px;
   border-radius: 50%;
   background: var(--if2-red);
-  border: 2px solid var(--if2-surface);
+  border: 2px solid var(--if2-surface2);
   display: none;
+  transition: border-color .2s;
+}
+.if2-app .tb-icon-btn:hover .dot,
+.if2-app .tb-icon-btn.active-nav .dot {
+  border-color: var(--if2-blue-pale);
 }
 .if2-app .tb-icon-btn .dot.visible { display: block; }
 
@@ -140,8 +154,8 @@
    TOPBAR - name card hover / active
    ------------------------------------------------------------ */
 .if2-app .name-card {
-  border: 1px solid #2b547e;
-  background: #ebf2ff;
+  border: 1px solid var(--if2-border);
+  background: var(--if2-surface2);
   border-radius: var(--if2-r-pill, 999px);
   padding: 5px 14px 5px 5px;
   cursor: pointer;
@@ -150,14 +164,18 @@
   transition: border-color .2s, background .2s;
 }
 .if2-app .name-card:hover {
-  border-color: #1e5fa8;
-  background: #f0f6ff;
+  border-color: var(--if2-blue);
+  background: var(--if2-blue-pale);
 }
 .if2-app .name-card.active-nav {
-  border-color: #1e5fa8;
-  background: #f0f6ff;
+  border-color: var(--if2-blue);
+  background: var(--if2-blue-pale);
 }
 .if2-app .name-card:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 2px; }
+.if2-app .name-card:hover .nc-status,
+.if2-app .name-card.active-nav .nc-status {
+  border-color: var(--if2-blue-pale);
+}
 .if2-app .nc-avatar {
   width: 34px;
   height: 34px;
@@ -248,19 +266,31 @@
   color: rgba(255,255,255,.74);
 }
 .if2-app .pf-close {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.16);
-  background: rgba(255,255,255,.08);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .2s, border-color .2s;
+}
+.if2-app .pf-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+.if2-app .pf-close:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 2px;
 }
 .if2-app .pf-close svg {
   width: 16px;
   height: 16px;
   stroke: #fff;
+  stroke-width: 2;
 }
 .if2-app .pf-hero-main {
   display: flex;
@@ -393,11 +423,30 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .2s, border-color .2s;
+}
+.if2-app .pf-copy:hover {
+  border-color: var(--if2-blue-light);
+  background: var(--if2-blue-pale);
+}
+.if2-app .pf-copy:hover svg {
+  stroke: var(--if2-blue);
+}
+.if2-app .pf-copy--copied {
+  border-color: var(--if2-teal);
+  background: var(--if2-teal-light);
+}
+.if2-app .pf-copy--copied svg {
+  stroke: var(--if2-teal-dark);
 }
 .if2-app .pf-copy svg {
   width: 15px;
   height: 15px;
   stroke: #8ca2c0;
+  stroke-width: 2;
+  transition: stroke .2s;
 }
 .if2-app .pf-section {
   padding: 16px;

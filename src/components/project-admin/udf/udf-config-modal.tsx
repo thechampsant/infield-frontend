@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
+import { FileFieldSettings } from "@/components/udf/file-field-settings";
 import { formatApiError, udfConfigService } from "@/lib/api";
+import { DEFAULT_FILE_FIELD_CONFIG } from "@/lib/udf/file-field-config";
 import { projectUsersService } from "@/lib/api/project-users-service";
 import { storeService } from "@/lib/api/store-service";
 import { productService } from "@/lib/api/product-service";
@@ -709,7 +711,9 @@ export function UDFConfigModal({
                           config:
                             e.target.value === "SELECT" || e.target.value === "DROPDOWN"
                               ? { options: [], multiple: false }
-                              : undefined,
+                              : e.target.value === "FILE"
+                                ? { ...DEFAULT_FILE_FIELD_CONFIG }
+                                : undefined,
                         })
                       }
                     >
@@ -1016,22 +1020,20 @@ export function UDFConfigModal({
                   </div>
                 )}
 
-                {(field.type === "IMAGE" || field.type === "FILE") && (
-                  <div style={{ display: "grid", gridTemplateColumns: field.type === "IMAGE" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 12 }}>
-                    {field.type === "IMAGE" && (
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Source</label>
-                        <select
-                          className="form-input"
-                          value={String((field.config as Record<string, unknown> | undefined)?.source ?? "Both")}
-                          onChange={(e) => updateFieldConfig(index, { source: e.target.value })}
-                        >
-                          <option value="Both">Both</option>
-                          <option value="Camera">Camera</option>
-                          <option value="Gallery">Gallery</option>
-                        </select>
-                      </div>
-                    )}
+                {field.type === "IMAGE" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Source</label>
+                      <select
+                        className="form-input"
+                        value={String((field.config as Record<string, unknown> | undefined)?.source ?? "Both")}
+                        onChange={(e) => updateFieldConfig(index, { source: e.target.value })}
+                      >
+                        <option value="Both">Both</option>
+                        <option value="Camera">Camera</option>
+                        <option value="Gallery">Gallery</option>
+                      </select>
+                    </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Multiple</label>
                       <select
@@ -1054,6 +1056,18 @@ export function UDFConfigModal({
                       />
                     </div>
                   </div>
+                )}
+
+                {field.type === "FILE" && (
+                  <FileFieldSettings
+                    config={
+                      field.config && typeof field.config === "object"
+                        ? (field.config as Record<string, unknown>)
+                        : undefined
+                    }
+                    onChange={(patch) => updateFieldConfig(index, patch)}
+                    variant="modal"
+                  />
                 )}
               </div>
             ))}

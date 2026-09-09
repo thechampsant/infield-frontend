@@ -9,9 +9,11 @@ import {
   Bell,
   Building2,
   CalendarDays,
+  Check,
   ChevronDown,
   Copy,
   LogOut,
+  Lock,
   Mail,
   Phone,
   User,
@@ -20,6 +22,7 @@ import {
 import { InfieldBrandLogo } from "@/components/brand/infield-brand-logo";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { cn } from "@/lib/utils/cn";
+import { copyTextToClipboard } from "@/lib/utils/copy-to-clipboard";
 import type { PaProfile } from "@/components/project-admin/project-admin-drawer";
 
 function initialsFromName(name: string): string {
@@ -92,6 +95,17 @@ function ProfileInfoCard({
   copyValue?: string;
   tone?: "blue" | "green" | "indigo" | "amber" | "violet" | "slate";
 }) {
+  const [copied, setCopied] = useState(false);
+  const textToCopy = copyValue?.trim() ?? "";
+
+  async function handleCopy() {
+    if (!textToCopy) return;
+    const ok = await copyTextToClipboard(textToCopy);
+    if (!ok) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="pf-card">
       <div className={cn("pf-card-icon", `pf-card-icon--${tone}`)}>{icon}</div>
@@ -99,16 +113,16 @@ function ProfileInfoCard({
         <div className="pf-card-label">{label}</div>
         <div className="pf-card-value">{value}</div>
       </div>
-      {copyValue ? (
+      {textToCopy ? (
         <button
           type="button"
-          className="pf-copy"
-          aria-label={`Copy ${label}`}
+          className={cn("pf-copy", copied && "pf-copy--copied")}
+          aria-label={copied ? `${label} copied` : `Copy ${label}`}
           onClick={() => {
-            void navigator.clipboard?.writeText(copyValue);
+            void handleCopy();
           }}
         >
-          <Copy />
+          {copied ? <Check /> : <Copy />}
         </button>
       ) : null}
     </div>
@@ -290,6 +304,13 @@ export function ProjectAdminTopbar({
                         value={profile.email || "Not available"}
                         copyValue={profile.email || undefined}
                         tone="indigo"
+                      />
+                      <ProfileInfoCard
+                        icon={<Lock />}
+                        label="Login ID"
+                        value={profile.employeeId || "Not available"}
+                        copyValue={profile.employeeId || undefined}
+                        tone="slate"
                       />
                     </div>
 

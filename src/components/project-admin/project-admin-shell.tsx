@@ -67,6 +67,11 @@ export function normalizePaProfile(
       stringValue(raw.phone) ||
       stringValue(raw.phoneNumber) ||
       stringValue(raw.contactNumber),
+    employeeId:
+      stringValue(raw.employeeId) ||
+      stringValue(raw.employeeCode) ||
+      stringValue(raw.loginId) ||
+      stringValue(raw.loginID),
     designation,
     dateOfJoining:
       stringValue(raw.doj) ||
@@ -85,6 +90,7 @@ function ProjectAdminShellInner({ children }: { children: ReactNode }) {
     role: "Project Admin",
     email: "",
     mobile: "",
+    employeeId: "",
     designation: "",
     dateOfJoining: "",
   });
