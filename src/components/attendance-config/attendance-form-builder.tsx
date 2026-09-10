@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError, udfConfigService } from "@/lib/api";
 import type {
   AttendanceFormType,
@@ -59,18 +59,59 @@ function createField(index: number, type: UdfFieldType): UdfSchemaField {
   };
 }
 
-function optionsText(field: UdfSchemaField): string {
-  const options = field.config && typeof field.config === "object"
-    ? (field.config as Record<string, unknown>).options
-    : undefined;
-  return Array.isArray(options) ? options.map(String).join("\n") : "";
+function fieldOptions(field: UdfSchemaField): string[] {
+  const options =
+    field.config && typeof field.config === "object"
+      ? (field.config as Record<string, unknown>).options
+      : undefined;
+  return Array.isArray(options) ? options.map(String) : [];
 }
 
-function parseOptions(value: string): string[] {
-  return value
-    .split("\n")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+function OptionsTextarea({
+  value,
+  onChange,
+  placeholder,
+  className,
+  rows = 4,
+}: {
+  value: string[];
+  onChange: (options: string[]) => void;
+  placeholder?: string;
+  className?: string;
+  rows?: number;
+}) {
+  const [localText, setLocalText] = useState(() => value.join("\n"));
+  const committedRef = useRef(value);
+
+  useEffect(() => {
+    const externalJoined = value.join("\n");
+    const committedJoined = committedRef.current.join("\n");
+    if (externalJoined !== committedJoined) {
+      setLocalText(externalJoined);
+      committedRef.current = value;
+    }
+  }, [value]);
+
+  const handleBlur = useCallback(() => {
+    const parsed = localText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    committedRef.current = parsed;
+    onChange(parsed);
+  }, [localText, onChange]);
+
+  return (
+    <textarea
+      className={className}
+      rows={rows}
+      value={localText}
+      onChange={(event) => setLocalText(event.target.value)}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      spellCheck={false}
+    />
+  );
 }
 
 function previewKeys(rows: UdfSourcePreviewItem[]): string[] {
@@ -423,13 +464,12 @@ export function AttendanceFormBuilder({
                   </div>
                   <label className="att-form-builder__field">
                     <span>Options</span>
-                    <textarea
+                    <OptionsTextarea
+                      key={`options-${selectedIndex}-${selectedField.fieldKey}`}
                       className="form-input att-form-builder__textarea"
-                      value={optionsText(selectedField)}
-                      placeholder={"One option per line"}
-                      onChange={(e) =>
-                        updateFieldConfig(selectedIndex, { options: parseOptions(e.target.value) })
-                      }
+                      value={fieldOptions(selectedField)}
+                      placeholder="One option per line"
+                      onChange={(options) => updateFieldConfig(selectedIndex, { options })}
                     />
                   </label>
                 </>
