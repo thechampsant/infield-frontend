@@ -58,6 +58,8 @@ interface PaginatedUsers {
   meta?: RawListMeta;
 }
 
+export type UserListStatus = "active" | "inactive" | "all";
+
 export interface ProjectUserListResult {
   data: ProjectUser[];
   meta: ListMeta;
@@ -437,12 +439,13 @@ function normalizeUserSchemaFieldForSave(
 }
 
 export const projectUsersService = {
-  /** List one page of active users for a project. */
+  /** List one page of users for a project. Defaults to active-only for pickers. */
   async listByProject(
     projectId: string,
     page = 1,
     pageSize = DEFAULT_LIST_PAGE_SIZE,
     search?: string,
+    status?: UserListStatus,
   ): Promise<ProjectUserListResult> {
     const params = new URLSearchParams({
       projectId,
@@ -451,6 +454,7 @@ export const projectUsersService = {
     });
     const term = search?.trim();
     if (term) params.set("search", term);
+    if (status) params.set("status", status);
     const res = await apiClient.get<PaginatedUsers | RawUser[]>(
       `${BASE}?${params.toString()}`,
     );
@@ -562,6 +566,16 @@ export const projectUsersService = {
       ...(input.reportees !== undefined ? { reportees: input.reportees } : {}),
     };
     await apiClient.post(BASE, payload);
+  },
+
+  /** Soft-delete a field user (sets isActive=false). */
+  async delete(userId: string): Promise<void> {
+    await apiClient.delete(`${BASE}/${encodeURIComponent(userId)}`);
+  },
+
+  /** Re-activate a soft-deleted field user. */
+  async restore(userId: string): Promise<void> {
+    await apiClient.post(`${BASE}/${encodeURIComponent(userId)}/restore`);
   },
 
   async update(userId: string, input: UpdateProjectUserInput): Promise<void> {

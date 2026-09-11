@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { designationService } from "@/lib/api/designation-service";
 import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
-import { projectUsersService, type BulkUploadResult } from "@/lib/api/project-users-service";
+import { projectUsersService, type BulkUploadResult, type UserListStatus } from "@/lib/api/project-users-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { DesignationsRequiredBanner } from "@/components/project-admin/uploaders/designations-required-banner";
 import { UserTable } from "@/components/project-admin/uploaders/users/user-table";
@@ -46,6 +46,7 @@ export default function UsersMasterPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<UserListStatus>("all");
   const [meta, setMeta] = useState<ListMeta>({
     page: 1,
     pageSize: DEFAULT_LIST_PAGE_SIZE,
@@ -60,7 +61,7 @@ export default function UsersMasterPage() {
     setError(null);
     try {
       const [userList, formConfig, designations] = await Promise.all([
-        projectUsersService.listByProject(projectId, page, pageSize, debouncedSearch),
+        projectUsersService.listByProject(projectId, page, pageSize, debouncedSearch, statusFilter),
         projectUsersService.getFormFieldsConfig(projectId),
         designationService.listByProject(projectId).catch(() => []),
       ]);
@@ -84,7 +85,7 @@ export default function UsersMasterPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, page, pageSize, debouncedSearch]);
+  }, [projectId, page, pageSize, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -276,6 +277,13 @@ export default function UsersMasterPage() {
         projectId={projectId}
         searchValue={search}
         onSearchChange={setSearch}
+        statusFilter={statusFilter}
+        onStatusFilterChange={(next) => {
+          setStatusFilter(next);
+          setPage(1);
+        }}
+        activeCount={meta.activeCount ?? 0}
+        inactiveCount={meta.inactiveCount ?? 0}
         pagination={{
           page: meta.page,
           pageSize,
