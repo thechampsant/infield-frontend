@@ -11,10 +11,10 @@ import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
 import { EditUserModal } from "./edit-user-modal";
 import { AuditHistoryModal } from "@/components/project-admin/shared/audit-history-modal";
+import { projectUsersService, type UserListStatus } from "@/lib/api/project-users-service";
 import type {
   ProjectUser,
   UDFField,
-  Status,
   UserStaticField,
 } from "@/types/project-admin";
 
@@ -28,6 +28,10 @@ interface UserTableProps {
   pagination: ServerPagination;
   searchValue: string;
   onSearchChange: (value: string) => void;
+  statusFilter: UserListStatus;
+  onStatusFilterChange: (value: UserListStatus) => void;
+  activeCount: number;
+  inactiveCount: number;
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
@@ -44,19 +48,18 @@ export function UserTable({
   pagination,
   searchValue,
   onSearchChange,
+  statusFilter,
+  onStatusFilterChange,
+  activeCount,
+  inactiveCount,
   onOpenUDFConfig,
   onRefresh,
   onExport,
 }: UserTableProps) {
-  const [filter, setFilter] = useState<"all" | Status>("all");
   const [editId, setEditId] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
 
-  const filtered = users.filter((u) => filter === "all" || u.status === filter);
-
-  // The list API returns active users only, so every row on every page is active.
-  const total = pagination.totalCount;
-  const activeCount = total;
+  const total = activeCount + inactiveCount;
 
   const cellTruncate: React.CSSProperties = {
     overflow: "hidden",
@@ -64,7 +67,7 @@ export function UserTable({
     whiteSpace: "nowrap",
   };
 
-  const rows = filtered.map((u, index) => {
+  const rows = users.map((u, index) => {
     const rowKey = `${u.backendId || u.id}-${index}`;
     const initials = u.name
       .split(" ")
@@ -164,6 +167,12 @@ export function UserTable({
             onEdit={() => setEditId(u.backendId || u.id)}
             onAudit={() => setAuditId(u.backendId || u.id)}
             onRefresh={onRefresh}
+            onDeactivate={async () => {
+              await projectUsersService.delete(u.backendId || u.id);
+            }}
+            onReactivate={async () => {
+              await projectUsersService.restore(u.backendId || u.id);
+            }}
           />
         </div>
       </div>
@@ -182,24 +191,24 @@ export function UserTable({
           label="Total Users"
           color="blue"
           icon={<Users size={20} />}
-          selected={filter === "all"}
-          onClick={() => setFilter("all")}
+          selected={statusFilter === "all"}
+          onClick={() => onStatusFilterChange("all")}
         />
         <StatCard
           value={activeCount}
           label="Active Users"
           color="teal"
           icon={<CheckCircle size={20} />}
-          selected={filter === "active"}
-          onClick={() => setFilter("active")}
+          selected={statusFilter === "active"}
+          onClick={() => onStatusFilterChange("active")}
         />
         <StatCard
-          value={total - activeCount}
+          value={inactiveCount}
           label="Inactive Users"
           color="red"
           icon={<XCircle size={20} />}
-          selected={filter === "inactive"}
-          onClick={() => setFilter("inactive")}
+          selected={statusFilter === "inactive"}
+          onClick={() => onStatusFilterChange("inactive")}
         />
       </div>
 
@@ -214,7 +223,7 @@ export function UserTable({
         ]}
         rows={rows}
         total={total}
-        filtered={filtered.length}
+        filtered={users.length}
         entityLabel="users"
         searchValue={searchValue}
         onSearchChange={onSearchChange}

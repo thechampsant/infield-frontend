@@ -15,6 +15,8 @@ export interface ListMeta {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  activeCount?: number;
+  inactiveCount?: number;
 }
 
 export interface RawListMeta {
@@ -23,6 +25,8 @@ export interface RawListMeta {
   total?: number;
   totalCount?: number;
   totalPages?: number;
+  activeCount?: number;
+  inactiveCount?: number;
 }
 
 export function normalizeListMeta(
@@ -39,6 +43,10 @@ export function normalizeListMeta(
     totalPages:
       raw?.totalPages ??
       Math.max(1, Math.ceil(totalCount / Math.max(pageSize, 1))),
+    ...(typeof raw?.activeCount === "number" ? { activeCount: raw.activeCount } : {}),
+    ...(typeof raw?.inactiveCount === "number"
+      ? { inactiveCount: raw.inactiveCount }
+      : {}),
   };
 }
 
