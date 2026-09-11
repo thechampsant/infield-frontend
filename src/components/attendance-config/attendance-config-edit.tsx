@@ -65,13 +65,13 @@ export function AttendanceConfigEdit({
   const toggleSection = (id: string) =>
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const anyGeoFenced = form.types.some((t) => t.geoFenced);
+  const anyGeoFenced = form.types.some((t) => !t.isBypassed && t.geoFenced);
   const irEnabledTypes = form.types.filter(
-    (t) => t.active && t.photoRequired && t.imageRecognitionEnabled,
+    (t) => !t.isBypassed && t.active && t.photoRequired && t.imageRecognitionEnabled,
   );
   const hasIrEnabledTypes = irEnabledTypes.length > 0;
   const randomEnabledTypes = form.types.filter(
-    (t) => t.active && t.randomAttendanceEnabled,
+    (t) => !t.isBypassed && t.active && t.randomAttendanceEnabled,
   );
   const activeTypeNames = form.types
     .filter((t) => t.active && t.name.trim())
@@ -288,6 +288,10 @@ export function AttendanceConfigEdit({
                   <th>Photo</th>
                   {form.imageRecognitionEnabled && <th>IR</th>}
                   {form.randomAttendanceEnabled && <th>Random</th>}
+                  <th>Bypass</th>
+                  <th>
+                    <span className="att-type-header-wrap">Bypass message</span>
+                  </th>
                   <th>Color</th>
                   <th>Actions</th>
                 </tr>
@@ -316,25 +320,30 @@ export function AttendanceConfigEdit({
                     </td>
                     <td>
                       <Toggle
-                        checked={t.geoTagged}
+                        checked={!t.isBypassed && t.geoTagged}
+                        disabled={t.isBypassed}
                         onChange={(v) => updateType(form, onChange, i, "geoTagged", v)}
                       />
                     </td>
                     <td>
                       <Toggle
-                        checked={t.geoFenced}
+                        checked={!t.isBypassed && t.geoFenced}
+                        disabled={t.isBypassed}
                         onChange={(v) => updateType(form, onChange, i, "geoFenced", v)}
                       />
                     </td>
                     <td>
                       <Toggle
-                        checked={t.photoRequired}
+                        checked={!t.isBypassed && t.photoRequired}
+                        disabled={t.isBypassed}
                         onChange={(v) => updateType(form, onChange, i, "photoRequired", v)}
                       />
                     </td>
                     {form.imageRecognitionEnabled && (
                       <td>
-                        {t.photoRequired ? (
+                        {t.isBypassed ? (
+                          <span className="setting-hint">Bypassed</span>
+                        ) : t.photoRequired ? (
                           <Toggle
                             checked={t.imageRecognitionEnabled}
                             disabled={!t.active}
@@ -350,14 +359,35 @@ export function AttendanceConfigEdit({
                     {form.randomAttendanceEnabled && (
                       <td>
                         <Toggle
-                          checked={t.active && t.randomAttendanceEnabled}
-                          disabled={!t.active}
+                          checked={!t.isBypassed && t.active && t.randomAttendanceEnabled}
+                          disabled={t.isBypassed || !t.active}
                           onChange={(v) =>
                             updateType(form, onChange, i, "randomAttendanceEnabled", v)
                           }
                         />
                       </td>
                     )}
+                    <td>
+                      <Toggle
+                        checked={t.isBypassed}
+                        onChange={(v) => updateType(form, onChange, i, "isBypassed", v)}
+                      />
+                    </td>
+                    <td className="att-type-bypass-message-cell">
+                      {t.isBypassed ? (
+                        <textarea
+                          className="form-input att-type-bypass-message"
+                          value={t.bypassMessage}
+                          onChange={(e) =>
+                            updateTypeMessage(form, onChange, i, e.target.value)
+                          }
+                          placeholder="Message shown for bypassed marking"
+                          rows={2}
+                        />
+                      ) : (
+                        <span className="setting-hint att-type-bypass-off">Off</span>
+                      )}
+                    </td>
                     <td>
                       <div className="att-type-color">
                         <input
@@ -1003,12 +1033,20 @@ function updateType(
     | "photoRequired"
     | "imageRecognitionEnabled"
     | "randomAttendanceEnabled"
+    | "isBypassed"
   >,
   value: boolean,
 ) {
   const next = form.types.map((t, i) => {
     if (i !== idx) return t;
     const updated = { ...t, [field]: value };
+    if (field === "isBypassed" && value) {
+      updated.geoTagged = false;
+      updated.geoFenced = false;
+      updated.photoRequired = false;
+      updated.imageRecognitionEnabled = false;
+      updated.randomAttendanceEnabled = false;
+    }
     if (field === "photoRequired" && !value) {
       updated.imageRecognitionEnabled = false;
     }
@@ -1019,6 +1057,18 @@ function updateType(
     return updated;
   });
   onChange("types", next);
+}
+
+function updateTypeMessage(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  idx: number,
+  bypassMessage: string,
+) {
+  onChange(
+    "types",
+    form.types.map((t, i) => (i === idx ? { ...t, bypassMessage } : t)),
+  );
 }
 
 function setImageRecognitionEnabled(
@@ -1585,6 +1635,8 @@ function AddAttendanceTypeModal({
               colour: normalizeHexColour(colour),
               imageRecognitionEnabled: false,
               randomAttendanceEnabled: false,
+              isBypassed: false,
+              bypassMessage: "",
             })
           }
         >

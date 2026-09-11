@@ -636,6 +636,12 @@
 .att-config-page .att-type-table th:first-child {
   text-align: left;
 }
+.att-config-page .att-type-header-wrap {
+  display: inline-block;
+  max-width: 72px;
+  white-space: normal;
+  line-height: 1.35;
+}
 .att-config-page .att-type-table td {
   padding: 10px 14px;
   text-align: center;
@@ -705,6 +711,20 @@
 .att-config-page .att-type-color__hex {
   width: 104px;
   min-width: 104px;
+}
+.att-config-page .att-type-bypass-message-cell {
+  min-width: 240px;
+  text-align: left;
+}
+.att-config-page .att-type-bypass-message {
+  min-width: 240px;
+  min-height: 56px;
+  resize: vertical;
+  line-height: 1.35;
+}
+.att-config-page .att-type-bypass-off {
+  display: block;
+  text-align: center;
 }
 .att-config-page .reg-reason-table {
   min-width: 980px;
