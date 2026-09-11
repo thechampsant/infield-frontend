@@ -39,6 +39,8 @@ export interface AttendanceTypeDto {
   color?: string;
   isImageRecognitionEnabled?: boolean;
   isRandomAttendanceEnabled?: boolean;
+  isBypassed?: boolean;
+  bypassMessage?: string | null;
 }
 
 export interface GeoFencingConfigDto {
@@ -210,6 +212,8 @@ export interface AttendanceTypeForm {
   colour: string;
   imageRecognitionEnabled: boolean;
   randomAttendanceEnabled: boolean;
+  isBypassed: boolean;
+  bypassMessage: string;
 }
 
 export interface ApprovalLevelForm {
@@ -311,13 +315,13 @@ function normalizeTypeColour(value: string | undefined): string {
 
 /** Seven default attendance types per AC4. */
 export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
-  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
-  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
-  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
-  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
-  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
-  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
-  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false },
+  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
+  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: true, bypassMessage: "" },
+  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
+  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
+  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
+  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: true, bypassMessage: "" },
+  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
 ];
 
 export const DEFAULT_REGULARIZATION_REASON_OPTIONS: RegularizationReasonOptionForm[] = [
@@ -440,18 +444,27 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
 
   const types: AttendanceTypeForm[] =
     Array.isArray(doc.attendanceTypes) && doc.attendanceTypes.length
-      ? doc.attendanceTypes.map((t) => ({
-          name: t.name,
-          isCustom: Boolean(t.isCustom),
-          active: Boolean(t.isActive),
-          geoTagged: Boolean(t.isGeoTagged),
-          geoFenced: Boolean(t.isGeoFenced),
-          photoRequired: Boolean(t.isPhotoRequired),
-          colour: normalizeTypeColour(t.colour ?? t.color),
-          imageRecognitionEnabled: rootIrEnabled && Boolean(t.isImageRecognitionEnabled),
-          randomAttendanceEnabled:
-            rootRandomEnabled && Boolean(t.isActive) && Boolean(t.isRandomAttendanceEnabled),
-        }))
+      ? doc.attendanceTypes.map((t) => {
+          const isBypassed = Boolean(t.isBypassed);
+          return {
+            name: t.name,
+            isCustom: Boolean(t.isCustom),
+            active: Boolean(t.isActive),
+            geoTagged: isBypassed ? false : Boolean(t.isGeoTagged),
+            geoFenced: isBypassed ? false : Boolean(t.isGeoFenced),
+            photoRequired: isBypassed ? false : Boolean(t.isPhotoRequired),
+            colour: normalizeTypeColour(t.colour ?? t.color),
+            imageRecognitionEnabled:
+              !isBypassed && rootIrEnabled && Boolean(t.isImageRecognitionEnabled),
+            randomAttendanceEnabled:
+              !isBypassed &&
+              rootRandomEnabled &&
+              Boolean(t.isActive) &&
+              Boolean(t.isRandomAttendanceEnabled),
+            isBypassed,
+            bypassMessage: typeof t.bypassMessage === "string" ? t.bypassMessage : "",
+          };
+        })
       : DEFAULT_ATTENDANCE_TYPES.map((t) => ({ ...t }));
 
   return {
@@ -565,7 +578,7 @@ function label(value: string, fallback: string): LabelConfigDto {
 }
 
 export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
-  const anyGeoFenced = form.types.some((t) => t.geoFenced);
+  const anyGeoFenced = form.types.some((t) => !t.isBypassed && t.geoFenced);
   const activeTypeNames = new Set(
     form.types.filter((t) => t.active).map((t) => t.name.trim()).filter(Boolean),
   );
@@ -584,15 +597,22 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
     attendanceTypes: form.types.map((t) => ({
       name: t.name,
       isActive: t.active,
-      isGeoTagged: t.geoTagged,
-      isGeoFenced: t.geoFenced,
-      isPhotoRequired: t.photoRequired,
+      isGeoTagged: t.isBypassed ? false : t.geoTagged,
+      isGeoFenced: t.isBypassed ? false : t.geoFenced,
+      isPhotoRequired: t.isBypassed ? false : t.photoRequired,
       isCustom: t.isCustom,
       colour: normalizeTypeColour(t.colour),
       isImageRecognitionEnabled:
-        form.imageRecognitionEnabled && t.active && t.photoRequired && t.imageRecognitionEnabled,
+        !t.isBypassed &&
+        form.imageRecognitionEnabled &&
+        t.active &&
+        t.photoRequired &&
+        t.imageRecognitionEnabled,
       isRandomAttendanceEnabled:
-        form.randomAttendanceEnabled && t.active && t.randomAttendanceEnabled,
+        !t.isBypassed && form.randomAttendanceEnabled && t.active && t.randomAttendanceEnabled,
+      isBypassed: t.isBypassed,
+      bypassMessage:
+        t.isBypassed && t.bypassMessage.trim() ? t.bypassMessage.trim() : null,
     })),
     geoFencing: {
       isEnabled: anyGeoFenced,
