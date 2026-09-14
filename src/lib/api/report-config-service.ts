@@ -191,6 +191,29 @@ export interface ExportReportParams {
   format?: "xls" | "csv";
   fromDate?: string;
   toDate?: string;
+  projectId?: string;
+}
+
+export type ReportExportJobStatus = "queued" | "running" | "ready" | "failed";
+
+export interface ReportExportJob {
+  jobId: string;
+  status: ReportExportJobStatus;
+  reportId: string;
+  format: "xls" | "csv";
+  fromDate?: string;
+  toDate?: string;
+  fileName?: string;
+  error?: string;
+  progress?: string;
+  downloadUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EnqueueExportJobResponse {
+  jobId: string;
+  status: ReportExportJobStatus;
 }
 
 export interface PreviewReportParams {
@@ -290,6 +313,30 @@ export const reportConfigService = {
     }
 
     return response.blob();
+  },
+
+  /** Enqueue an async Excel/CSV export. Poll getExportJob until ready. */
+  async enqueueExportJob(params: ExportReportParams): Promise<EnqueueExportJobResponse> {
+    return apiClient.post<EnqueueExportJobResponse>(`${BASE}/engine/export-jobs`, {
+      reportId: params.reportId,
+      filters: params.filters,
+      format: params.format || "xls",
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      projectId: params.projectId,
+    });
+  },
+
+  async getExportJob(jobId: string): Promise<ReportExportJob> {
+    return apiClient.get<ReportExportJob>(
+      `${BASE}/engine/export-jobs/${encodeURIComponent(jobId)}`,
+    );
+  },
+
+  async getLatestExportJob(reportId: string): Promise<ReportExportJob | null> {
+    return apiClient.get<ReportExportJob | null>(
+      `${BASE}/engine/export-jobs?reportId=${encodeURIComponent(reportId)}`,
+    );
   },
 
   /** Preview a report (max 20 rows) */

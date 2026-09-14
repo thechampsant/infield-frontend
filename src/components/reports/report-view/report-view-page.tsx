@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarDays, Download, Filter, Loader2, Play } from "lucide-react";
 import { reportConfigService } from "@/lib/api/report-config-service";
+import { ApiError } from "@/lib/api/api-client";
 import { orientReportService } from "@/lib/api/orient-report-service";
 import {
   isOrientProject,
@@ -18,6 +19,13 @@ import type {
   ReportFilter,
   ReportSelectedColumn,
 } from "@/lib/api/report-config-service";
+import {
+  formatExportDateRange,
+  isExportJobInProgress,
+  shouldAutoDownload,
+  triggerSignedUrlDownload,
+  type ReportExportJob,
+} from "@/lib/reports/report-export-job";
 import { ReportDataTable } from "./report-data-table";
 import {
   REPORT_DATE_PRESETS,
@@ -65,8 +73,11 @@ export function ReportViewPage({
     orientDefaults ? "last7" : null,
   );
 
-  // Export state
-  const [exporting, setExporting] = useState(false);
+  // Export job (async for every project)
+  const [exportJob, setExportJob] = useState<ReportExportJob | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const sessionCreatedJobIds = useRef(new Set<string>());
+  const autoDownloadedJobIds = useRef(new Set<string>());
 
   const applyPreset = useCallback((presetId: ReportDatePresetId) => {
     const range = resolveReportDatePreset(presetId);
@@ -126,6 +137,52 @@ export function ReportViewPage({
       mounted = false;
     };
   }, [reportId]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function restoreExportJob() {
+      try {
+        const latest = await reportConfigService.getLatestExportJob(reportId);
+        if (!mounted || !latest) return;
+        setExportJob(latest);
+      } catch {
+        /* no prior job */
+      }
+    }
+    restoreExportJob();
+    return () => {
+      mounted = false;
+    };
+  }, [reportId]);
+
+  useEffect(() => {
+    if (!exportJob || !isExportJobInProgress(exportJob.status)) return;
+    const timer = setInterval(async () => {
+      try {
+        const next = await reportConfigService.getExportJob(exportJob.jobId);
+        setExportJob(next);
+      } catch {
+        /* keep last known status */
+      }
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [exportJob?.jobId, exportJob?.status]);
+
+  useEffect(() => {
+    if (!exportJob?.downloadUrl || exportJob.status !== "ready") return;
+    if (
+      !shouldAutoDownload({
+        status: exportJob.status,
+        jobId: exportJob.jobId,
+        createdThisSession: sessionCreatedJobIds.current.has(exportJob.jobId),
+        alreadyDownloaded: autoDownloadedJobIds.current.has(exportJob.jobId),
+      })
+    ) {
+      return;
+    }
+    autoDownloadedJobIds.current.add(exportJob.jobId);
+    triggerSignedUrlDownload(exportJob.downloadUrl, exportJob.fileName);
+  }, [exportJob]);
 
   // Load data
   const handleLoadData = useCallback(
@@ -193,60 +250,56 @@ export function ReportViewPage({
     [config, reportId, filterValues, page, pageSize, fromDate, toDate, projectCode, contextProjectId],
   );
 
-  // Handle export
+  // Handle export — enqueue a job; poll + banner handle the rest
   const handleExport = useCallback(async () => {
     if (!config) return;
-    setExporting(true);
+    setExportError(null);
 
-    const orientType = sourceKeyToOrientExportType(config.primarySource?.sourceKey);
-    const useOrientApi = isOrientProject(projectCode) && !!orientType;
-    const orientProjectId =
-      contextProjectId || config.projectId || ORIENT_PROJECT_ID;
-
-    const timeout = setTimeout(() => {
-      setLoadError(
-        "Export is still running… large Excel files can take several minutes. Keep this tab open.",
-      );
-    }, 60000);
+    const projectId = contextProjectId || config.projectId || undefined;
 
     try {
-      const blob = useOrientApi
-        ? await orientReportService.exportReport({
-            exportType: orientType,
-            projectId: orientProjectId,
-            fromDate: fromDate || undefined,
-            toDate: toDate || undefined,
-          })
-        : await reportConfigService.exportReport({
-            reportId,
-            filters: filterValues,
-            format: config.outputSettings?.fileFormat || "xls",
-            fromDate: fromDate || undefined,
-            toDate: toDate || undefined,
-          });
-      clearTimeout(timeout);
-      setLoadError(null);
-
-      // Trigger download
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${config.reportName || "report"}.${
-        useOrientApi || config.outputSettings?.fileFormat !== "csv" ? "xlsx" : "csv"
-      }`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const queued = await reportConfigService.enqueueExportJob({
+        reportId,
+        filters: filterValues,
+        format: config.outputSettings?.fileFormat || "xls",
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        projectId,
+      });
+      sessionCreatedJobIds.current.add(queued.jobId);
+      setExportJob({
+        jobId: queued.jobId,
+        status: queued.status,
+        reportId,
+        format: config.outputSettings?.fileFormat || "xls",
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        progress: "Queued",
+      });
     } catch (err) {
-      clearTimeout(timeout);
-      setLoadError(
-        err instanceof Error ? err.message : "Export failed. Please try again.",
+      if (err instanceof ApiError && err.status === 409) {
+        const jobId =
+          typeof err.details?.jobId === "string" ? err.details.jobId : undefined;
+        if (jobId) {
+          sessionCreatedJobIds.current.add(jobId);
+          try {
+            setExportJob(await reportConfigService.getExportJob(jobId));
+            return;
+          } catch {
+            /* fall through */
+          }
+        }
+      }
+      setExportError(
+        err instanceof Error ? err.message : "Failed to start export. Please try again.",
       );
-    } finally {
-      setExporting(false);
     }
-  }, [config, reportId, filterValues, fromDate, toDate, projectCode, contextProjectId]);
+  }, [config, reportId, filterValues, fromDate, toDate, contextProjectId]);
+
+  const handleDownloadReady = useCallback(() => {
+    if (!exportJob?.downloadUrl) return;
+    triggerSignedUrlDownload(exportJob.downloadUrl, exportJob.fileName);
+  }, [exportJob]);
 
   // Handle page change
   const handlePageChange = useCallback(
@@ -291,6 +344,7 @@ export function ReportViewPage({
 
   const isDirectExport = config.outputSettings?.exportBehaviour === "direct";
   const exportDisabled = !isDirectExport && !dataLoaded;
+  const preparingExport = isExportJobInProgress(exportJob?.status);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -410,17 +464,61 @@ export function ReportViewPage({
         <button
           type="button"
           onClick={handleExport}
-          disabled={exporting || exportDisabled}
+          disabled={preparingExport || exportDisabled}
           className="inline-flex items-center gap-2 rounded-lg border border-[#c8d8eb] bg-white px-4 py-2 text-sm font-bold text-[#3a5272] hover:bg-[#f7fafd] disabled:opacity-50"
         >
-          {exporting ? (
+          {preparingExport ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Download className="h-4 w-4" />
           )}
-          {exporting ? "Exporting..." : "Export"}
+          {preparingExport ? "Preparing Excel…" : "Export"}
         </button>
       </div>
+
+      {preparingExport && (
+        <div className="mb-4 rounded-lg border border-[#c8d8eb] bg-[#f0f6ff] p-3 text-sm text-[#1e5fa8]">
+          <p className="font-bold">Preparing Excel…</p>
+          <p className="mt-1 text-[#3a5272]">
+            Date range: {formatExportDateRange(exportJob?.fromDate, exportJob?.toDate)}.
+            You can keep using this page.
+          </p>
+        </div>
+      )}
+
+      {exportJob?.status === "ready" && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#b7e4c7] bg-[#f0fdf4] p-3 text-sm text-[#166534]">
+          <p className="font-bold">Excel is ready</p>
+          <button
+            type="button"
+            onClick={handleDownloadReady}
+            disabled={!exportJob.downloadUrl}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#14532d] disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download Excel
+          </button>
+        </div>
+      )}
+
+      {exportJob?.status === "failed" && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-3 text-sm text-[#e8382d]">
+          <p className="font-medium">{exportJob.error || "Export failed. Please try again."}</p>
+          <button
+            type="button"
+            onClick={handleExport}
+            className="rounded-lg border border-[#e8382d] bg-white px-3 py-1.5 text-xs font-bold text-[#e8382d] hover:bg-[#fff7f6]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {exportError && (
+        <div className="mb-4 rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-3 text-sm font-medium text-[#e8382d]">
+          {exportError}
+        </div>
+      )}
 
       {/* Error */}
       {loadError && (
