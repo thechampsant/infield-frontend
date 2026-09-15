@@ -1554,7 +1554,7 @@ export function ClaimsConfigPage({
                                           onChange={(e) =>
                                             updateClaimType(claimType.id, {
                                               approvalWorkflow: {
-                                                levels: claimType.approvalWorkflow.levels,
+                                                levels: claimType.approvalWorkflow!.levels,
                                                 notifyApproverOnRoute: e.target.checked,
                                               },
                                             })
