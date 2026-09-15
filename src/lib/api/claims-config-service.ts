@@ -42,6 +42,7 @@ export interface ClaimApprovalLevel {
 
 export interface ClaimApprovalWorkflow {
   isEnabled: boolean;
+  notifyApproverOnRoute?: boolean;
   levels: ClaimApprovalLevel[];
 }
 
@@ -305,6 +306,7 @@ function normalizeApprovalWorkflow(value: unknown): ClaimApprovalWorkflow | unde
 
   return {
     isEnabled: booleanValue(raw.isEnabled, levels.length > 0),
+    notifyApproverOnRoute: booleanValue(raw.notifyApproverOnRoute, false),
     levels,
   };
 }

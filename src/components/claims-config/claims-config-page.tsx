@@ -66,6 +66,7 @@ type EditorClaimType = {
   expanded: boolean;
   approvalWorkflow?: {
     levels: EditorApprovalLevel[];
+    notifyApproverOnRoute?: boolean;
   };
   perKmRateEnabled: boolean;
   perKmRatePerKm: string;
@@ -188,6 +189,7 @@ function toEditorTemplate(template: ClaimsTemplateDocument | null): EditorTempla
             expanded: false,
             approvalWorkflow: claimType.approvalWorkflow?.isEnabled
               ? {
+                  notifyApproverOnRoute: Boolean(claimType.approvalWorkflow.notifyApproverOnRoute),
                   levels: claimType.approvalWorkflow.levels.map((level, index) => ({
                     id: makeId("approval"),
                     order: String(level.order ?? index + 1),
@@ -255,6 +257,7 @@ function buildApprovalWorkflow(claimType: EditorClaimType): ClaimApprovalWorkflo
   if (!claimType.approvalWorkflow?.levels.length) return undefined;
   return {
     isEnabled: true,
+    notifyApproverOnRoute: Boolean(claimType.approvalWorkflow.notifyApproverOnRoute),
     levels: claimType.approvalWorkflow.levels.map((level, i) => ({
       order: Number(level.order) || i + 1,
       designationId: level.designationId,
@@ -1539,6 +1542,28 @@ export function ClaimsConfigPage({
 
                                 {claimType.approvalWorkflow?.levels.length ? (
                                   <div className="claims-approvalList" style={{ marginTop: "1rem" }}>
+                                    <div className="claims-toggleSurface" style={{ marginBottom: "1rem" }}>
+                                      <div>
+                                        <strong>Email manager when request reaches Inbox</strong>
+                                        <p>Sends email to the current approver when the request is assigned to them.</p>
+                                      </div>
+                                      <label className="toggle">
+                                        <input
+                                          type="checkbox"
+                                          checked={Boolean(claimType.approvalWorkflow.notifyApproverOnRoute)}
+                                          onChange={(e) =>
+                                            updateClaimType(claimType.id, {
+                                              approvalWorkflow: {
+                                                ...claimType.approvalWorkflow,
+                                                notifyApproverOnRoute: e.target.checked,
+                                              },
+                                            })
+                                          }
+                                        />
+                                        <span className="toggle-track" />
+                                        <span className="toggle-thumb" />
+                                      </label>
+                                    </div>
                                     {claimType.approvalWorkflow.levels.map((level) => (
                                       <div key={level.id} className="claims-approvalRow">
                                         <input
@@ -1550,6 +1575,7 @@ export function ClaimsConfigPage({
                                           onChange={(e) =>
                                             updateClaimType(claimType.id, {
                                               approvalWorkflow: {
+                                                ...claimType.approvalWorkflow,
                                                 levels: claimType.approvalWorkflow!.levels.map((item) =>
                                                   item.id === level.id ? { ...item, order: e.target.value } : item
                                                 ),
@@ -1563,6 +1589,7 @@ export function ClaimsConfigPage({
                                           onChange={(e) =>
                                             updateClaimType(claimType.id, {
                                               approvalWorkflow: {
+                                                ...claimType.approvalWorkflow,
                                                 levels: claimType.approvalWorkflow!.levels.map((item) =>
                                                   item.id === level.id ? { ...item, designationId: e.target.value } : item
                                                 ),
@@ -1583,6 +1610,7 @@ export function ClaimsConfigPage({
                                           onChange={(e) =>
                                             updateClaimType(claimType.id, {
                                               approvalWorkflow: {
+                                                ...claimType.approvalWorkflow,
                                                 levels: claimType.approvalWorkflow!.levels.map((item) =>
                                                   item.id === level.id ? { ...item, mode: e.target.value as ClaimApprovalMode } : item
                                                 ),
@@ -1601,6 +1629,7 @@ export function ClaimsConfigPage({
                                           onChange={(e) =>
                                             updateClaimType(claimType.id, {
                                               approvalWorkflow: {
+                                                ...claimType.approvalWorkflow,
                                                 levels: claimType.approvalWorkflow!.levels.map((item) =>
                                                   item.id === level.id
                                                     ? {
@@ -1632,6 +1661,7 @@ export function ClaimsConfigPage({
                                           onChange={(e) =>
                                             updateClaimType(claimType.id, {
                                               approvalWorkflow: {
+                                                ...claimType.approvalWorkflow,
                                                 levels: claimType.approvalWorkflow!.levels.map((item) =>
                                                   item.id === level.id ? { ...item, autoActionDays: e.target.value } : item
                                                 ),
@@ -1644,6 +1674,7 @@ export function ClaimsConfigPage({
                                           onClick={() =>
                                             updateClaimType(claimType.id, {
                                               approvalWorkflow: {
+                                                ...claimType.approvalWorkflow,
                                                 levels: claimType.approvalWorkflow!.levels.filter((item) => item.id !== level.id),
                                               },
                                             })
@@ -1658,6 +1689,7 @@ export function ClaimsConfigPage({
                                       onClick={() =>
                                         updateClaimType(claimType.id, {
                                           approvalWorkflow: {
+                                            ...claimType.approvalWorkflow,
                                             levels: [
                                               ...claimType.approvalWorkflow!.levels,
                                               createEmptyApprovalLevel(claimType.approvalWorkflow!.levels.length),

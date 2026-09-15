@@ -62,6 +62,7 @@ interface EditorState {
   productMapping: string;
   quantityMapping: string;
   approvalEnabled: boolean;
+  notifyApproverOnRoute: boolean;
   levels: EditorLevel[];
 }
 
@@ -140,6 +141,7 @@ function emptyEditor(): EditorState {
     productMapping: "",
     quantityMapping: "",
     approvalEnabled: false,
+    notifyApproverOnRoute: false,
     levels: [emptyLevel(0)],
   };
 }
@@ -164,6 +166,7 @@ function toEditor(config: StockConfiguration): EditorState {
     productMapping: mappingToValue(config.fieldMappings.product),
     quantityMapping: mappingToValue(config.fieldMappings.quantity),
     approvalEnabled: config.approvalWorkflow.isEnabled,
+    notifyApproverOnRoute: Boolean(config.approvalWorkflow.notifyApproverOnRoute),
     levels,
   };
 }
@@ -453,6 +456,7 @@ export function StockConfigPage({
       },
       approvalWorkflow: {
         isEnabled: editor.approvalEnabled,
+        notifyApproverOnRoute: editor.notifyApproverOnRoute,
         levels: editor.approvalEnabled
           ? editor.levels.map((level, index) => ({
               level: index + 1,
@@ -1388,6 +1392,17 @@ export function StockConfigPage({
                 checked={editor.approvalEnabled}
                 onChange={(checked) => setEditor((current) => ({ ...current, approvalEnabled: checked }))}
               />
+
+              {editor.approvalEnabled && (
+                <ToggleCard
+                  title="Email manager when request reaches Inbox"
+                  description="Sends email to the current approver when the request is assigned to them."
+                  checked={editor.notifyApproverOnRoute}
+                  onChange={(checked) =>
+                    setEditor((current) => ({ ...current, notifyApproverOnRoute: checked }))
+                  }
+                />
+              )}
 
               {editor.approvalEnabled && (
                 <div className="sales-level-list">

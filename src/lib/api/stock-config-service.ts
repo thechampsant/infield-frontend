@@ -38,6 +38,7 @@ export interface StockApprovalLevel {
 
 export interface StockApprovalWorkflow {
   isEnabled: boolean;
+  notifyApproverOnRoute?: boolean;
   levels: StockApprovalLevel[];
 }
 
@@ -349,6 +350,7 @@ export function normalizeStockConfiguration(value: unknown): StockConfiguration 
     },
     approvalWorkflow: {
       isEnabled: bool(workflow.isEnabled),
+      notifyApproverOnRoute: bool(workflow.notifyApproverOnRoute),
       levels: levels.map(normalizeApprovalLevel),
     },
     salesLinkages: linkages.map(normalizeSalesLinkage),
@@ -386,6 +388,7 @@ function payload(input: SaveStockConfigurationInput): Record<string, unknown> {
     fieldMappings: input.fieldMappings,
     approvalWorkflow: {
       isEnabled: input.approvalWorkflow.isEnabled,
+      notifyApproverOnRoute: Boolean(input.approvalWorkflow.notifyApproverOnRoute),
       levels: input.approvalWorkflow.isEnabled
         ? input.approvalWorkflow.levels.map((level, index) => ({
             level: index + 1,
