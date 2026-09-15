@@ -60,6 +60,7 @@ interface EditorState {
   daySummaryEnabled: boolean;
   blockVisitAfterAttendanceCheckout: boolean;
   approvalWorkflowEnabled: boolean;
+  notifyApproverOnRoute: boolean;
   approvalLevels: VisitApprovalLevel[];
   claimDistanceCappingEnabled: boolean;
   claimMaxDistanceKm: string;
@@ -85,6 +86,7 @@ const EMPTY_EDITOR: EditorState = {
   daySummaryEnabled: false,
   blockVisitAfterAttendanceCheckout: false,
   approvalWorkflowEnabled: false,
+  notifyApproverOnRoute: false,
   approvalLevels: [],
   claimDistanceCappingEnabled: false,
   claimMaxDistanceKm: "0",
@@ -120,6 +122,7 @@ function toEditor(config: VisitConfigDocument): EditorState {
     daySummaryEnabled: config.daySummaryEnabled,
     blockVisitAfterAttendanceCheckout: config.blockVisitAfterAttendanceCheckout,
     approvalWorkflowEnabled: config.approvalWorkflow.isEnabled,
+    notifyApproverOnRoute: Boolean(config.approvalWorkflow.notifyApproverOnRoute),
     approvalLevels: config.approvalWorkflow.levels.map((level, index) => ({
       ...level,
       level: index + 1,
@@ -536,6 +539,7 @@ export function VisitConfigPage({
       blockVisitAfterAttendanceCheckout: editor.blockVisitAfterAttendanceCheckout,
       approvalWorkflow: {
         isEnabled: editor.reimbursementEnabled && editor.approvalWorkflowEnabled,
+        notifyApproverOnRoute: editor.notifyApproverOnRoute,
         levels: editor.reimbursementEnabled && editor.approvalWorkflowEnabled
           ? editor.approvalLevels.map((level, index) => ({
               level: index + 1,
@@ -1083,6 +1087,22 @@ export function VisitConfigPage({
                     )}
                     {editor.approvalWorkflowEnabled && (
                       <>
+                        <label className="visit-switch-row">
+                          <input
+                            type="checkbox"
+                            checked={editor.notifyApproverOnRoute}
+                            onChange={(event) =>
+                              setEditor((current) => ({
+                                ...current,
+                                notifyApproverOnRoute: event.target.checked,
+                              }))
+                            }
+                          />
+                          <span>
+                            <strong>Email manager when request reaches Inbox</strong>
+                            <small>Sends email to the current approver when the request is assigned to them.</small>
+                          </span>
+                        </label>
                         <div className="visit-approval-list">
                           {editor.approvalLevels.map((level, index) => (
                             <div className="visit-approval-row" key={index}>

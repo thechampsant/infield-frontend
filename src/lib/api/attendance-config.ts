@@ -123,6 +123,7 @@ export interface RegularizationConfigDto {
   isMaxRequestsEnabled: boolean;
   maxRequestsLimit?: number;
   isApprovalFlowEnabled: boolean;
+  notifyApproverOnRoute?: boolean;
   approvalHierarchy: string[];
   reasonOptions?: RegularizationReasonOptionDto[];
   autoRejectRules?: string | AutoRejectRulesDto;
@@ -291,6 +292,7 @@ export interface AttendanceConfigForm {
   regMaxRequestsEnabled: boolean;
   regMaxRequestCount: number;
   regApprovalEnabled: boolean;
+  regNotifyApproverOnRoute: boolean;
   approvalLevels: ApprovalLevelForm[];
   regReasonOptions: RegularizationReasonOptionForm[];
   autoApprovalEnabled: boolean;
@@ -398,6 +400,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   regMaxRequestsEnabled: false,
   regMaxRequestCount: 5,
   regApprovalEnabled: true,
+  regNotifyApproverOnRoute: false,
   approvalLevels: [],
   regReasonOptions: [],
   autoApprovalEnabled: false,
@@ -544,6 +547,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     regMaxRequestsEnabled: Boolean(reg?.isMaxRequestsEnabled),
     regMaxRequestCount: reg?.maxRequestsLimit ?? DEFAULT_CONFIG_FORM.regMaxRequestCount,
     regApprovalEnabled: reg?.isApprovalFlowEnabled ?? DEFAULT_CONFIG_FORM.regApprovalEnabled,
+    regNotifyApproverOnRoute: Boolean(reg?.notifyApproverOnRoute),
     approvalLevels:
       Array.isArray(reg?.approvalHierarchy) && reg.approvalHierarchy.length
         ? reg.approvalHierarchy.map((id) => ({ designationId: id, designationName: '' }))
@@ -651,6 +655,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       isMaxRequestsEnabled: form.regMaxRequestsEnabled,
       maxRequestsLimit: form.regMaxRequestCount,
       isApprovalFlowEnabled: form.regApprovalEnabled,
+      notifyApproverOnRoute: form.regNotifyApproverOnRoute,
       approvalHierarchy: form.approvalLevels
         .map((a) => a.designationId.trim())
         .filter(Boolean),

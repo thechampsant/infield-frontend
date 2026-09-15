@@ -2737,6 +2737,21 @@ function LeaveTypeEditor({
             }
           />
           {leaveType.approvalWorkflow.isApprovalRequired && (
+            <ToggleRow
+              title="Email manager when request reaches Inbox"
+              description="Sends email to the current approver when the request is assigned to them."
+              checked={Boolean(leaveType.approvalWorkflow.notifyApproverOnRoute)}
+              onChange={(checked) =>
+                patch({
+                  approvalWorkflow: {
+                    ...leaveType.approvalWorkflow,
+                    notifyApproverOnRoute: checked,
+                  },
+                })
+              }
+            />
+          )}
+          {leaveType.approvalWorkflow.isApprovalRequired && (
             <div className="leave-approval-list">
               {leaveType.approvalWorkflow.levels.map((level, index) => (
                 <div className="leave-approval-row" key={index}>

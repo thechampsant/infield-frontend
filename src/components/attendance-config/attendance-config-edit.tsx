@@ -1370,6 +1370,14 @@ function RegularizationSettings({
             onChange={(v) => onChange("regApprovalEnabled", v)}
           />
           {form.regApprovalEnabled && (
+            <SettingRow
+              label="Email manager when request reaches Inbox"
+              hint="Sends email to the current approver when the request is assigned to them."
+              checked={form.regNotifyApproverOnRoute}
+              onChange={(v) => onChange("regNotifyApproverOnRoute", v)}
+            />
+          )}
+          {form.regApprovalEnabled && (
             <>
               {designations.length === 0 && (
                 <div className="flat-mode-note" style={{ color: "var(--amber-700, #b45309)" }}>

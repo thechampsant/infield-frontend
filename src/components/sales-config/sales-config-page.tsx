@@ -52,6 +52,7 @@ interface EditorState {
   zeroSalesEnabled: boolean;
   targetVsAchievementLinked: boolean;
   approvalEnabled: boolean;
+  notifyApproverOnRoute: boolean;
   levels: EditorLevel[];
 }
 
@@ -77,6 +78,7 @@ function emptyEditor(): EditorState {
     zeroSalesEnabled: true,
     targetVsAchievementLinked: false,
     approvalEnabled: false,
+    notifyApproverOnRoute: false,
     levels: [emptyLevel(0)],
   };
 }
@@ -101,6 +103,7 @@ function toEditor(config: SalesConfiguration): EditorState {
     zeroSalesEnabled: config.zeroSalesEnabled,
     targetVsAchievementLinked: config.targetVsAchievementLinked,
     approvalEnabled: config.approvalWorkflow.isEnabled,
+    notifyApproverOnRoute: Boolean(config.approvalWorkflow.notifyApproverOnRoute),
     levels,
   };
 }
@@ -236,6 +239,7 @@ export function SalesConfigPage({
       targetVsAchievementLinked: editor.targetVsAchievementLinked,
       approvalWorkflow: {
         isEnabled: editor.approvalEnabled,
+        notifyApproverOnRoute: editor.notifyApproverOnRoute,
         levels: editor.approvalEnabled
           ? editor.levels.map((level, index) => ({
               level: index + 1,
@@ -590,6 +594,17 @@ export function SalesConfigPage({
               checked={editor.approvalEnabled}
               onChange={(checked) => setEditor((current) => ({ ...current, approvalEnabled: checked }))}
             />
+
+            {editor.approvalEnabled && (
+              <ToggleCard
+                title="Email manager when request reaches Inbox"
+                description="Sends email to the current approver when the request is assigned to them."
+                checked={editor.notifyApproverOnRoute}
+                onChange={(checked) =>
+                  setEditor((current) => ({ ...current, notifyApproverOnRoute: checked }))
+                }
+              />
+            )}
 
             {editor.approvalEnabled && (
               <div className="sales-level-list">

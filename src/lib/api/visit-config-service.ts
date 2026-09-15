@@ -54,6 +54,7 @@ export interface VisitApprovalLevel {
 
 export interface VisitApprovalWorkflowConfig {
   isEnabled: boolean;
+  notifyApproverOnRoute?: boolean;
   levels: VisitApprovalLevel[];
 }
 
@@ -248,6 +249,7 @@ export function normalizeVisitConfig(
     blockVisitAfterAttendanceCheckout: bool(raw.blockVisitAfterAttendanceCheckout),
     approvalWorkflow: {
       isEnabled: bool(approvalWorkflow.isEnabled),
+      notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
       levels: (Array.isArray(approvalWorkflow.levels) ? approvalWorkflow.levels : []).map(
         (item, index) => {
           const level = record(item);

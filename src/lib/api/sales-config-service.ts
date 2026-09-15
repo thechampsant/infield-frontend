@@ -29,6 +29,7 @@ export interface SalesApprovalLevel {
 
 export interface SalesApprovalWorkflow {
   isEnabled: boolean;
+  notifyApproverOnRoute?: boolean;
   levels: SalesApprovalLevel[];
 }
 
@@ -215,6 +216,7 @@ export function normalizeSalesConfiguration(value: unknown): SalesConfiguration 
     targetVsAchievementLinked: bool(raw.targetVsAchievementLinked),
     approvalWorkflow: {
       isEnabled: bool(workflow.isEnabled),
+      notifyApproverOnRoute: bool(workflow.notifyApproverOnRoute),
       levels: levels.map(normalizeApprovalLevel),
     },
     isActive: bool(raw.isActive, true),
@@ -233,6 +235,7 @@ function payload(input: SaveSalesConfigurationInput): Record<string, unknown> {
     targetVsAchievementLinked: input.targetVsAchievementLinked,
     approvalWorkflow: {
       isEnabled: input.approvalWorkflow.isEnabled,
+      notifyApproverOnRoute: Boolean(input.approvalWorkflow.notifyApproverOnRoute),
       levels: input.approvalWorkflow.isEnabled
         ? input.approvalWorkflow.levels.map((level, index) => ({
             level: index + 1,

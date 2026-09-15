@@ -96,6 +96,7 @@ export interface LeaveTypeConfig {
   };
   approvalWorkflow: {
     isApprovalRequired: boolean;
+    notifyApproverOnRoute?: boolean;
     levels: LeaveApprovalLevel[];
   };
   genderEligibility?: {
@@ -319,6 +320,7 @@ function createDefaultLeaveType(
     },
     approvalWorkflow: {
       isApprovalRequired: true,
+      notifyApproverOnRoute: false,
       levels: [
         {
           level: 1,
@@ -575,6 +577,7 @@ function normalizeLeaveType(value: unknown): LeaveTypeConfig {
     },
     approvalWorkflow: {
       isApprovalRequired: bool(approvalWorkflow.isApprovalRequired, true),
+      notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
       levels: levels.map((item, index) => {
         const level = record(item);
         return {
