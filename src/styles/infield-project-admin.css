@@ -1027,6 +1027,194 @@
   font-size: 13px;
 }
 
+/* Project Sync Jobs */
+.pa-shell .sync-jobs-page {
+  display: grid;
+  gap: 18px;
+}
+
+.pa-shell .sync-jobs-page__header {
+  margin-bottom: 0;
+}
+
+.pa-shell .sync-job-card {
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(12, 25, 41, 0.035);
+}
+
+.pa-shell .sync-job-card__manual-badge {
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--blue-light);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pa-shell .sync-job-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.pa-shell .sync-jobs-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.pa-shell .sync-jobs-button:focus-visible {
+  outline: 3px solid rgba(30, 95, 168, 0.24);
+  outline-offset: 2px;
+}
+
+.pa-shell .sync-jobs-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.pa-shell .sync-jobs-button--primary {
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue), var(--blue-mid));
+  border-color: var(--blue);
+  box-shadow: 0 5px 12px rgba(30, 95, 168, 0.2);
+}
+
+.pa-shell .sync-jobs-button--primary:not(:disabled):hover {
+  box-shadow: 0 8px 17px rgba(30, 95, 168, 0.28);
+}
+
+.pa-shell .sync-jobs-button--secondary {
+  color: var(--blue);
+  background: var(--surface);
+  border-color: var(--border2);
+}
+
+.pa-shell .sync-jobs-button--secondary:not(:disabled):hover {
+  background: var(--blue-pale);
+  border-color: var(--blue-mid);
+}
+
+.pa-shell .sync-jobs-button--refresh {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.pa-shell .sync-jobs-button:disabled {
+  color: var(--text-muted);
+  background: var(--surface2);
+  border-color: var(--border);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.pa-shell .sync-job-card__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.pa-shell .sync-job-card__progress {
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--surface-alt, #f8fafc);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.pa-shell .sync-job-card__progress--active {
+  background: var(--amber-light);
+  border-color: var(--amber);
+}
+
+.pa-shell .sync-job-card__progress-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-mid);
+  font-size: 12px;
+}
+
+.pa-shell .sync-job-card__progress-track {
+  height: 6px;
+  margin: 10px 0 13px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.pa-shell .sync-job-card__progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width 240ms ease;
+}
+
+.pa-shell .sync-job-card__progress--active .sync-job-card__progress-track > span {
+  background: var(--amber-dark);
+}
+
+.pa-shell .sync-job-card__counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pa-shell .sync-job-card__counts span {
+  display: grid;
+  gap: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.pa-shell .sync-job-card__counts b {
+  color: var(--navy);
+  font-size: 16px;
+}
+
+.pa-shell .sync-job-card__updating {
+  margin-top: 10px;
+  color: var(--amber-dark);
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .pa-shell .sync-job-card {
+    padding: 17px;
+  }
+
+  .pa-shell .sync-job-card__counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pa-shell .sync-job-card__actions {
+    width: 100%;
+  }
+
+  .pa-shell .sync-job-card__actions .sync-jobs-button {
+    flex: 1;
+  }
+}
+
 .pa-shell .pa-info-banner {
   font-size: 11px;
   color: var(--blue);

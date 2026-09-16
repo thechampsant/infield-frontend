@@ -28,6 +28,15 @@ export function getRoleDesignationApi() {
 // Re-export auth service for convenience
 export { authService } from "./auth-service";
 export type { AuthService } from "./auth-service";
+export { integrationSyncService, projectHasVisibleSyncJobs } from "./integration-sync-service";
+export type {
+  StartSyncRunResponse,
+  SyncBatch,
+  SyncJob,
+  SyncRun,
+  SyncRunDetail,
+  SyncRunStatus,
+} from "./integration-sync-service";
 
 // Re-export designation + role services (INF2-1535)
 export { designationService } from "./designation-service";
