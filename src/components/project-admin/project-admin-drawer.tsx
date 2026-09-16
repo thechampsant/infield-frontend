@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronLeft,
   LayoutGrid,
+  RefreshCw,
 } from "lucide-react";
 import { projectAdminBase, projectAdminDrawerNav } from "@/lib/nav/nav";
 import {
@@ -22,12 +23,15 @@ import {
   canNavigateBackToProjects,
   resolvedAdminAccess,
 } from "@/lib/auth/permissions";
+import { projectHasVisibleSyncJobs } from "@/lib/api/integration-sync-service";
+import { ApiError } from "@/lib/api/api-client";
 
 const ICONS = {
   users: Users,
   settings: Settings,
   fileText: FileText,
   pieChart: PieChart,
+  refreshCw: RefreshCw,
 } as const;
 
 export type PaProfile = {
@@ -61,11 +65,27 @@ export function ProjectAdminDrawer({
   const pathname = usePathname() ?? "/";
   const { user } = useAuth();
   const showBackToProjects = canNavigateBackToProjects(user);
-  const navItems = projectAdminDrawerNav(accountCode, projectCode, {
+  const baseNavItems = projectAdminDrawerNav(accountCode, projectCode, {
     adminAccess: resolvedAdminAccess(user),
   });
 
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
+  const [hasSyncJobs, setHasSyncJobs] = useState(false);
+
+  const navItems = hasSyncJobs
+    ? baseNavItems.flatMap((item) =>
+        item.label === "Modules"
+          ? [
+              item,
+              {
+                label: "Sync Jobs",
+                href: `${projectAdminBase(accountCode, projectCode)}/sync-jobs`,
+                icon: "refreshCw" as const,
+              },
+            ]
+          : [item],
+      )
+    : baseNavItems;
 
   useEffect(() => {
     if (!projectId) return;
@@ -77,6 +97,27 @@ export function ProjectAdminDrawer({
       })
       .catch(() => {
         if (!cancelled) setDynamicItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    projectHasVisibleSyncJobs(projectId)
+      .then((value) => {
+        if (!cancelled) setHasSyncJobs(value);
+      })
+      .catch((error) => {
+        // Do not mistake an unavailable API for an empty job registry.
+        if (error instanceof ApiError && error.status === 403) {
+          console.warn("Access denied while checking Sync Jobs availability", { projectId });
+        } else {
+          console.error("Unable to check Sync Jobs availability", error);
+        }
+        if (!cancelled) setHasSyncJobs(false);
       });
     return () => {
       cancelled = true;
