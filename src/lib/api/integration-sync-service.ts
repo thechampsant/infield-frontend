@@ -130,7 +130,10 @@ export const integrationSyncService = {
   ): Promise<SyncRunPage> {
     const page = options.page ?? 1;
     const limit = options.limit ?? 5;
-    const response = await apiClient.get<SyncRunPage | SyncRun[]>(
+    // Pagination metadata is flattened onto the standard API envelope by the
+    // backend response helper. Use getRaw so apiClient's normal data unwrap
+    // does not discard that outer `meta` field.
+    const response = await apiClient.getRaw<SyncRunPage | SyncRun[]>(
       `${BASE}/runs?${query(projectId, {
         jobKey: options.jobKey,
         page: String(page),
