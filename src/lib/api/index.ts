@@ -35,7 +35,10 @@ export type {
   SyncJob,
   SyncRun,
   SyncRunDetail,
+  SyncRunPage,
+  SyncRunPageMeta,
   SyncRunStatus,
+  SyncUserOutcome,
 } from "./integration-sync-service";
 
 // Re-export designation + role services (INF2-1535)
