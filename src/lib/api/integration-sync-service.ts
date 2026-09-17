@@ -15,6 +15,7 @@ export type SyncRunStatus =
 export interface SyncJob {
   projectId: string;
   jobKey: string;
+  name?: string | null;
   manualOnly: boolean;
   cronExpression?: string | null;
   timezone?: string | null;
@@ -35,11 +36,20 @@ export interface SyncRun {
   succeeded: number;
   failed: number;
   errorSummary?: string | null;
+  configSnapshot?: {
+    name?: string | null;
+  };
+}
+
+export interface SyncUserOutcome {
+  identifier: string;
+  status: "succeeded" | "failed" | "regularization_preserved";
+  reason?: string | null;
 }
 
 export interface SyncBatch {
   batchNumber: number;
-  status: "completed" | "failed";
+  status: "running" | "completed" | "failed";
   attempts: number;
   succeeded: number;
   failed: number;
@@ -47,6 +57,7 @@ export interface SyncBatch {
   regularizationPreserved: number;
   retryable: boolean;
   errorSummary?: string | null;
+  userOutcomes: SyncUserOutcome[];
 }
 
 export interface SyncRunDetail extends SyncRun {
@@ -57,6 +68,47 @@ export interface StartSyncRunResponse {
   runId: string;
   status: "running";
   targetDate: string;
+}
+
+export interface SyncRunPageMeta {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface SyncRunPage {
+  data: SyncRun[];
+  meta: SyncRunPageMeta;
+}
+
+function normalizeRunPage(value: SyncRunPage | SyncRun[], page: number, limit: number): SyncRunPage {
+  const fallbackMeta: SyncRunPageMeta = {
+    page,
+    limit,
+    totalCount: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
+  if (Array.isArray(value)) {
+    return {
+      data: value,
+      meta: {
+        ...fallbackMeta,
+        totalCount: value.length,
+      },
+    };
+  }
+  const data = Array.isArray(value?.data) ? value.data : [];
+  return {
+    data,
+    meta: value?.meta
+      ? { ...fallbackMeta, ...value.meta }
+      : { ...fallbackMeta, totalCount: data.length },
+  };
 }
 
 function query(projectId: string, extra?: Record<string, string | undefined>) {
@@ -72,10 +124,20 @@ export const integrationSyncService = {
     return apiClient.get<SyncJob[]>(`${BASE}/jobs?${query(projectId)}`);
   },
 
-  listRuns(projectId: string, jobKey?: string): Promise<SyncRun[]> {
-    return apiClient.get<SyncRun[]>(
-      `${BASE}/runs?${query(projectId, { jobKey })}`,
+  async listRuns(
+    projectId: string,
+    options: { jobKey?: string; page?: number; limit?: number } = {},
+  ): Promise<SyncRunPage> {
+    const page = options.page ?? 1;
+    const limit = options.limit ?? 5;
+    const response = await apiClient.get<SyncRunPage | SyncRun[]>(
+      `${BASE}/runs?${query(projectId, {
+        jobKey: options.jobKey,
+        page: String(page),
+        limit: String(limit),
+      })}`,
     );
+    return normalizeRunPage(response, page, limit);
   },
 
   getRun(runId: string, projectId: string): Promise<SyncRunDetail> {

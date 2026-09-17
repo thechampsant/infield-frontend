@@ -8,9 +8,11 @@ import { ApiError } from "@/lib/api/api-client";
 import { formatApiError } from "@/lib/api";
 import {
   integrationSyncService,
+  type SyncBatch,
   type SyncJob,
   type SyncRun,
   type SyncRunDetail,
+  type SyncRunPageMeta,
 } from "@/lib/api/integration-sync-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 
@@ -25,11 +27,20 @@ const DISPLAY: Record<string, { label: string; description: string }> = {
   },
 };
 
-function displayFor(jobKey: string) {
-  return DISPLAY[jobKey] ?? {
-    label: jobKey.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
-    description: "Operational integration sync.",
+function displayFor(job: Pick<SyncJob, "jobKey" | "name">, run?: SyncRun) {
+  const known = DISPLAY[job.jobKey];
+  return {
+    label: job.name?.trim() || run?.configSnapshot?.name?.trim() || known?.label || job.jobKey.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    description: known?.description ?? "Operational integration sync.",
   };
+}
+
+function isValidHistoricalDate(value: string) {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > previousIstDate()) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
 }
 
 function previousIstDate(): string {
@@ -81,6 +92,10 @@ export function SyncJobsPage() {
   const { projectId, projectName } = useProjectContext();
   const [jobs, setJobs] = useState<SyncJob[]>([]);
   const [runs, setRuns] = useState<SyncRun[]>([]);
+  const [latestRuns, setLatestRuns] = useState<Record<string, SyncRun>>({});
+  const [historyMeta, setHistoryMeta] = useState<SyncRunPageMeta | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [details, setDetails] = useState<Record<string, SyncRunDetail>>({});
   const [activeRunIdByJob, setActiveRunIdByJob] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -95,16 +110,39 @@ export function SyncJobsPage() {
 
   const load = useCallback(async () => {
     if (!projectId) return;
+    setHistoryLoading(true);
     try {
-      const [nextJobs, nextRuns] = await Promise.all([
-        integrationSyncService.listJobs(projectId),
-        integrationSyncService.listRuns(projectId),
+      const nextJobs = await integrationSyncService.listJobs(projectId);
+      const [history, latestPages] = await Promise.all([
+        integrationSyncService.listRuns(projectId, {
+          jobKey: historyJob?.jobKey,
+          page: historyPage,
+          limit: 5,
+        }),
+        Promise.all(
+          nextJobs.map((job) =>
+            integrationSyncService.listRuns(projectId, {
+              jobKey: job.jobKey,
+              page: 1,
+              limit: 1,
+            }),
+          ),
+        ),
       ]);
       setJobs(nextJobs);
-      setRuns(nextRuns);
+      setRuns(history.data);
+      setHistoryMeta(history.meta);
+      setLatestRuns(
+        Object.fromEntries(
+          nextJobs.flatMap((job, index) => {
+            const latest = latestPages[index]?.data[0];
+            return latest ? [[job.jobKey, latest] as const] : [];
+          }),
+        ),
+      );
       setActiveRunIdByJob((previous) => {
         const next = { ...previous };
-        nextRuns.forEach((run) => {
+        latestPages.flatMap((page) => page.data).forEach((run) => {
           if (run.status === "running") next[run.jobKey] = run.runId;
         });
         return next;
@@ -120,8 +158,9 @@ export function SyncJobsPage() {
       }
     } finally {
       setLoading(false);
+      setHistoryLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, historyJob?.jobKey, historyPage]);
 
   const loadDetail = useCallback(async (runId: string) => {
     if (!projectId) return;
@@ -144,10 +183,10 @@ export function SyncJobsPage() {
 
   const runningIds = useMemo(
     () => Array.from(new Set([
-      ...runs.filter((run) => run.status === "running").map((run) => run.runId),
+      ...Object.values(latestRuns).filter((run) => run.status === "running").map((run) => run.runId),
       ...Object.values(activeRunIdByJob),
     ])),
-    [runs, activeRunIdByJob],
+    [latestRuns, activeRunIdByJob],
   );
 
   useEffect(() => {
@@ -160,14 +199,6 @@ export function SyncJobsPage() {
     return () => window.clearInterval(timer);
   }, [load, loadDetail, runningIds]);
 
-  const latestByJob = useMemo(() => {
-    const result = new Map<string, SyncRun>();
-    runs.forEach((run) => {
-      if (!result.has(run.jobKey)) result.set(run.jobKey, run);
-    });
-    return result;
-  }, [runs]);
-
   async function openRunDetail(runId: string) {
     setExpandedRunId((current) => current === runId ? null : runId);
     if (!details[runId]) await loadDetail(runId);
@@ -175,11 +206,19 @@ export function SyncJobsPage() {
 
   async function startRun() {
     if (!confirmJob || !projectId) return;
+    if (!isValidHistoricalDate(targetDate)) {
+      setToast({ type: "error", message: "Choose a valid historical IST date, or leave the date blank." });
+      return;
+    }
+    const job = confirmJob;
     setStarting(true);
     try {
-      const response = await integrationSyncService.startRun(confirmJob.jobKey, projectId, targetDate);
-      setActiveRunIdByJob((previous) => ({ ...previous, [confirmJob.jobKey]: response.runId }));
+      const response = await integrationSyncService.startRun(job.jobKey, projectId, targetDate || undefined);
+      setActiveRunIdByJob((previous) => ({ ...previous, [job.jobKey]: response.runId }));
       setConfirmJob(null);
+      setHistoryPage(1);
+      setHistoryJob(job);
+      setExpandedRunId(response.runId);
       setToast({ type: "success", message: `Sync run started: ${response.runId}` });
       await load();
       await loadDetail(response.runId);
@@ -189,7 +228,9 @@ export function SyncJobsPage() {
         setConfirmJob(null);
         setToast({ type: "error", message: "A run is already in progress." });
         if (activeRunId) {
-          setActiveRunIdByJob((previous) => ({ ...previous, [confirmJob.jobKey]: activeRunId }));
+          setActiveRunIdByJob((previous) => ({ ...previous, [job.jobKey]: activeRunId }));
+          setHistoryJob(job);
+          setExpandedRunId(activeRunId);
         }
         await load();
         if (activeRunId) await loadDetail(activeRunId);
@@ -214,16 +255,16 @@ export function SyncJobsPage() {
 
       {jobs.length === 0 ? <div className="pa-loading">No sync jobs are available for this project.</div> : jobs.map((job) => {
         const forcedRunId = activeRunIdByJob[job.jobKey];
-        const latest = latestByJob.get(job.jobKey) ?? (forcedRunId ? details[forcedRunId] : undefined);
+        const latest = latestRuns[job.jobKey] ?? (forcedRunId ? details[forcedRunId] : undefined);
         const isRunning = latest?.status === "running" || Boolean(forcedRunId);
         const status = isRunning ? "running" : (latest?.status ?? "available");
-        const display = displayFor(job.jobKey);
+        const display = displayFor(job, latest);
         const detail = latest ? details[latest.runId] : undefined;
         const completion = latest?.total ? Math.min(100, Math.round((latest.completed / latest.total) * 100)) : 0;
         return <article key={job.jobKey} className="sync-job-card">
           <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start", flexWrap: "wrap" }}>
-            <div><div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><h2 style={{ margin: 0, fontSize: 17, color: "var(--navy)" }}>{display.label}</h2><span style={{ ...statusStyle(status), borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700 }}>{statusLabel(status)}</span>{job.manualOnly && <span className="sync-job-card__manual-badge">Manual only</span>}</div><p style={{ margin: "7px 0 0", color: "var(--text-mid)", fontSize: 13 }}>{display.description}</p></div>
-            <div className="sync-job-card__actions"><button className="sync-jobs-button sync-jobs-button--secondary" type="button" onClick={() => setHistoryJob(job)}>View history</button><button className="sync-jobs-button sync-jobs-button--primary" type="button" disabled={isRunning} onClick={() => { setTargetDate(previousIstDate()); setConfirmJob(job); }}><Play size={14} /> {isRunning ? "Run in progress" : "Run now"}</button></div>
+            <div><div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><h2 style={{ margin: 0, fontSize: 17, color: "var(--navy)" }}>{display.label}</h2><span style={{ ...statusStyle(status), borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700 }}>{statusLabel(status)}</span>{job.manualOnly && <span className="sync-job-card__manual-badge">Manual only</span>}</div><div className="sync-job-card__key">{job.jobKey}</div><p style={{ margin: "7px 0 0", color: "var(--text-mid)", fontSize: 13 }}>{display.description}</p></div>
+            <div className="sync-job-card__actions"><button className="sync-jobs-button sync-jobs-button--secondary" type="button" onClick={() => { setHistoryPage(1); setHistoryJob(job); }}>View history</button><button className="sync-jobs-button sync-jobs-button--primary" type="button" disabled={isRunning} onClick={() => { setTargetDate(previousIstDate()); setConfirmJob(job); }}><Play size={14} /> {isRunning ? "Run in progress" : "Run now"}</button></div>
           </div>
           <div className="sync-job-card__meta">
             <Info label="Schedule" value={`${schedule(job)}${job.timezone ? ` · ${job.timezone}` : ""}`} /><Info label="Last run" value={formatDateTime(latest?.startedAt)} /><Info label="Last result" value={latest ? statusLabel(latest.status) : "No runs yet"} />
@@ -232,9 +273,9 @@ export function SyncJobsPage() {
         </article>;
       })}
 
-      <HistoryModal job={historyJob} runs={runs} details={details} expandedRunId={expandedRunId} onClose={() => setHistoryJob(null)} onToggle={openRunDetail} />
+      <HistoryModal job={historyJob} runs={runs} meta={historyMeta} loading={historyLoading} details={details} expandedRunId={expandedRunId} onClose={() => { setHistoryJob(null); setHistoryPage(1); }} onToggle={openRunDetail} onPrevious={() => setHistoryPage((page) => Math.max(1, page - 1))} onNext={() => setHistoryPage((page) => page + 1)} />
       <Modal open={Boolean(confirmJob)} onClose={() => !starting && setConfirmJob(null)} title="Run sync job" footer={<><button className="sync-jobs-button sync-jobs-button--secondary" type="button" disabled={starting} onClick={() => setConfirmJob(null)}>Cancel</button><button className="sync-jobs-button sync-jobs-button--primary" type="button" disabled={starting} onClick={startRun}>{starting ? "Starting…" : "Start run"}</button></>}>
-        {confirmJob && <div style={{ display: "grid", gap: 15 }}><div><strong>{displayFor(confirmJob.jobKey).label}</strong><p style={{ margin: "5px 0 0", color: "var(--text-mid)" }}>This imports real operational data.</p></div><label style={{ display: "grid", gap: 6, fontWeight: 700 }}>IST target date<input type="date" value={targetDate} max={previousIstDate()} onChange={(event) => setTargetDate(event.target.value)} /></label>{confirmJob.jobKey === "prj-000010-attendance-sync-test" && <div style={{ display: "flex", gap: 9, padding: 12, borderRadius: 10, background: "var(--amber-light)", color: "var(--amber-dark)" }}><AlertTriangle size={18} /><span>This test job imports attendance for exactly one configured user. It writes to the real attendance collection.</span></div>}</div>}
+        {confirmJob && <div style={{ display: "grid", gap: 15 }}><div><strong>{displayFor(confirmJob).label}</strong><p style={{ margin: "5px 0 0", color: "var(--text-mid)" }}>This imports real operational data.</p></div><label className="sync-jobs-date-field">Attendance date to process<input type="date" value={targetDate} max={previousIstDate()} onChange={(event) => setTargetDate(event.target.value)} /><span>Leave blank to process the previous IST day.</span></label>{confirmJob.jobKey === "prj-000010-attendance-sync-test" && <div style={{ display: "flex", gap: 9, padding: 12, borderRadius: 10, background: "var(--amber-light)", color: "var(--amber-dark)" }}><AlertTriangle size={18} /><span>This test job imports attendance for exactly one configured user. It writes to the real attendance collection.</span></div>}</div>}
       </Modal>
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </section>
@@ -243,11 +284,14 @@ export function SyncJobsPage() {
 
 function Info({ label, value }: { label: string; value: string }) { return <div><div style={{ color: "var(--text-light)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>{label}</div><div style={{ color: "var(--text)", marginTop: 4 }}>{value}</div></div>; }
 
-function HistoryModal({ job, runs, details, expandedRunId, onClose, onToggle }: { job: SyncJob | null; runs: SyncRun[]; details: Record<string, SyncRunDetail>; expandedRunId: string | null; onClose: () => void; onToggle: (runId: string) => void }) {
+function HistoryModal({ job, runs, meta, loading, details, expandedRunId, onClose, onToggle, onPrevious, onNext }: { job: SyncJob | null; runs: SyncRun[]; meta: SyncRunPageMeta | null; loading: boolean; details: Record<string, SyncRunDetail>; expandedRunId: string | null; onClose: () => void; onToggle: (runId: string) => void; onPrevious: () => void; onNext: () => void }) {
   const jobRuns = job ? runs.filter((run) => run.jobKey === job.jobKey) : [];
-  return <Modal open={Boolean(job)} onClose={onClose} title={job ? `${displayFor(job.jobKey).label} — History` : "Run history"} width={760}>
-    {jobRuns.length === 0 ? <div className="pa-loading">No runs yet.</div> : <div style={{ display: "grid", gap: 10 }}>{jobRuns.map((run) => <div key={run.runId} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}><button type="button" onClick={() => void onToggle(run.runId)} style={{ width: "100%", padding: 14, border: 0, background: "var(--surface)", textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 12 }}><span><strong>{run.runId}</strong><br /><small>{run.trigger === "manual" ? "Manual" : "Scheduled"} · {run.targetDate ?? "—"} · {formatDateTime(run.startedAt)}</small></span><span style={{ display: "flex", alignItems: "center", gap: 8 }}>{statusLabel(run.status)} {expandedRunId === run.runId ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span></button>{expandedRunId === run.runId && <RunDetail run={details[run.runId] ?? run} />}</div>)}</div>}
+  const pagination = meta ? <div className="sync-history-pagination"><span>Page {meta.page} of {Math.max(meta.totalPages, 1)} · {meta.totalCount} run{meta.totalCount === 1 ? "" : "s"}</span><div><button className="sync-jobs-button sync-jobs-button--secondary" type="button" disabled={loading || !meta.hasPrevPage} onClick={onPrevious}>Previous</button><button className="sync-jobs-button sync-jobs-button--primary" type="button" disabled={loading || !meta.hasNextPage} onClick={onNext}>Next</button></div></div> : null;
+  return <Modal open={Boolean(job)} onClose={onClose} title={job ? `${displayFor(job).label} — History` : "Run history"} width={760} footer={pagination}>
+    {loading ? <div className="pa-loading">Loading run history…</div> : jobRuns.length === 0 ? <div className="pa-loading">No runs yet.</div> : <div style={{ display: "grid", gap: 10 }}>{jobRuns.map((run) => <div key={run.runId} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}><button type="button" onClick={() => void onToggle(run.runId)} style={{ width: "100%", padding: 14, border: 0, background: "var(--surface)", textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 12 }}><span><strong>{run.runId}</strong><br /><small>{run.trigger === "manual" ? "Manual" : "Scheduled"} · {run.targetDate ?? "—"} · {formatDateTime(run.startedAt)}</small></span><span style={{ display: "flex", alignItems: "center", gap: 8 }}>{statusLabel(run.status)} {expandedRunId === run.runId ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span></button>{expandedRunId === run.runId && <RunDetail run={details[run.runId] ?? run} />}</div>)}</div>}
   </Modal>;
 }
 
-function RunDetail({ run }: { run: SyncRun | SyncRunDetail }) { const detail = "batches" in run ? run : null; return <div style={{ padding: 14, borderTop: "1px solid var(--border)", fontSize: 13 }}><div>Total {run.total} · Succeeded {run.succeeded} · Failed {run.failed} · {run.completedAt ? `Completed ${formatDateTime(run.completedAt)}` : "In progress"}</div>{errorText(run.errorSummary) && <p style={{ color: "var(--red)", marginBottom: 0 }}>{errorText(run.errorSummary)}</p>}{detail?.batches.map((batch) => <div key={batch.batchNumber} style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>Batch {batch.batchNumber} · {batch.attempts} attempt{batch.attempts === 1 ? "" : "s"} · {batch.succeeded} succeeded · {batch.failed} failed · {batch.missingUsers} missing users · {batch.regularizationPreserved} regularization-preserved{errorText(batch.errorSummary) && <div style={{ color: "var(--red)", marginTop: 4 }}>{errorText(batch.errorSummary)}</div>}</div>)}</div>; }
+function RunDetail({ run }: { run: SyncRun | SyncRunDetail }) { const detail = "batches" in run ? run : null; return <div className="sync-run-detail"><div>Total {run.total} · Completed {run.completed} · Succeeded {run.succeeded} · Failed {run.failed} · {run.completedAt ? `Completed ${formatDateTime(run.completedAt)}` : "In progress"}</div>{errorText(run.errorSummary) && <p className="sync-run-detail__error">{errorText(run.errorSummary)}</p>}{detail?.batches.map((batch) => <div key={batch.batchNumber} className="sync-run-detail__batch"><div><strong>Batch {batch.batchNumber}</strong> · {statusLabel(batch.status)} · {batch.succeeded} succeeded · {batch.failed} failed · {Math.max(0, batch.attempts - 1)} retries · {batch.missingUsers} missing users <span className="sync-run-detail__preserved">· {batch.regularizationPreserved} regularization-preserved</span></div>{errorText(batch.errorSummary) && <div className="sync-run-detail__error">{errorText(batch.errorSummary)}</div>}{(batch.userOutcomes?.length ?? 0) > 0 && <UserOutcomesTable outcomes={batch.userOutcomes ?? []} />}</div>)}</div>; }
+
+function UserOutcomesTable({ outcomes }: { outcomes: SyncBatch["userOutcomes"] }) { return <div className="sync-run-outcomes"><div className="sync-run-outcomes__title">User outcomes</div><div className="sync-run-outcomes__table" role="table"><div className="sync-run-outcomes__row sync-run-outcomes__row--head" role="row"><span role="columnheader">Identifier</span><span role="columnheader">Outcome</span><span role="columnheader">Reason</span></div>{outcomes.map((outcome) => <div className="sync-run-outcomes__row" role="row" key={`${outcome.identifier}-${outcome.status}`}><span role="cell">{outcome.identifier}</span><span role="cell">{statusLabel(outcome.status)}</span><span role="cell">{outcome.status === "failed" ? (errorText(outcome.reason) ?? "—") : "—"}</span></div>)}</div></div>; }
