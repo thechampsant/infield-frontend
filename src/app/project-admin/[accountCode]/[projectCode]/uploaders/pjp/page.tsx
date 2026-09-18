@@ -7,6 +7,8 @@ import {
   type PjpUploadResult,
 } from "@/lib/api/pjp-upload-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { useMasterExport } from "@/hooks/use-master-export";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -19,6 +21,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function PjpUploadPage() {
   const { projectId } = useProjectContext();
+  const masterExport = useMasterExport(projectId, "pjp");
 
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,16 +41,9 @@ export default function PjpUploadPage() {
     }
   }, [projectId]);
 
-  const handleExport = useCallback(async () => {
-    if (!projectId) return;
-    setError(null);
-    try {
-      const blob = await pjpUploadService.exportPjp(projectId);
-      downloadBlob(blob, "PJP_Export.xlsx");
-    } catch (err) {
-      setError(formatApiError(err, "Export failed"));
-    }
-  }, [projectId]);
+  const handleExport = useCallback(() => {
+    void masterExport.startExport();
+  }, [masterExport]);
 
   const handleBulkUpload = useCallback(
     async (file: File) => {
@@ -118,11 +114,24 @@ export default function PjpUploadPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for PJP bulk upload"
           />
-          <button type="button" className="btn btn-secondary" onClick={handleExport}>
-            ↓ Export Current
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={masterExport.preparing}
+          >
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export Current"}
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       {/* Info banner */}
       <div className="pa-info-banner" style={{ marginBottom: 16 }}>

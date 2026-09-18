@@ -35,6 +35,7 @@ interface UserTableProps {
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
+  exportPreparing?: boolean;
 }
 
 const GRID = "1.5fr 140px 140px 120px 80px 100px";
@@ -55,6 +56,7 @@ export function UserTable({
   onOpenUDFConfig,
   onRefresh,
   onExport,
+  exportPreparing,
 }: UserTableProps) {
   const [editId, setEditId] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
@@ -238,8 +240,13 @@ export function UserTable({
             >
               ⚙ UDF Config
             </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onExport}>
-              ↓ Export
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onExport}
+              disabled={exportPreparing}
+            >
+              {exportPreparing ? "Preparing Excel…" : "↓ Export"}
             </button>
           </>
         }

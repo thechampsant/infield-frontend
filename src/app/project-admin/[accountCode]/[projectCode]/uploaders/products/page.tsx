@@ -10,6 +10,8 @@ import {
 import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { ProductTable } from "@/components/project-admin/uploaders/products/product-table";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { useMasterExport } from "@/hooks/use-master-export";
 import { AddProductModal } from "@/components/project-admin/uploaders/products/add-product-modal";
 import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
 import type { UDFField } from "@/types/project-admin";
@@ -25,6 +27,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function ProductsMasterPage() {
   const { projectId } = useProjectContext();
+  const masterExport = useMasterExport(projectId, "products");
 
   const [addOpen, setAddOpen] = useState(false);
   const [udfOpen, setUdfOpen] = useState(false);
@@ -83,14 +86,8 @@ export default function ProductsMasterPage() {
     }
   };
 
-  const handleExport = async () => {
-    if (!projectId) return;
-    try {
-      const blob = await productService.exportProducts(projectId);
-      downloadBlob(blob, "Products_Export.xlsx");
-    } catch (err) {
-      setError(formatApiError(err, "Export failed. Please try again."));
-    }
+  const handleExport = () => {
+    void masterExport.startExport();
   };
 
   const handleBulkUpload = async (file: File) => {
@@ -160,14 +157,27 @@ export default function ProductsMasterPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk product import"
           />
-          <button type="button" className="btn btn-secondary" onClick={handleExport}>
-            ↓ Export
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={masterExport.preparing}
+          >
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export"}
           </button>
           <button type="button" className="btn btn-primary" onClick={() => setAddOpen(true)}>
             + Add Product
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       {error && (
         <div className="pa-info-banner" style={{ color: "var(--red)", background: "var(--red-light)", borderColor: "var(--red-mid)", marginBottom: 16 }}>
@@ -219,6 +229,7 @@ export default function ProductsMasterPage() {
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
         onExport={handleExport}
+        exportPreparing={masterExport.preparing}
       />
 
       <AddProductModal

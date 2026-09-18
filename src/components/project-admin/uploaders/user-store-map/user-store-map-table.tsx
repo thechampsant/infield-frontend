@@ -1,86 +1,47 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { Link2, Link2Off } from "lucide-react";
 import { AssignStoresModal } from "./assign-stores-modal";
-import type { MappedUser } from "@/lib/api/user-store-mapping-service";
-import type { StoreRecord } from "@/lib/api/store-service";
-
-const PAGE_SIZE = 50;
+import type {
+  UserStoreMappingFilter,
+  UserStoreMappingSummary,
+} from "@/lib/api/user-store-mapping-service";
+import { LIST_PAGE_SIZE_OPTIONS } from "@/lib/api/pagination";
+import type { ServerPagination } from "@/components/project-admin/shared/data-table";
 
 interface UserStoreMapTableProps {
-  users: MappedUser[];
-  stores: StoreRecord[];
+  users: UserStoreMappingSummary[];
   loading: boolean;
+  projectId: string;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  mappedFilter: UserStoreMappingFilter;
+  onMappedFilterChange: (value: UserStoreMappingFilter) => void;
+  mappedCount: number;
+  unmappedCount: number;
+  pagination: ServerPagination;
   onRefresh: () => void;
 }
 
 export function UserStoreMapTable({
   users,
-  stores,
   loading,
+  projectId,
+  searchValue,
+  onSearchChange,
+  mappedFilter,
+  onMappedFilterChange,
+  mappedCount,
+  unmappedCount,
+  pagination,
   onRefresh,
 }: UserStoreMapTableProps) {
-  const [search, setSearch] = useState("");
-  const [filterMapped, setFilterMapped] = useState<"all" | "mapped" | "unmapped">("all");
-  const [assignUser, setAssignUser] = useState<MappedUser | null>(null);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Build a lookup: storeId → StoreRecord for fast name resolution
-  const storeById = useMemo(
-    () => new Map(stores.map((s) => [s.backendId, s])),
-    [stores],
-  );
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return users
-      .filter((u) => {
-        if (filterMapped === "mapped") return u.mappedStoreIds.length > 0;
-        if (filterMapped === "unmapped") return u.mappedStoreIds.length === 0;
-        return true;
-      })
-      .filter((u) => {
-        if (!q) return true;
-        return (
-          u.name.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q) ||
-          u.employeeId.toLowerCase().includes(q) ||
-          u.designation.toLowerCase().includes(q)
-        );
-      });
-  }, [users, search, filterMapped]);
-
-  // Reset visible count when filters/search change
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [search, filterMapped]);
-
-  const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    if (scrollTop + clientHeight >= scrollHeight - 100) {
-      setVisibleCount((prev) => {
-        const next = prev + PAGE_SIZE;
-        return next > filtered.length ? filtered.length : next;
-      });
-    }
-  }, [filtered.length]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
-
-  const displayedUsers = filtered.slice(0, visibleCount);
-  const hasMore = visibleCount < filtered.length;
-
-  const mappedCount = users.filter((u) => u.mappedStoreIds.length > 0).length;
-  const unmappedCount = users.length - mappedCount;
+  const [assignUser, setAssignUser] = useState<UserStoreMappingSummary | null>(null);
+  const allCount = mappedCount + unmappedCount;
+  const rangeStart =
+    pagination.totalCount > 0 ? (pagination.page - 1) * pagination.pageSize + 1 : 0;
+  const rangeEnd = Math.min(pagination.page * pagination.pageSize, pagination.totalCount);
 
   const cellTruncate: React.CSSProperties = {
     overflow: "hidden",
@@ -90,11 +51,10 @@ export function UserStoreMapTable({
 
   return (
     <>
-      {/* Stat pills */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         {(
           [
-            { key: "all", label: "All Users", count: users.length },
+            { key: "all", label: "All Users", count: allCount },
             { key: "mapped", label: "Mapped", count: mappedCount },
             { key: "unmapped", label: "Unmapped", count: unmappedCount },
           ] as const
@@ -102,15 +62,15 @@ export function UserStoreMapTable({
           <button
             key={key}
             type="button"
-            onClick={() => setFilterMapped(key)}
+            onClick={() => onMappedFilterChange(key)}
             style={{
               padding: "7px 16px",
               borderRadius: 20,
-              border: `2px solid ${filterMapped === key ? "var(--blue)" : "var(--border)"}`,
-              background: filterMapped === key ? "var(--blue-pale)" : "var(--surface)",
+              border: `2px solid ${mappedFilter === key ? "var(--blue)" : "var(--border)"}`,
+              background: mappedFilter === key ? "var(--blue-pale)" : "var(--surface)",
               fontWeight: 700,
               fontSize: 12,
-              color: filterMapped === key ? "var(--blue)" : "var(--text-mid)",
+              color: mappedFilter === key ? "var(--blue)" : "var(--text-mid)",
               cursor: "pointer",
               transition: "all .15s",
             }}
@@ -119,8 +79,8 @@ export function UserStoreMapTable({
             <span
               style={{
                 marginLeft: 6,
-                background: filterMapped === key ? "var(--blue)" : "var(--surface2)",
-                color: filterMapped === key ? "#fff" : "var(--text-muted)",
+                background: mappedFilter === key ? "var(--blue)" : "var(--surface2)",
+                color: mappedFilter === key ? "#fff" : "var(--text-muted)",
                 borderRadius: 10,
                 padding: "1px 7px",
                 fontSize: 11,
@@ -132,7 +92,6 @@ export function UserStoreMapTable({
         ))}
       </div>
 
-      {/* Table card */}
       <div
         style={{
           border: "1px solid var(--border)",
@@ -141,7 +100,6 @@ export function UserStoreMapTable({
           background: "var(--surface)",
         }}
       >
-        {/* Toolbar */}
         <div
           style={{
             display: "flex",
@@ -157,15 +115,14 @@ export function UserStoreMapTable({
             className="form-input"
             style={{ flex: 1, maxWidth: 320 }}
             placeholder="Search users by name, email, ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchValue}
+            onChange={(e) => onSearchChange(e.target.value)}
           />
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: "auto" }}>
-            {loading ? "Loading…" : `Showing ${displayedUsers.length} of ${filtered.length} users`}
+            {loading ? "Loading…" : `Showing ${users.length} of ${pagination.totalCount} users`}
           </div>
         </div>
 
-        {/* Column header */}
         <div
           style={{
             display: "grid",
@@ -188,30 +145,23 @@ export function UserStoreMapTable({
           <span style={{ textAlign: "right" }}>Action</span>
         </div>
 
-        {/* Rows */}
-        <div ref={scrollContainerRef} style={{ overflowY: "auto", maxHeight: 640 }}>
         {loading ? (
           <div style={{ padding: "48px 24px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
             Loading…
           </div>
-        ) : filtered.length === 0 ? (
+        ) : users.length === 0 ? (
           <div style={{ padding: "48px 24px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            {search || filterMapped !== "all"
+            {searchValue || mappedFilter !== "all"
               ? "No users match the current filter."
               : "No users found for this project."}
           </div>
         ) : (
-          <>
-          {displayedUsers.map((user, idx) => {
-            const mappedStores = user.mappedStoreIds
-              .map((id) => storeById.get(id))
-              .filter((s): s is StoreRecord => Boolean(s));
-            const hasMapped = mappedStores.length > 0;
-            const orphanCount = user.mappedStoreIds.length - mappedStores.length;
+          users.map((user, idx) => {
+            const hasMapped = user.mappedCount > 0;
 
             return (
               <div
-                key={`${user.backendId}-${idx}`}
+                key={`${user.userId}-${idx}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1.8fr 140px 1fr 90px",
@@ -222,7 +172,6 @@ export function UserStoreMapTable({
                   minWidth: 600,
                 }}
               >
-                {/* User info */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                   <div
                     style={{
@@ -250,18 +199,16 @@ export function UserStoreMapTable({
                   </div>
                 </div>
 
-                {/* Designation */}
                 <div style={{ fontSize: 12, color: "var(--text-mid)", ...cellTruncate }}>
                   {user.designation || "—"}
                 </div>
 
-                {/* Mapped stores */}
                 <div>
                   {hasMapped ? (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {mappedStores.slice(0, 3).map((s, sIdx) => (
+                      {user.sampleStoreCodes.map((code) => (
                         <span
-                          key={`${s.backendId}-${sIdx}`}
+                          key={`${user.userId}-${code}`}
                           style={{
                             fontSize: 10,
                             fontWeight: 600,
@@ -273,10 +220,10 @@ export function UserStoreMapTable({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {s.storeName}
+                          {code}
                         </span>
                       ))}
-                      {mappedStores.length > 3 && (
+                      {user.mappedCount > user.sampleStoreCodes.length && (
                         <span
                           style={{
                             fontSize: 10,
@@ -288,22 +235,7 @@ export function UserStoreMapTable({
                             border: "1px solid var(--border)",
                           }}
                         >
-                          +{mappedStores.length - 3} more
-                        </span>
-                      )}
-                      {orphanCount > 0 && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            padding: "2px 8px",
-                            borderRadius: 20,
-                            background: "var(--orange-light, #fff7ed)",
-                            color: "var(--orange, #d97706)",
-                            border: "1px solid var(--orange-mid, #fcd34d)",
-                          }}
-                        >
-                          {orphanCount} invalid
+                          +{user.mappedCount - user.sampleStoreCodes.length} more
                         </span>
                       )}
                     </div>
@@ -314,7 +246,6 @@ export function UserStoreMapTable({
                   )}
                 </div>
 
-                {/* Action */}
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <button
                     type="button"
@@ -327,45 +258,80 @@ export function UserStoreMapTable({
                 </div>
               </div>
             );
-          })}
-          {hasMore && (
-            <div
+          })
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 20px",
+            fontSize: 11,
+            color: "var(--text-muted)",
+            borderTop: "1px solid var(--border)",
+            background: "var(--surface2)",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 500 }}>
+            Show
+            <select
+              value={pagination.pageSize}
+              onChange={(e) => pagination.onPageSizeChange(Number(e.target.value))}
+              aria-label="Rows of users per page"
               style={{
-                padding: "12px 20px",
-                textAlign: "center",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                color: "var(--text)",
                 fontSize: 11,
-                color: "var(--text-muted)",
-                fontWeight: 500,
+                fontWeight: 600,
+                padding: "4px 6px",
               }}
             >
-              Scroll down for more…
-            </div>
-          )}
-          </>
-        )}
-        </div>
-
-        {/* Footer */}
-        {!loading && filtered.length > 0 && (
-          <div
-            style={{
-              padding: "10px 20px",
-              fontSize: 11,
-              color: "var(--text-muted)",
-              borderTop: "1px solid var(--border)",
-              background: "var(--surface2)",
-            }}
-          >
-            {mappedCount} of {users.length} users have store mappings
+              {(pagination.pageSizeOptions ?? LIST_PAGE_SIZE_OPTIONS).map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            per page
+          </label>
+          <span style={{ fontWeight: 500 }}>
+            {pagination.totalCount > 0
+              ? `Showing ${rangeStart}–${rangeEnd} of ${pagination.totalCount} users`
+              : "No users"}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={pagination.page <= 1 || loading}
+              onClick={() => pagination.onPageChange(pagination.page - 1)}
+            >
+              Previous
+            </button>
+            <span style={{ fontWeight: 600 }}>
+              Page {pagination.page} of {pagination.totalPages}
+            </span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={pagination.page >= pagination.totalPages || loading}
+              onClick={() => pagination.onPageChange(pagination.page + 1)}
+            >
+              Next
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Assign modal */}
       {assignUser && (
         <AssignStoresModal
           user={assignUser}
-          stores={stores.filter((s) => s.isActive)}
+          projectId={projectId}
           open={!!assignUser}
           onClose={() => setAssignUser(null)}
           onSuccess={() => {

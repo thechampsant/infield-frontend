@@ -4,15 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import {
   productService,
+  type MappedProductLookup,
   type ProductRecord,
-  type ProductStoreMapping,
+  type StoreMappingSummary,
 } from "@/lib/api/product-service";
 import { formatApiError } from "@/lib/api";
-import type { StoreRecord } from "@/lib/api/store-service";
+import { MAX_LIST_PAGE_SIZE } from "@/lib/api/pagination";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface AssignProductsModalProps {
-  store: StoreRecord;
-  mappings: ProductStoreMapping[];
+  store: Pick<StoreMappingSummary, "storeId" | "storeCode" | "storeName">;
   projectId: string;
   open: boolean;
   onClose: () => void;
@@ -21,79 +23,91 @@ interface AssignProductsModalProps {
 
 export function AssignProductsModal({
   store,
-  mappings,
   projectId,
   open,
   onClose,
   onSuccess,
 }: AssignProductsModalProps) {
-  const [products, setProducts] = useState<ProductRecord[]>([]);
-  const [productsLoading, setProductsLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [mappedByCode, setMappedByCode] = useState<Map<string, MappedProductLookup>>(new Map());
+  const [existingProductCodes, setExistingProductCodes] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const existingProductCodes = useMemo(
-    () =>
-      new Set(
-        mappings
-          .filter((mapping) => mapping.storeCode === store.storeCode)
-          .map((mapping) => mapping.productCode),
-      ),
-    [mappings, store.storeCode],
-  );
-  const existingMappingByProductCode = useMemo(() => {
-    const map = new Map<string, ProductStoreMapping>();
-    mappings
-      .filter((mapping) => mapping.storeCode === store.storeCode)
-      .forEach((mapping) => {
-        map.set(mapping.productCode, mapping);
-      });
-    return map;
-  }, [mappings, store.storeCode]);
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [search]);
 
   useEffect(() => {
-    if (!open || !projectId) return;
-
-    setSelected(new Set(existingProductCodes));
+    if (!open) return;
     setSearch("");
+    setDebouncedSearch("");
     setError(null);
-    setProductsLoading(true);
-
     let cancelled = false;
-    productService
-      .listAllByProject(projectId)
-      .then((rows) => {
-        if (!cancelled) {
-          setProducts(rows.filter((product) => product.isActive));
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setProducts([]);
-          setError(formatApiError(err, "Failed to load products"));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setProductsLoading(false);
-      });
 
+    const load = async () => {
+      setLoading(true);
+      try {
+        const mapped = await productService.lookupMappedProducts(projectId, {
+          storeId: store.storeId,
+          storeCode: store.storeCode,
+        });
+        if (cancelled) return;
+        const byCode = new Map(mapped.map((product) => [product.productCode, product]));
+        setMappedByCode(byCode);
+        setExistingProductCodes(new Set(byCode.keys()));
+        setSelected(new Set(byCode.keys()));
+      } catch (e) {
+        if (!cancelled) {
+          setError(formatApiError(e, "Failed to load mapped products"));
+          setMappedByCode(new Map());
+          setExistingProductCodes(new Set());
+          setSelected(new Set());
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
     return () => {
       cancelled = true;
     };
-  }, [open, projectId, existingProductCodes]);
+  }, [open, projectId, store.storeId, store.storeCode]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter(
-      (product) =>
-        product.productName.toLowerCase().includes(q) ||
-        product.productCode.toLowerCase().includes(q) ||
-        product.category.toLowerCase().includes(q),
-    );
-  }, [products, search]);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    const loadProducts = async () => {
+      try {
+        const result = await productService.listByProject(
+          projectId,
+          1,
+          MAX_LIST_PAGE_SIZE,
+          debouncedSearch || undefined,
+        );
+        if (!cancelled) setProducts(result.data);
+      } catch (e) {
+        if (!cancelled) {
+          setError(formatApiError(e, "Failed to search products"));
+          setProducts([]);
+        }
+      }
+    };
+
+    loadProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId, debouncedSearch]);
 
   const toggleProduct = (productCode: string) => {
     setSelected((prev) => {
@@ -110,7 +124,7 @@ export function AssignProductsModal({
   const selectAll = () => {
     setSelected((prev) => {
       const next = new Set(prev);
-      filtered.forEach((product) => next.add(product.productCode));
+      products.forEach((product) => next.add(product.productCode));
       return next;
     });
   };
@@ -123,19 +137,19 @@ export function AssignProductsModal({
     const newProductCodes = Array.from(selected).filter(
       (productCode) => !existingProductCodes.has(productCode),
     );
-    const removedMappings = Array.from(existingProductCodes)
+    const removed = Array.from(existingProductCodes)
       .filter((productCode) => !selected.has(productCode))
-      .map((productCode) => existingMappingByProductCode.get(productCode))
-      .filter((mapping): mapping is ProductStoreMapping => Boolean(mapping?.backendId));
+      .map((productCode) => mappedByCode.get(productCode))
+      .filter((mapping): mapping is MappedProductLookup => Boolean(mapping?.mappingId));
 
-    if (newProductCodes.length === 0 && removedMappings.length === 0) {
+    if (newProductCodes.length === 0 && removed.length === 0) {
       onClose();
       return;
     }
 
     if (
-      removedMappings.length > 0 &&
-      !confirm(`Unmap ${removedMappings.length} product${removedMappings.length === 1 ? "" : "s"} from this store?`)
+      removed.length > 0 &&
+      !confirm(`Unmap ${removed.length} product${removed.length === 1 ? "" : "s"} from this store?`)
     ) {
       return;
     }
@@ -152,9 +166,7 @@ export function AssignProductsModal({
               productCode,
             }),
           ),
-          ...removedMappings.map((mapping) =>
-            productService.deleteStoreMapping(mapping.backendId),
-          ),
+          ...removed.map((mapping) => productService.deleteStoreMapping(mapping.mappingId!)),
         ],
       );
       onSuccess();
@@ -172,6 +184,7 @@ export function AssignProductsModal({
   const removedSelectionCount = Array.from(existingProductCodes).filter(
     (productCode) => !selected.has(productCode),
   ).length;
+  const loadedCount = useMemo(() => products.length, [products.length]);
 
   return (
     <Modal
@@ -188,7 +201,7 @@ export function AssignProductsModal({
             type="button"
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={submitting || productsLoading}
+            disabled={submitting || loading}
           >
             {submitting
               ? "Saving..."
@@ -203,14 +216,12 @@ export function AssignProductsModal({
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{store.storeCode}</div>
         </div>
         <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)" }}>
-          {productsLoading
-            ? "Loading products..."
-            : `${selectedCount} / ${products.length} products selected`}
+          {selectedCount} selected · {loadedCount} on this page
         </div>
       </div>
 
       <div className="pa-info-banner" style={{ marginBottom: 12 }}>
-        Checked products are mapped to this store. Uncheck an assigned product to unmap it.
+        Search loads up to {MAX_LIST_PAGE_SIZE} products. Select All applies to this page only, not the whole catalog.
       </div>
 
       {error && (
@@ -231,7 +242,7 @@ export function AssignProductsModal({
           type="button"
           className="btn btn-secondary btn-sm"
           onClick={selectAll}
-          disabled={filtered.length === 0 || productsLoading}
+          disabled={products.length === 0}
         >
           Select All
         </button>
@@ -246,20 +257,18 @@ export function AssignProductsModal({
       </div>
 
       <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", maxHeight: 360, overflowY: "auto" }}>
-        {productsLoading ? (
+        {loading ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            Loading products...
+            Loading mapped products...
           </div>
         ) : products.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            No active products found for this project. Add products first.
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            No products match &quot;{search}&quot;
+            {debouncedSearch
+              ? `No products match "${debouncedSearch}"`
+              : "No active products found for this project. Add products first."}
           </div>
         ) : (
-          filtered.map((product, idx) => {
+          products.map((product, idx) => {
             const isExisting = existingProductCodes.has(product.productCode);
             const isChecked = selected.has(product.productCode);
             return (
@@ -270,7 +279,7 @@ export function AssignProductsModal({
                   alignItems: "center",
                   gap: 12,
                   padding: "11px 16px",
-                  borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : "none",
+                  borderBottom: idx < products.length - 1 ? "1px solid var(--border)" : "none",
                   cursor: "pointer",
                   background: isChecked ? "var(--blue-pale)" : "var(--surface)",
                   transition: "background .1s",

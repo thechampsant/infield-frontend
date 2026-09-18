@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { userReporteeMappingService } from "@/lib/api/user-reportee-mapping-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { useMasterExport } from "@/hooks/use-master-export";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -16,6 +18,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function ReporteeMapPage() {
   const { projectId } = useProjectContext();
+  const masterExport = useMasterExport(projectId, "reportee-mapping");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<{
@@ -36,14 +39,8 @@ export default function ReporteeMapPage() {
     }
   };
 
-  const handleExport = async () => {
-    if (!projectId) return;
-    try {
-      const blob = await userReporteeMappingService.exportMapping(projectId);
-      downloadBlob(blob, "Reportee_Mapping_Export.xlsx");
-    } catch {
-      setError("Export failed. Please try again.");
-    }
+  const handleExport = () => {
+    void masterExport.startExport();
   };
 
   const handleUpload = async (file: File) => {
@@ -113,11 +110,24 @@ export default function ReporteeMapPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for reportee mapping"
           />
-          <button type="button" className="btn btn-secondary" onClick={handleExport}>
-            ↓ Export Current
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={masterExport.preparing}
+          >
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export Current"}
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       {/* Instructions */}
       <div

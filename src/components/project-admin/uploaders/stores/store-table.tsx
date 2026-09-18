@@ -26,6 +26,7 @@ interface StoreTableProps {
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
+  exportPreparing?: boolean;
 }
 
 const GRID = "1.5fr 130px 150px 80px 100px";
@@ -41,6 +42,7 @@ export function StoreTable({
   onOpenUDFConfig,
   onRefresh,
   onExport,
+  exportPreparing,
 }: StoreTableProps) {
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [editId, setEditId] = useState<string | null>(null);
@@ -219,8 +221,9 @@ export function StoreTable({
               type="button"
               className="btn btn-secondary btn-sm"
               onClick={onExport}
+              disabled={exportPreparing}
             >
-              ↓ Export
+              {exportPreparing ? "Preparing Excel…" : "↓ Export"}
             </button>
           </>
         }
