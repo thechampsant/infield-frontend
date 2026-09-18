@@ -105,4 +105,12 @@ describe("master export session", () => {
     });
     expect(getMasterExportSnapshot(key).error).toBeNull();
   });
+
+  it("passes userStatus through to enqueueJob", async () => {
+    enqueueJob.mockResolvedValue({ jobId: "job-1", status: "queued" });
+
+    await startMasterExport(projectId, kind, "inactive");
+
+    expect(enqueueJob).toHaveBeenCalledWith(projectId, kind, "inactive");
+  });
 });

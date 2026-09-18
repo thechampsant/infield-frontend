@@ -14,6 +14,8 @@ export const MASTER_EXPORT_KINDS = [
 
 export type MasterExportKind = (typeof MASTER_EXPORT_KINDS)[number];
 
+export type UserExportStatus = "active" | "inactive" | "all";
+
 export type MasterExportJobStatus = "queued" | "running" | "ready" | "failed";
 
 export interface MasterExportJob {
@@ -40,10 +42,12 @@ export const masterExportService = {
   async enqueueJob(
     projectId: string,
     kind: MasterExportKind,
+    userStatus?: UserExportStatus,
   ): Promise<EnqueueMasterExportResponse> {
     return apiClient.post<EnqueueMasterExportResponse>(`${BASE}/export-jobs`, {
       projectId,
       kind,
+      ...(kind === "users" && userStatus ? { userStatus } : {}),
     });
   },
 
