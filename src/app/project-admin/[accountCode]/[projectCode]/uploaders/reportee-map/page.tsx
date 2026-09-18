@@ -1,11 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
-import { userReporteeMappingService } from "@/lib/api/user-reportee-mapping-service";
+import {
+  userReporteeMappingService,
+  type ReporteeBulkMappingResult,
+  type UserListStatus,
+  type UserReporteeMappingFilter,
+  type UserReporteeMappingSummary,
+} from "@/lib/api/user-reportee-mapping-service";
+import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { ReporteeMapTable } from "@/components/project-admin/uploaders/reportee-map/reportee-map-table";
 import { useMasterExport } from "@/hooks/use-master-export";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -19,15 +29,88 @@ function downloadBlob(blob: Blob, filename: string) {
 export default function ReporteeMapPage() {
   const { projectId } = useProjectContext();
   const masterExport = useMasterExport(projectId, "reportee-mapping");
+  const [users, setUsers] = useState<UserReporteeMappingSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadResult, setUploadResult] = useState<{
-    total: number;
-    successCount: number;
-    invalidCount: number;
-    errors: { row: number | string; managerEmployeeId?: string; errors: string[] }[];
-  } | null>(null);
+  const [uploadResult, setUploadResult] = useState<ReporteeBulkMappingResult | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [mappedFilter, setMappedFilter] = useState<UserReporteeMappingFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<UserListStatus>("all");
+  const [meta, setMeta] = useState<
+    ListMeta & { mappedCount: number; unmappedCount: number; activeCount: number; inactiveCount: number }
+  >({
+    page: 1,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    totalCount: 0,
+    totalPages: 1,
+    mappedCount: 0,
+    unmappedCount: 0,
+    activeCount: 0,
+    inactiveCount: 0,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    if (!projectId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await userReporteeMappingService.listPage(
+        projectId,
+        page,
+        pageSize,
+        debouncedSearch,
+        mappedFilter,
+        statusFilter,
+      );
+      setUsers(result.data);
+      setMeta(result.meta);
+      if (page > result.meta.totalPages) {
+        setPage(Math.max(1, result.meta.totalPages));
+      }
+    } catch (err) {
+      setError(formatApiError(err, "Failed to load reportee mapping data"));
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, page, pageSize, debouncedSearch, mappedFilter, statusFilter]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = search.trim();
+      setDebouncedSearch((prev) => {
+        if (prev !== next) {
+          setPage(1);
+        }
+        return next;
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [search]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleMappedFilterChange = (next: UserReporteeMappingFilter) => {
+    setMappedFilter(next);
+    setPage(1);
+  };
+
+  const handleStatusFilterChange = (next: UserListStatus) => {
+    setStatusFilter(next);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (next: number) => {
+    setPageSize(next);
+    setPage(1);
+  };
 
   const handleTemplate = async () => {
     if (!projectId) return;
@@ -51,6 +134,9 @@ export default function ReporteeMapPage() {
     try {
       const result = await userReporteeMappingService.bulkUpload(projectId, file);
       setUploadResult(result);
+      if (result.successCount > 0) {
+        load();
+      }
       if (result.invalidCount > 0) {
         setError(
           `Upload completed: ${result.successCount} managers updated, ${result.invalidCount} rows had errors.`,
@@ -86,7 +172,7 @@ export default function ReporteeMapPage() {
         <div>
           <div className="pa-page-title">Reportee Mapping</div>
           <div className="pa-page-desc">
-            Assign reportees to managers in bulk. Download the template, fill in
+            Assign reportees to managers on-screen or in bulk. Download the template, fill in
             manager and reportee employee IDs, then upload.
           </div>
         </div>
@@ -129,7 +215,6 @@ export default function ReporteeMapPage() {
         onRetry={handleExport}
       />
 
-      {/* Instructions */}
       <div
         className="pa-info-banner"
         style={{
@@ -141,7 +226,7 @@ export default function ReporteeMapPage() {
       >
         <strong>How it works:</strong>
         <ol style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-          <li>Download the template — it lists all users in the project (active and inactive) with their employee IDs</li>
+          <li>Use Assign to map reportees on-screen, or download the template for bulk edits</li>
           <li>Fill in <code>managerEmployeeId</code> and <code>reporteeEmployeeId</code> — one manager→reportee pair per row (e.g. A→B on one row, A→C on the next)</li>
           <li>Upload the file — reportees will be assigned to managers after validation</li>
         </ol>
@@ -149,7 +234,7 @@ export default function ReporteeMapPage() {
           Note: Do not put multiple reportees in one cell. Reportees must have a lower designation level than their manager.
           Each upload replaces existing reportees for the managers listed in the file.
           Users not in the file are left untouched.
-          Inactive users are accepted and appear in red on Template and Export.
+          Inactive users are accepted and appear in red on Template, Export, and this table.
           Deactivating a user still clears their mapping. Live team reports still ignore inactive users.
         </p>
       </div>
@@ -212,6 +297,31 @@ export default function ReporteeMapPage() {
           </ul>
         </div>
       )}
+
+      <ReporteeMapTable
+        users={users}
+        loading={loading}
+        projectId={projectId}
+        searchValue={search}
+        onSearchChange={setSearch}
+        mappedFilter={mappedFilter}
+        onMappedFilterChange={handleMappedFilterChange}
+        mappedCount={meta.mappedCount}
+        unmappedCount={meta.unmappedCount}
+        statusFilter={statusFilter}
+        onStatusFilterChange={handleStatusFilterChange}
+        activeCount={meta.activeCount}
+        inactiveCount={meta.inactiveCount}
+        pagination={{
+          page,
+          pageSize,
+          totalCount: meta.totalCount,
+          totalPages: meta.totalPages,
+          onPageChange: setPage,
+          onPageSizeChange: handlePageSizeChange,
+        }}
+        onRefresh={load}
+      />
     </>
   );
 }
