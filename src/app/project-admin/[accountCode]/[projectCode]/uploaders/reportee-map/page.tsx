@@ -142,11 +142,11 @@ export default function ReporteeMapPage() {
         <strong>How it works:</strong>
         <ol style={{ margin: "8px 0 0", paddingLeft: 20 }}>
           <li>Download the template — it lists all users in the project with their employee IDs</li>
-          <li>Fill in <code>managerEmployeeId</code> and <code>reporteeEmployeeIds</code> (comma-separated)</li>
+          <li>Fill in <code>managerEmployeeId</code> and <code>reporteeEmployeeId</code> — one manager→reportee pair per row (e.g. A→B on one row, A→C on the next)</li>
           <li>Upload the file — reportees will be assigned to managers after validation</li>
         </ol>
         <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-          Note: Reportees must have a lower designation level than their manager.
+          Note: Do not put multiple reportees in one cell. Reportees must have a lower designation level than their manager.
           Each upload replaces existing reportees for the managers listed in the file.
           Users not in the file are left untouched.
         </p>

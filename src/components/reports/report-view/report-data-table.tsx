@@ -18,9 +18,52 @@ function toFileUrl(value: string): string {
   return `/api/v1/gcs/file?path=${encodeURIComponent(value)}`;
 }
 
+function attachmentPath(value: unknown): string | null {
+  if (typeof value === "string" && value.trim() && value !== "-") return value.trim();
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    for (const key of ["path", "url", "gcsPath", "filePath"]) {
+      const raw = obj[key];
+      if (typeof raw === "string" && raw.trim()) return raw.trim();
+    }
+  }
+  return null;
+}
+
+function renderImageLink(href: string, key?: string): React.ReactNode {
+  return (
+    <a
+      key={key}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-block"
+      title="Open file"
+    >
+      <img
+        src={href}
+        alt=""
+        className="h-12 w-12 rounded-md object-cover"
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          target.style.display = "none";
+          target.parentElement!.querySelector(".fallback-icon")?.classList.remove("hidden");
+        }}
+      />
+      <ImageIcon className="fallback-icon hidden h-12 w-12 rounded-md border border-[#dde6f0] p-2 text-[#7a95b5]" />
+    </a>
+  );
+}
+
 function formatCellValue(value: unknown, column: ReportSelectedColumn): React.ReactNode {
   const fieldType = column.fieldType;
   const formatterType = column.formatter?.type;
+  const isImageCol =
+    fieldType === "IMAGE" ||
+    formatterType === "image" ||
+    column.fieldKey === "attachments" ||
+    /\battachments?\b/i.test(column.headerName || "");
+
   // Null/missing → dash
   if (value === null || value === undefined || value === "") {
     return <span className="text-[#7a95b5]">-</span>;
@@ -31,36 +74,34 @@ function formatCellValue(value: unknown, column: ReportSelectedColumn): React.Re
     return value.toFixed(2);
   }
 
-  // Image/file → thumbnail or file link. Stored GCS paths are converted to the file endpoint.
-  if ((fieldType === "IMAGE" || formatterType === "image") && typeof value === "string") {
-    const href = toFileUrl(value);
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="inline-block" title="Open file">
-        <img
-          src={href}
-          alt=""
-          className="h-12 w-12 rounded-md object-cover"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = "none";
-            target.parentElement!.querySelector(".fallback-icon")?.classList.remove("hidden");
-          }}
-        />
-        <ImageIcon className="fallback-icon hidden h-12 w-12 rounded-md border border-[#dde6f0] p-2 text-[#7a95b5]" />
-      </a>
-    );
-  }
-
-  if ((fieldType === "IMAGE" || formatterType === "image") && Array.isArray(value)) {
-    return (
-      <div className="flex flex-wrap gap-2">
-        {value.map((entry, index) => (
-          <span key={`${String(entry)}-${index}`}>
-            {formatCellValue(String(entry), column)}
-          </span>
-        ))}
-      </div>
-    );
+  // Image/file → thumbnail or file link
+  if (isImageCol) {
+    if (typeof value === "string") {
+      // Backend may return one URL or comma-separated preview URLs
+      const parts = value.includes("/api/v1/gcs/file") || value.includes(",")
+        ? value.split(",").map((s) => s.trim()).filter(Boolean)
+        : [value];
+      if (parts.length === 1) return renderImageLink(toFileUrl(parts[0]));
+      return (
+        <div className="flex flex-wrap gap-2">
+          {parts.map((part, index) => renderImageLink(toFileUrl(part), `${part}-${index}`))}
+        </div>
+      );
+    }
+    if (Array.isArray(value)) {
+      const hrefs = value
+        .map((entry) => attachmentPath(entry))
+        .filter((p): p is string => !!p)
+        .map((p) => toFileUrl(p));
+      if (!hrefs.length) return <span className="text-[#7a95b5]">-</span>;
+      return (
+        <div className="flex flex-wrap gap-2">
+          {hrefs.map((href, index) => renderImageLink(href, `${href}-${index}`))}
+        </div>
+      );
+    }
+    const single = attachmentPath(value);
+    if (single) return renderImageLink(toFileUrl(single));
   }
 
   // Google Maps links from Orient location columns
@@ -98,10 +139,13 @@ function formatCellValue(value: unknown, column: ReportSelectedColumn): React.Re
     return value ? "Yes" : "No";
   }
 
-  // Object type — dynamically extract best readable representation
-  // Handles ISTDateInfo and any future nested object fields
+      // Object type — leave attachment { path } before generic dump
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
+    const filePath = attachmentPath(obj);
+    if (filePath && (obj.fileName || obj.mimeType || obj.path)) {
+      return renderImageLink(toFileUrl(filePath));
+    }
 
     // ISTDateInfo: show full_iso as-is (e.g. Claim Date)
     if (typeof obj.full_iso === 'string') {

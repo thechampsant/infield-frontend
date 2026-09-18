@@ -192,6 +192,8 @@ export interface ExportReportParams {
   fromDate?: string;
   toDate?: string;
   projectId?: string;
+  /** From Load meta.totalCount — drives Generating Excel… N / T without a recount. */
+  estimatedTotal?: number;
 }
 
 export type ReportExportJobStatus = "queued" | "running" | "ready" | "failed";
@@ -324,6 +326,7 @@ export const reportConfigService = {
       fromDate: params.fromDate,
       toDate: params.toDate,
       projectId: params.projectId,
+      estimatedTotal: params.estimatedTotal,
     });
   },
 

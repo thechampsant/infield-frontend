@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarDays, Download, Filter, Loader2, Play } from "lucide-react";
 import { reportConfigService } from "@/lib/api/report-config-service";
-import { ApiError } from "@/lib/api/api-client";
 import { orientReportService } from "@/lib/api/orient-report-service";
 import {
   isOrientProject,
@@ -20,13 +19,18 @@ import type {
   ReportSelectedColumn,
 } from "@/lib/api/report-config-service";
 import {
-  formatExportDateRange,
+  downloadReportExport,
+  getReportExportSnapshot,
+  reportExportSessionKey,
+  startReportExport,
+  subscribeReportExport,
+} from "@/lib/api/report-export-session";
+import {
   isExportJobInProgress,
-  shouldAutoDownload,
-  triggerSignedUrlDownload,
   type ReportExportJob,
 } from "@/lib/reports/report-export-job";
 import { ReportDataTable } from "./report-data-table";
+import { ReportExportBanners } from "./report-export-banners";
 import {
   REPORT_DATE_PRESETS,
   resolveReportDatePreset,
@@ -73,11 +77,21 @@ export function ReportViewPage({
     orientDefaults ? "last7" : null,
   );
 
-  // Export job (async for every project)
-  const [exportJob, setExportJob] = useState<ReportExportJob | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const sessionCreatedJobIds = useRef(new Set<string>());
-  const autoDownloadedJobIds = useRef(new Set<string>());
+  // Export job session (product-store pattern: poll + progress + tab-safe)
+  const exportProjectId = contextProjectId || config?.projectId || "";
+  const exportSessionKey = exportProjectId
+    ? reportExportSessionKey(exportProjectId, reportId)
+    : "";
+  const [exportSnapshot, setExportSnapshot] = useState<{
+    job: ReportExportJob | null;
+    error: string | null;
+  }>(() =>
+    exportSessionKey
+      ? getReportExportSnapshot(exportSessionKey)
+      : { job: null, error: null },
+  );
+  const exportJob = exportSnapshot.job;
+  const exportError = exportSnapshot.error;
 
   const applyPreset = useCallback((presetId: ReportDatePresetId) => {
     const range = resolveReportDatePreset(presetId);
@@ -139,50 +153,16 @@ export function ReportViewPage({
   }, [reportId]);
 
   useEffect(() => {
-    let mounted = true;
-    async function restoreExportJob() {
-      try {
-        const latest = await reportConfigService.getLatestExportJob(reportId);
-        if (!mounted || !latest) return;
-        setExportJob(latest);
-      } catch {
-        /* no prior job */
-      }
-    }
-    restoreExportJob();
-    return () => {
-      mounted = false;
-    };
-  }, [reportId]);
-
-  useEffect(() => {
-    if (!exportJob || !isExportJobInProgress(exportJob.status)) return;
-    const timer = setInterval(async () => {
-      try {
-        const next = await reportConfigService.getExportJob(exportJob.jobId);
-        setExportJob(next);
-      } catch {
-        /* keep last known status */
-      }
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [exportJob?.jobId, exportJob?.status]);
-
-  useEffect(() => {
-    if (!exportJob?.downloadUrl || exportJob.status !== "ready") return;
-    if (
-      !shouldAutoDownload({
-        status: exportJob.status,
-        jobId: exportJob.jobId,
-        createdThisSession: sessionCreatedJobIds.current.has(exportJob.jobId),
-        alreadyDownloaded: autoDownloadedJobIds.current.has(exportJob.jobId),
-      })
-    ) {
+    if (!exportProjectId) {
+      setExportSnapshot({ job: null, error: null });
       return;
     }
-    autoDownloadedJobIds.current.add(exportJob.jobId);
-    triggerSignedUrlDownload(exportJob.downloadUrl, exportJob.fileName);
-  }, [exportJob]);
+    const key = reportExportSessionKey(exportProjectId, reportId);
+    setExportSnapshot(getReportExportSnapshot(key));
+    return subscribeReportExport(key, reportId, () => {
+      setExportSnapshot(getReportExportSnapshot(key));
+    });
+  }, [exportProjectId, reportId]);
 
   // Load data
   const handleLoadData = useCallback(
@@ -225,13 +205,20 @@ export function ReportViewPage({
         setData(result.data || []);
         if (result.columns?.length) {
           setColumns(
-            result.columns.map((c, i) => ({
-              fieldKey: `orient-col-${i}`,
-              sourceKey: config.primarySource?.sourceKey || "",
-              headerName: c.key,
-              order: i,
-              fieldType: c.type as ReportSelectedColumn["fieldType"],
-            })),
+            result.columns.map((c, i) => {
+              const matched = (config.selectedColumns || []).find(
+                (sc) => sc.headerName === c.key,
+              );
+              return {
+                fieldKey: matched?.fieldKey || `col-${i}`,
+                sourceKey:
+                  matched?.sourceKey || config.primarySource?.sourceKey || "",
+                headerName: c.key,
+                order: matched?.order ?? i,
+                fieldType: c.type as ReportSelectedColumn["fieldType"],
+                formatter: matched?.formatter,
+              };
+            }),
           );
         }
         const meta = "meta" in result ? result.meta : undefined;
@@ -250,56 +237,24 @@ export function ReportViewPage({
     [config, reportId, filterValues, page, pageSize, fromDate, toDate, projectCode, contextProjectId],
   );
 
-  // Handle export — enqueue a job; poll + banner handle the rest
+  // Handle export — enqueue a job; session poll + banner handle the rest
   const handleExport = useCallback(async () => {
-    if (!config) return;
-    setExportError(null);
-
-    const projectId = contextProjectId || config.projectId || undefined;
-
-    try {
-      const queued = await reportConfigService.enqueueExportJob({
-        reportId,
-        filters: filterValues,
-        format: config.outputSettings?.fileFormat || "xls",
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
-        projectId,
-      });
-      sessionCreatedJobIds.current.add(queued.jobId);
-      setExportJob({
-        jobId: queued.jobId,
-        status: queued.status,
-        reportId,
-        format: config.outputSettings?.fileFormat || "xls",
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
-        progress: "Queued",
-      });
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        const jobId =
-          typeof err.details?.jobId === "string" ? err.details.jobId : undefined;
-        if (jobId) {
-          sessionCreatedJobIds.current.add(jobId);
-          try {
-            setExportJob(await reportConfigService.getExportJob(jobId));
-            return;
-          } catch {
-            /* fall through */
-          }
-        }
-      }
-      setExportError(
-        err instanceof Error ? err.message : "Failed to start export. Please try again.",
-      );
-    }
-  }, [config, reportId, filterValues, fromDate, toDate, contextProjectId]);
+    if (!config || !exportProjectId) return;
+    await startReportExport({
+      projectId: exportProjectId,
+      reportId,
+      filters: filterValues,
+      format: config.outputSettings?.fileFormat || "xls",
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+      estimatedTotal: totalCount > 0 ? totalCount : undefined,
+    });
+  }, [config, reportId, filterValues, fromDate, toDate, exportProjectId, totalCount]);
 
   const handleDownloadReady = useCallback(() => {
-    if (!exportJob?.downloadUrl) return;
-    triggerSignedUrlDownload(exportJob.downloadUrl, exportJob.fileName);
-  }, [exportJob]);
+    if (!exportSessionKey) return;
+    downloadReportExport(exportSessionKey);
+  }, [exportSessionKey]);
 
   // Handle page change
   const handlePageChange = useCallback(
@@ -458,13 +413,13 @@ export function ReportViewPage({
             className="inline-flex items-center gap-2 rounded-lg bg-[#1e5fa8] px-4 py-2 text-sm font-bold text-white hover:bg-[#174d88] disabled:opacity-50"
           >
             {loadingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {loadingData ? "Loading..." : "Load"}
+            {loadingData ? "Loading…" : "Load"}
           </button>
         )}
         <button
           type="button"
           onClick={handleExport}
-          disabled={preparingExport || exportDisabled}
+          disabled={preparingExport || exportDisabled || !exportProjectId}
           className="inline-flex items-center gap-2 rounded-lg border border-[#c8d8eb] bg-white px-4 py-2 text-sm font-bold text-[#3a5272] hover:bg-[#f7fafd] disabled:opacity-50"
         >
           {preparingExport ? (
@@ -476,49 +431,13 @@ export function ReportViewPage({
         </button>
       </div>
 
-      {preparingExport && (
-        <div className="mb-4 rounded-lg border border-[#c8d8eb] bg-[#f0f6ff] p-3 text-sm text-[#1e5fa8]">
-          <p className="font-bold">Preparing Excel…</p>
-          <p className="mt-1 text-[#3a5272]">
-            Date range: {formatExportDateRange(exportJob?.fromDate, exportJob?.toDate)}.
-            You can keep using this page.
-          </p>
-        </div>
-      )}
-
-      {exportJob?.status === "ready" && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#b7e4c7] bg-[#f0fdf4] p-3 text-sm text-[#166534]">
-          <p className="font-bold">Excel is ready</p>
-          <button
-            type="button"
-            onClick={handleDownloadReady}
-            disabled={!exportJob.downloadUrl}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#14532d] disabled:opacity-50"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Download Excel
-          </button>
-        </div>
-      )}
-
-      {exportJob?.status === "failed" && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-3 text-sm text-[#e8382d]">
-          <p className="font-medium">{exportJob.error || "Export failed. Please try again."}</p>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="rounded-lg border border-[#e8382d] bg-white px-3 py-1.5 text-xs font-bold text-[#e8382d] hover:bg-[#fff7f6]"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {exportError && (
-        <div className="mb-4 rounded-lg border border-[#ffd5d3] bg-[#fff0ef] p-3 text-sm font-medium text-[#e8382d]">
-          {exportError}
-        </div>
-      )}
+      <ReportExportBanners
+        preparing={preparingExport}
+        job={exportJob}
+        error={exportError}
+        onDownload={handleDownloadReady}
+        onRetry={handleExport}
+      />
 
       {/* Error */}
       {loadError && (

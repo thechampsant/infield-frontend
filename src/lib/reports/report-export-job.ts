@@ -50,3 +50,20 @@ export function formatExportDateRange(fromDate?: string, toDate?: string): strin
   if (toDate) return `until ${toDate}`;
   return "the selected range";
 }
+
+/** Parse "Generating Excel… 50 / 800" (or similar) into numbers for the progress bar. */
+export function parseExcelProgress(
+  progress?: string | null,
+): { written: number; total: number; percent: number } | null {
+  if (!progress) return null;
+  const match = progress.match(/(\d+)\s*\/\s*(\d+)/);
+  if (!match) return null;
+  const written = Number(match[1]);
+  const total = Number(match[2]);
+  if (!Number.isFinite(written) || !Number.isFinite(total) || total <= 0) return null;
+  return {
+    written,
+    total,
+    percent: Math.min(100, Math.max(0, Math.round((written / total) * 100))),
+  };
+}
