@@ -118,7 +118,7 @@ export default function UsersMasterPage() {
   };
 
   const handleExport = () => {
-    void masterExport.startExport();
+    void masterExport.startExport(statusFilter);
   };
 
   const handleBulkUpload = async (file: File) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { MasterExportKind } from "@/lib/api/master-export-service";
+import type { MasterExportKind, UserExportStatus } from "@/lib/api/master-export-service";
 import {
   downloadMasterExport,
   getMasterExportSnapshot,
@@ -29,9 +29,9 @@ export function useMasterExport(projectId: string | undefined, kind: MasterExpor
     });
   }, [projectId, kind]);
 
-  const startExport = useCallback(async () => {
+  const startExport = useCallback(async (userStatus?: UserExportStatus) => {
     if (!projectId) return;
-    await startMasterExport(projectId, kind);
+    await startMasterExport(projectId, kind, userStatus);
   }, [projectId, kind]);
 
   const downloadReady = useCallback(() => {

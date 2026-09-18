@@ -3,6 +3,7 @@ import {
   masterExportService,
   type MasterExportJob,
   type MasterExportKind,
+  type UserExportStatus,
 } from "./master-export-service";
 import {
   isExportJobInProgress,
@@ -207,6 +208,7 @@ export function subscribeMasterExport(key: string, listener: () => void): () => 
 export async function startMasterExport(
   projectId: string,
   kind: MasterExportKind,
+  userStatus?: UserExportStatus,
 ): Promise<void> {
   const key = masterExportSessionKey(projectId, kind);
   const session = getOrCreate(key);
@@ -215,7 +217,7 @@ export async function startMasterExport(
   notify(session);
 
   try {
-    const queued = await masterExportService.enqueueJob(projectId, kind);
+    const queued = await masterExportService.enqueueJob(projectId, kind, userStatus);
     session.createdThisSession = true;
     session.alreadyDownloaded = false;
     session.job = {
