@@ -1,18 +1,50 @@
 /**
- * User-Reportee Mapping bulk upload service.
+ * User-Reportee Mapping service.
  *
- * Provides template download, export, and bulk upload functionality
- * for assigning reportees to managers via Excel.
- *
- * Routes:
- *   GET  /api/v1/users/bulk/reportee-template?projectId=...
- *   GET  /api/v1/users/bulk/reportee-export?projectId=...
- *   POST /api/v1/users/bulk/reportee-excel  (multipart: file + projectId)
+ * List rows come from GET /users/reportee-mapping (paged summaries).
+ * Assigning reportees PATCHes /users/reportee-mapping/:userId.
+ * Excel template/upload/export remain on the bulk routes.
  */
 
 import { apiClient } from "./api-client";
+import {
+  clampListPageSize,
+  DEFAULT_LIST_PAGE_SIZE,
+  normalizeListMeta,
+  type ListMeta,
+  type RawListMeta,
+} from "./pagination";
+import {
+  projectUsersService,
+  type ProjectUserListResult,
+  type UserListStatus,
+} from "./project-users-service";
 
 const USERS_BASE = "/api/v1/users";
+
+export type UserReporteeMappingFilter = "all" | "mapped" | "unmapped";
+export type { UserListStatus };
+
+export interface UserReporteeMappingSummary {
+  userId: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  designation: string;
+  isActive: boolean;
+  mappedCount: number;
+  sampleReporteeNames: string[];
+}
+
+export interface UserReporteeMappingListResult {
+  data: UserReporteeMappingSummary[];
+  meta: ListMeta & {
+    mappedCount: number;
+    unmappedCount: number;
+    activeCount: number;
+    inactiveCount: number;
+  };
+}
 
 export interface ReporteeBulkMappingResult {
   total: number;
@@ -22,21 +54,93 @@ export interface ReporteeBulkMappingResult {
 }
 
 export const userReporteeMappingService = {
-  /** Download Excel template for bulk reportee mapping upload. */
+  async listPage(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
+    mapped: UserReporteeMappingFilter = "all",
+    status: UserListStatus = "all",
+  ): Promise<UserReporteeMappingListResult> {
+    const params = new URLSearchParams({
+      projectId,
+      page: String(page),
+      pageSize: String(clampListPageSize(pageSize)),
+      mapped,
+      status,
+    });
+    const term = search?.trim();
+    if (term) params.set("search", term);
+    const res = await apiClient.get<{
+      data?: UserReporteeMappingSummary[];
+      meta?: RawListMeta & {
+        mappedCount?: number;
+        unmappedCount?: number;
+        activeCount?: number;
+        inactiveCount?: number;
+      };
+    }>(`${USERS_BASE}/reportee-mapping?${params.toString()}`);
+    const rows = Array.isArray(res) ? res : (res.data ?? []);
+    const rawMeta = Array.isArray(res) ? undefined : res.meta;
+    const meta = normalizeListMeta(rawMeta, rows.length);
+    return {
+      data: rows.map((row) => ({
+        userId: String(row.userId ?? ""),
+        employeeId: String(row.employeeId ?? ""),
+        name: String(row.name ?? ""),
+        email: String(row.email ?? ""),
+        designation: String(row.designation ?? ""),
+        isActive: row.isActive !== false,
+        mappedCount: Number(row.mappedCount ?? 0),
+        sampleReporteeNames: Array.isArray(row.sampleReporteeNames)
+          ? row.sampleReporteeNames.map(String)
+          : [],
+      })),
+      meta: {
+        ...meta,
+        mappedCount: Number(rawMeta?.mappedCount ?? 0),
+        unmappedCount: Number(rawMeta?.unmappedCount ?? 0),
+        activeCount: Number(rawMeta?.activeCount ?? meta.activeCount ?? 0),
+        inactiveCount: Number(rawMeta?.inactiveCount ?? meta.inactiveCount ?? 0),
+      },
+    };
+  },
+
+  async getMappedReporteeIds(projectId: string, userId: string): Promise<string[]> {
+    const res = await apiClient.get<{ userId?: string; reporteeIds?: string[] }>(
+      `${USERS_BASE}/reportee-mapping/${encodeURIComponent(userId)}?projectId=${encodeURIComponent(projectId)}`,
+    );
+    return Array.isArray(res?.reporteeIds) ? res.reporteeIds.map(String) : [];
+  },
+
+  async listUsersPage(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
+  ): Promise<ProjectUserListResult> {
+    return projectUsersService.listByProject(projectId, page, pageSize, search, "all");
+  },
+
+  async updateMapping(projectId: string, userId: string, reporteeIds: string[]): Promise<void> {
+    await apiClient.patch(
+      `${USERS_BASE}/reportee-mapping/${encodeURIComponent(userId)}?projectId=${encodeURIComponent(projectId)}`,
+      { reporteeIds },
+    );
+  },
+
   async downloadTemplate(projectId: string): Promise<Blob> {
     return apiClient.getBlob(
       `${USERS_BASE}/bulk/reportee-template?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 
-  /** Export current reportee mapping as Excel. */
   async exportMapping(projectId: string): Promise<Blob> {
     return apiClient.getBlob(
       `${USERS_BASE}/bulk/reportee-export?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 
-  /** Bulk upload reportee mappings from Excel file. */
   async bulkUpload(projectId: string, file: File): Promise<ReporteeBulkMappingResult> {
     const formData = new FormData();
     formData.append("file", file);
