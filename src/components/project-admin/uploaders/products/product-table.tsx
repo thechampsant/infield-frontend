@@ -24,6 +24,7 @@ interface ProductTableProps {
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
   onExport: () => void;
+  exportPreparing?: boolean;
 }
 
 const CORE_GRID = "1.5fr 130px 140px 90px 80px 100px";
@@ -37,6 +38,7 @@ export function ProductTable({
   onOpenUDFConfig,
   onRefresh,
   onExport,
+  exportPreparing,
 }: ProductTableProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "focus">("all");
@@ -240,8 +242,13 @@ export function ProductTable({
             <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenUDFConfig}>
               ⚙ UDF Config
             </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onExport}>
-              ↓ Export
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onExport}
+              disabled={exportPreparing}
+            >
+              {exportPreparing ? "Preparing Excel…" : "↓ Export"}
             </button>
           </>
         }

@@ -46,6 +46,29 @@ export interface ProductListResult {
   meta: ListMeta;
 }
 
+export type StoreMappingFilter = "all" | "mapped" | "unmapped";
+
+export interface StoreMappingSummary {
+  storeId: string;
+  storeCode: string;
+  storeName: string;
+  mappedCount: number;
+  sampleProductCodes: string[];
+}
+
+export interface StoreMappingListResult {
+  data: StoreMappingSummary[];
+  meta: ListMeta & { mappedCount: number; unmappedCount: number };
+}
+
+export interface MappedProductLookup {
+  backendId: string;
+  productCode: string;
+  productName: string;
+  category: string;
+  mappingId?: string;
+}
+
 export interface BulkProductResult {
   total: number;
   successCount: number;
@@ -97,16 +120,6 @@ export interface ProductStoreMapping {
   productId: string;
   storeCode: string;
   productCode: string;
-}
-
-interface RawProductStoreMapping {
-  _id?: string;
-  id?: string;
-  projectId?: string | { _id?: string };
-  storeId?: string | { _id?: string };
-  productId?: string | { _id?: string };
-  storeCode?: string;
-  productCode?: string;
 }
 
 export interface BulkProductStoreMappingResult {
@@ -277,26 +290,23 @@ function normalizeSchemaFieldForSave(
   };
 }
 
-function normalizeMapping(raw: RawProductStoreMapping): ProductStoreMapping {
-  return {
-    backendId: String(raw._id ?? raw.id ?? ""),
-    projectId: refToString(raw.projectId),
-    storeId: refToString(raw.storeId),
-    productId: refToString(raw.productId),
-    storeCode: String(raw.storeCode ?? ""),
-    productCode: String(raw.productCode ?? ""),
-  };
-}
-
 export const productService = {
   /** List one page of active products for a project. */
   async listByProject(
     projectId: string,
     page = 1,
     pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
   ): Promise<ProductListResult> {
+    const params = new URLSearchParams({
+      projectId,
+      page: String(page),
+      pageSize: String(clampListPageSize(pageSize)),
+    });
+    const term = search?.trim();
+    if (term) params.set("search", term);
     const res = await apiClient.get<PaginatedProducts | RawProduct[]>(
-      `${BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${clampListPageSize(pageSize)}`,
+      `${BASE}?${params.toString()}`,
     );
     return normalizeProductsResponse(res);
   },
@@ -405,11 +415,68 @@ export const productService = {
     return apiClient.getBlob(`${BASE}/bulk/export?projectId=${encodeURIComponent(projectId)}`);
   },
 
-  async listStoreMappings(projectId: string): Promise<ProductStoreMapping[]> {
-    const res = await apiClient.get<RawProductStoreMapping[]>(
-      `${BASE}/store-mapping?projectId=${encodeURIComponent(projectId)}`,
+  async listStoreMappingPage(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
+    mapped: StoreMappingFilter = "all",
+  ): Promise<StoreMappingListResult> {
+    const params = new URLSearchParams({
+      projectId,
+      page: String(page),
+      pageSize: String(clampListPageSize(pageSize)),
+      mapped,
+    });
+    const term = search?.trim();
+    if (term) params.set("search", term);
+    const res = await apiClient.get<{
+      data?: StoreMappingSummary[];
+      meta?: RawListMeta & { mappedCount?: number; unmappedCount?: number };
+    }>(`${BASE}/store-mapping?${params.toString()}`);
+    const rows = Array.isArray(res) ? res : (res.data ?? []);
+    const meta = normalizeListMeta(Array.isArray(res) ? undefined : res.meta, rows.length);
+    return {
+      data: rows.map((row) => ({
+        storeId: String(row.storeId ?? ""),
+        storeCode: String(row.storeCode ?? ""),
+        storeName: String(row.storeName ?? ""),
+        mappedCount: Number(row.mappedCount ?? 0),
+        sampleProductCodes: Array.isArray(row.sampleProductCodes)
+          ? row.sampleProductCodes.map(String)
+          : [],
+      })),
+      meta: {
+        ...meta,
+        mappedCount: Number(
+          (Array.isArray(res) ? undefined : res.meta)?.mappedCount ?? 0,
+        ),
+        unmappedCount: Number(
+          (Array.isArray(res) ? undefined : res.meta)?.unmappedCount ?? 0,
+        ),
+      },
+    };
+  },
+
+  async lookupMappedProducts(
+    projectId: string,
+    options: { storeId?: string; storeCode?: string; search?: string },
+  ): Promise<MappedProductLookup[]> {
+    const params = new URLSearchParams({ projectId });
+    if (options.storeId) params.set("storeId", options.storeId);
+    if (options.storeCode) params.set("storeCode", options.storeCode);
+    if (options.search?.trim()) params.set("search", options.search.trim());
+    const res = await apiClient.get<{ products?: Array<RawProduct & { mappingId?: string }> }>(
+      `${BASE}/store-mapping/products?${params.toString()}`,
     );
-    return (Array.isArray(res) ? res : []).map(normalizeMapping);
+    const products = Array.isArray(res) ? res : (res.products ?? []);
+    return products.map((raw) => ({
+      backendId: String(raw._id ?? raw.id ?? ""),
+      productCode: String(raw.productCode ?? ""),
+      productName: String(raw.productName ?? ""),
+      category: String(raw.category ?? ""),
+      mappingId: raw.mappingId ? String(raw.mappingId) : undefined,
+    }));
   },
 
   /** Load mappings only for the given store codes (current table page). */

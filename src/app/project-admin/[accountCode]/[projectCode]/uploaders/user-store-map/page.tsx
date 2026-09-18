@@ -4,12 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import {
   userStoreMappingService,
-  type MappedUser,
   type BulkMappingResult,
+  type UserStoreMappingFilter,
+  type UserStoreMappingSummary,
 } from "@/lib/api/user-store-mapping-service";
+import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { UserStoreMapTable } from "@/components/project-admin/uploaders/user-store-map/user-store-map-table";
-import type { StoreRecord } from "@/lib/api/store-service";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { useMasterExport } from "@/hooks/use-master-export";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -22,13 +27,26 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function UserStoreMapPage() {
   const { projectId } = useProjectContext();
+  const masterExport = useMasterExport(projectId, "user-store-mapping");
 
-  const [users, setUsers] = useState<MappedUser[]>([]);
-  const [stores, setStores] = useState<StoreRecord[]>([]);
+  const [users, setUsers] = useState<UserStoreMappingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<BulkMappingResult | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [mappedFilter, setMappedFilter] = useState<UserStoreMappingFilter>("all");
+  const [meta, setMeta] = useState<ListMeta & { mappedCount: number; unmappedCount: number }>({
+    page: 1,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    totalCount: 0,
+    totalPages: 1,
+    mappedCount: 0,
+    unmappedCount: 0,
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -37,22 +55,52 @@ export default function UserStoreMapPage() {
     setLoading(true);
     setError(null);
     try {
-      const [userList, storeList] = await Promise.all([
-        userStoreMappingService.listUsersWithMapping(projectId),
-        userStoreMappingService.listStores(projectId),
-      ]);
-      setUsers(userList);
-      setStores(storeList);
+      const result = await userStoreMappingService.listPage(
+        projectId,
+        page,
+        pageSize,
+        debouncedSearch,
+        mappedFilter,
+      );
+      setUsers(result.data);
+      setMeta(result.meta);
+      if (page > result.meta.totalPages) {
+        setPage(Math.max(1, result.meta.totalPages));
+      }
     } catch (err) {
       setError(formatApiError(err, "Failed to load user-store mapping data"));
+      setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, page, pageSize, debouncedSearch, mappedFilter]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = search.trim();
+      setDebouncedSearch((prev) => {
+        if (prev !== next) {
+          setPage(1);
+        }
+        return next;
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [search]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleMappedFilterChange = (next: UserStoreMappingFilter) => {
+    setMappedFilter(next);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (next: number) => {
+    setPageSize(next);
+    setPage(1);
+  };
 
   const handleTemplate = async () => {
     if (!projectId) return;
@@ -64,14 +112,8 @@ export default function UserStoreMapPage() {
     }
   };
 
-  const handleExport = async () => {
-    if (!projectId) return;
-    try {
-      const blob = await userStoreMappingService.exportMapping(projectId);
-      downloadBlob(blob, "UserStore_Mapping_Export.xlsx");
-    } catch (err) {
-      setError(formatApiError(err, "Export failed"));
-    }
+  const handleExport = () => {
+    void masterExport.startExport();
   };
 
   const handleBulkUpload = async (file: File) => {
@@ -108,11 +150,8 @@ export default function UserStoreMapPage() {
     handleBulkUpload(file);
   };
 
-  const mappedCount = users.filter((u) => u.mappedStoreIds.length > 0).length;
-
   return (
     <>
-      {/* Page header */}
       <div className="pa-page-header">
         <div>
           <div className="pa-page-title">User–Store Mapping</div>
@@ -140,21 +179,31 @@ export default function UserStoreMapPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk user-store mapping"
           />
-          <button type="button" className="btn btn-secondary" onClick={handleExport}>
-            ↓ Export
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={masterExport.preparing}
+          >
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export"}
           </button>
         </div>
       </div>
 
-      {/* Info banner */}
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
+
       <div className="pa-info-banner" style={{ marginBottom: 16 }}>
         <strong>How it works:</strong> Assign one or more stores to each user. In{" "}
         <em>direct_store</em> mode, users only see their assigned stores during visits.
-        Currently <strong>{mappedCount} of {users.length}</strong> users have store
-        mappings. Use <em>Template</em> → fill storeCodes (comma-separated) → <em>Bulk Upload</em> for mass assignment.
+        Use <em>Template</em> → fill storeCodes (comma-separated) → <em>Bulk Upload</em> for mass assignment.
       </div>
 
-      {/* Error banner */}
       {error && (
         <div
           className="pa-info-banner"
@@ -169,7 +218,6 @@ export default function UserStoreMapPage() {
         </div>
       )}
 
-      {/* Upload success banner */}
       {uploadResult && uploadResult.successCount > 0 && !error && (
         <div
           className="pa-info-banner"
@@ -184,7 +232,6 @@ export default function UserStoreMapPage() {
         </div>
       )}
 
-      {/* Upload error detail */}
       {uploadResult && uploadResult.errors.length > 0 && (
         <div
           className="pa-info-banner"
@@ -212,27 +259,24 @@ export default function UserStoreMapPage() {
         </div>
       )}
 
-      {/* No stores guard */}
-      {!loading && stores.length === 0 && (
-        <div
-          className="pa-info-banner"
-          style={{
-            color: "var(--orange, #d97706)",
-            background: "var(--orange-light, #fffbeb)",
-            borderColor: "var(--orange-mid, #fcd34d)",
-            marginBottom: 16,
-          }}
-        >
-          <strong>No stores found.</strong> Add stores in the Stores Master tab before
-          creating user-store mappings.
-        </div>
-      )}
-
-      {/* Main table */}
       <UserStoreMapTable
         users={users}
-        stores={stores}
         loading={loading}
+        projectId={projectId}
+        searchValue={search}
+        onSearchChange={setSearch}
+        mappedFilter={mappedFilter}
+        onMappedFilterChange={handleMappedFilterChange}
+        mappedCount={meta.mappedCount}
+        unmappedCount={meta.unmappedCount}
+        pagination={{
+          page,
+          pageSize,
+          totalCount: meta.totalCount,
+          totalPages: meta.totalPages,
+          onPageChange: setPage,
+          onPageSizeChange: handlePageSizeChange,
+        }}
         onRefresh={load}
       />
     </>

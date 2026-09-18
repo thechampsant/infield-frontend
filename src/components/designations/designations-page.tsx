@@ -17,6 +17,8 @@ import {
   type DesignationAccess,
 } from "@/lib/designations/backend-roles";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { useMasterExport } from "@/hooks/use-master-export";
 import {
   AddDesignationModal,
   type NewDesignationInput,
@@ -32,6 +34,7 @@ interface Props {
 }
 
 export function DesignationsPage({ projectId, projectName }: Props) {
+  const masterExport = useMasterExport(projectId, "designations");
   const [roles, setRoles] = useState<BackendRole[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [permissionOptions, setPermissionOptions] = useState<PermissionOption[]>([]);
@@ -177,19 +180,9 @@ export function DesignationsPage({ projectId, projectName }: Props) {
     }
   }, [projectId]);
 
-  const handleExport = useCallback(async () => {
-    try {
-      const blob = await designationService.exportDesignations(projectId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "Designations_Export.xlsx";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setToast({ message: formatApiError(err, "Export failed"), type: "error" });
-    }
-  }, [projectId]);
+  const handleExport = useCallback(() => {
+    void masterExport.startExport();
+  }, [masterExport]);
 
   const handleBulkUpload = useCallback(async (file: File) => {
     setUploading(true);
@@ -272,8 +265,9 @@ export function DesignationsPage({ projectId, projectName }: Props) {
             type="button"
             className="btn btn-secondary"
             onClick={handleExport}
+            disabled={masterExport.preparing}
           >
-            ↓ Export
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export"}
           </button>
           <button
             type="button"
@@ -295,6 +289,14 @@ export function DesignationsPage({ projectId, projectName }: Props) {
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       {noHierarchyRoles && (
         <div className="if2-banner error" style={{ marginBottom: 16 }}>

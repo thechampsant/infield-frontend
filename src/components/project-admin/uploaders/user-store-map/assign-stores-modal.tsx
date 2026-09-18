@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
-import { userStoreMappingService, type MappedUser } from "@/lib/api/user-store-mapping-service";
+import {
+  userStoreMappingService,
+  type UserStoreMappingSummary,
+} from "@/lib/api/user-store-mapping-service";
 import { formatApiError } from "@/lib/api";
+import { MAX_LIST_PAGE_SIZE } from "@/lib/api/pagination";
 import type { StoreRecord } from "@/lib/api/store-service";
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 interface AssignStoresModalProps {
-  user: MappedUser;
-  stores: StoreRecord[];
+  user: UserStoreMappingSummary;
+  projectId: string;
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -16,34 +22,80 @@ interface AssignStoresModalProps {
 
 export function AssignStoresModal({
   user,
-  stores,
+  projectId,
   open,
   onClose,
   onSuccess,
 }: AssignStoresModalProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [stores, setStores] = useState<StoreRecord[]>([]);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-populate with current mapping on open
   useEffect(() => {
-    if (open) {
-      setSelected(new Set(user.mappedStoreIds));
-      setSearch("");
-      setError(null);
-    }
-  }, [open, user.mappedStoreIds]);
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [search]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return stores;
-    return stores.filter(
-      (s) =>
-        s.storeName.toLowerCase().includes(q) ||
-        s.storeCode.toLowerCase().includes(q),
-    );
-  }, [stores, search]);
+  useEffect(() => {
+    if (!open) return;
+    setSearch("");
+    setDebouncedSearch("");
+    setError(null);
+    let cancelled = false;
+
+    const loadMapped = async () => {
+      setLoading(true);
+      try {
+        const storeIds = await userStoreMappingService.getMappedStoreIds(projectId, user.userId);
+        if (!cancelled) setSelected(new Set(storeIds));
+      } catch (e) {
+        if (!cancelled) {
+          setError(formatApiError(e, "Failed to load mapped stores"));
+          setSelected(new Set());
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadMapped();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId, user.userId]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    const loadStores = async () => {
+      try {
+        const result = await userStoreMappingService.listStoresPage(
+          projectId,
+          1,
+          MAX_LIST_PAGE_SIZE,
+          debouncedSearch || undefined,
+        );
+        if (!cancelled) setStores(result.data);
+      } catch (e) {
+        if (!cancelled) {
+          setError(formatApiError(e, "Failed to search stores"));
+          setStores([]);
+        }
+      }
+    };
+
+    loadStores();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId, debouncedSearch]);
 
   const toggleStore = (storeId: string) => {
     setSelected((prev) => {
@@ -58,18 +110,26 @@ export function AssignStoresModal({
   };
 
   const selectAll = () => {
-    setSelected(new Set(filtered.map((s) => s.backendId)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      stores.forEach((store) => next.add(store.backendId));
+      return next;
+    });
   };
 
-  const clearAll = () => {
-    setSelected(new Set());
+  const clearPage = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      stores.forEach((store) => next.delete(store.backendId));
+      return next;
+    });
   };
 
   const handleSave = async () => {
     setSubmitting(true);
     setError(null);
     try {
-      await userStoreMappingService.updateMapping(user.backendId, Array.from(selected));
+      await userStoreMappingService.updateMapping(user.userId, Array.from(selected));
       onSuccess();
     } catch (e) {
       setError(formatApiError(e, "Failed to update store mapping"));
@@ -79,7 +139,7 @@ export function AssignStoresModal({
   };
 
   const selectedCount = selected.size;
-  const totalCount = stores.length;
+  const pageSelectedCount = stores.filter((store) => selected.has(store.backendId)).length;
 
   return (
     <Modal
@@ -96,14 +156,13 @@ export function AssignStoresModal({
             type="button"
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={submitting}
+            disabled={submitting || loading}
           >
             {submitting ? "Saving…" : `Save Mapping (${selectedCount} stores)`}
           </button>
         </>
       }
     >
-      {/* User info */}
       <div
         style={{
           padding: "10px 14px",
@@ -136,8 +195,12 @@ export function AssignStoresModal({
           </div>
         )}
         <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)" }}>
-          {selectedCount} / {totalCount} stores selected
+          {selectedCount} selected · {pageSelectedCount}/{stores.length} on this page
         </div>
+      </div>
+
+      <div className="pa-info-banner" style={{ marginBottom: 12 }}>
+        Search loads up to {MAX_LIST_PAGE_SIZE} stores. Select All / Clear apply to this page only.
       </div>
 
       {error && (
@@ -154,7 +217,6 @@ export function AssignStoresModal({
         </div>
       )}
 
-      {/* Search + bulk actions */}
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
         <input
           className="form-input"
@@ -167,21 +229,20 @@ export function AssignStoresModal({
           type="button"
           className="btn btn-secondary btn-sm"
           onClick={selectAll}
-          disabled={filtered.length === 0}
+          disabled={stores.length === 0}
         >
           Select All
         </button>
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          onClick={clearAll}
-          disabled={selected.size === 0}
+          onClick={clearPage}
+          disabled={pageSelectedCount === 0}
         >
           Clear
         </button>
       </div>
 
-      {/* Store list */}
       <div
         style={{
           border: "1px solid var(--border)",
@@ -191,18 +252,11 @@ export function AssignStoresModal({
           overflowY: "auto",
         }}
       >
-        {stores.length === 0 ? (
-          <div
-            style={{
-              padding: 24,
-              textAlign: "center",
-              color: "var(--text-muted)",
-              fontSize: 13,
-            }}
-          >
-            No stores found for this project. Add stores first.
+        {loading ? (
+          <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            Loading mapped stores…
           </div>
-        ) : filtered.length === 0 ? (
+        ) : stores.length === 0 ? (
           <div
             style={{
               padding: 24,
@@ -211,10 +265,12 @@ export function AssignStoresModal({
               fontSize: 13,
             }}
           >
-            No stores match &quot;{search}&quot;
+            {debouncedSearch
+              ? `No stores match "${debouncedSearch}"`
+              : "No stores found for this project. Add stores first."}
           </div>
         ) : (
-          filtered.map((store, idx) => {
+          stores.map((store, idx) => {
             const isChecked = selected.has(store.backendId);
             return (
               <label
@@ -225,7 +281,7 @@ export function AssignStoresModal({
                   gap: 12,
                   padding: "11px 16px",
                   borderBottom:
-                    idx < filtered.length - 1 ? "1px solid var(--border)" : "none",
+                    idx < stores.length - 1 ? "1px solid var(--border)" : "none",
                   cursor: "pointer",
                   background: isChecked ? "var(--blue-pale)" : "var(--surface)",
                   transition: "background .1s",

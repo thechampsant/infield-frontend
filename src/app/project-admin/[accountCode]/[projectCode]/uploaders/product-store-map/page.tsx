@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
-import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import {
   productService,
   type BulkProductStoreMappingResult,
-  type ProductStoreMapping,
+  type StoreMappingFilter,
+  type StoreMappingSummary,
 } from "@/lib/api/product-service";
-import { storeService, type StoreRecord } from "@/lib/api/store-service";
+import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { ProductStoreMapTable } from "@/components/project-admin/uploaders/product-store-map/product-store-map-table";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { useMasterExport } from "@/hooks/use-master-export";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -25,9 +27,9 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function ProductStoreMapPage() {
   const { projectId } = useProjectContext();
+  const masterExport = useMasterExport(projectId, "product-store-mapping");
 
-  const [mappings, setMappings] = useState<ProductStoreMapping[]>([]);
-  const [stores, setStores] = useState<StoreRecord[]>([]);
+  const [rows, setRows] = useState<StoreMappingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -36,16 +38,14 @@ export default function ProductStoreMapPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [meta, setMeta] = useState<ListMeta>({
+  const [mappedFilter, setMappedFilter] = useState<StoreMappingFilter>("all");
+  const [meta, setMeta] = useState<ListMeta & { mappedCount: number; unmappedCount: number }>({
     page: 1,
     pageSize: DEFAULT_LIST_PAGE_SIZE,
     totalCount: 0,
     totalPages: 1,
-  });
-  const [summary, setSummary] = useState({
-    totalStores: 0,
-    mappedStores: 0,
-    unmappedStores: 0,
+    mappedCount: 0,
+    unmappedCount: 0,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -55,32 +55,25 @@ export default function ProductStoreMapPage() {
     setLoading(true);
     setError(null);
     try {
-      const [storeList, mappingSummary] = await Promise.all([
-        storeService.listByProject(projectId, page, pageSize, debouncedSearch),
-        productService.getStoreMappingSummary(projectId),
-      ]);
-      setStores(storeList.data);
-      setMeta(storeList.meta);
-      setSummary(mappingSummary);
-
-      const storeCodes = storeList.data.map((store) => store.storeCode);
-      const mappingRows = await productService.listStoreMappingsForStores(
+      const result = await productService.listStoreMappingPage(
         projectId,
-        storeCodes,
+        page,
+        pageSize,
+        debouncedSearch,
+        mappedFilter,
       );
-      setMappings(mappingRows);
-
-      if (page > storeList.meta.totalPages) {
-        setPage(Math.max(1, storeList.meta.totalPages));
+      setRows(result.data);
+      setMeta(result.meta);
+      if (page > result.meta.totalPages) {
+        setPage(Math.max(1, result.meta.totalPages));
       }
     } catch (err) {
       setError(formatApiError(err, "Failed to load product-store mappings"));
-      setStores([]);
-      setMappings([]);
+      setRows([]);
     } finally {
       setLoading(false);
     }
-  }, [projectId, page, pageSize, debouncedSearch]);
+  }, [projectId, page, pageSize, debouncedSearch, mappedFilter]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -99,6 +92,16 @@ export default function ProductStoreMapPage() {
     load();
   }, [load]);
 
+  const handleMappedFilterChange = (next: StoreMappingFilter) => {
+    setMappedFilter(next);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (next: number) => {
+    setPageSize(next);
+    setPage(1);
+  };
+
   const handleTemplate = async () => {
     if (!projectId) return;
     try {
@@ -109,14 +112,8 @@ export default function ProductStoreMapPage() {
     }
   };
 
-  const handleExport = async () => {
-    if (!projectId) return;
-    try {
-      const blob = await productService.exportStoreMappings(projectId);
-      downloadBlob(blob, "Product_Store_Mapping_Export.xlsx");
-    } catch (err) {
-      setError(formatApiError(err, "Export failed"));
-    }
+  const handleExport = () => {
+    void masterExport.startExport();
   };
 
   const handleBulkUpload = async (file: File) => {
@@ -128,8 +125,7 @@ export default function ProductStoreMapPage() {
       const result = await productService.bulkUploadStoreMapping(projectId, file);
       setUploadResult(result);
       if (result.successCount > 0) {
-        if (page === 1) load();
-        else setPage(1);
+        load();
       }
       if (result.invalidCount > 0) {
         setError(
@@ -183,11 +179,24 @@ export default function ProductStoreMapPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk product-store mapping"
           />
-          <button type="button" className="btn btn-secondary" onClick={handleExport}>
-            ↓ Export
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={masterExport.preparing}
+          >
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export"}
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       <div className="pa-info-banner" style={{ marginBottom: 16 }}>
         <strong>How it works:</strong> Select a store, then assign one or more active products.
@@ -226,30 +235,29 @@ export default function ProductStoreMapPage() {
         </div>
       )}
 
-      {!loading && meta.totalCount === 0 && (
+      {!loading && meta.totalCount === 0 && mappedFilter === "all" && !debouncedSearch && (
         <div className="pa-info-banner" style={{ color: "var(--orange, #d97706)", background: "var(--orange-light, #fffbeb)", borderColor: "var(--orange-mid, #fcd34d)", marginBottom: 16 }}>
           <strong>No stores found.</strong> Add stores in the Stores Master tab before creating product-store mappings.
         </div>
       )}
 
       <ProductStoreMapTable
-        stores={stores}
-        mappings={mappings}
+        rows={rows}
         projectId={projectId}
         loading={loading}
         searchValue={search}
         onSearchChange={setSearch}
-        summary={summary}
+        mappedFilter={mappedFilter}
+        onMappedFilterChange={handleMappedFilterChange}
+        mappedCount={meta.mappedCount}
+        unmappedCount={meta.unmappedCount}
         pagination={{
-          page: meta.page,
+          page,
           pageSize,
           totalCount: meta.totalCount,
           totalPages: meta.totalPages,
           onPageChange: setPage,
-          onPageSizeChange: (size) => {
-            setPageSize(size);
-            setPage(1);
-          },
+          onPageSizeChange: handlePageSizeChange,
         }}
         onRefresh={load}
       />

@@ -1,24 +1,40 @@
 /**
  * User-Store Mapping service.
  *
- * The mapping is stored directly on the user document as:
- *   user.storeIds = [storeObjectId, storeObjectId, ...]
- *
- * This is set via PATCH /api/v1/users/:id with { storeIds: [...] }
- * The field key is USER_STORE_MAPPING_FIELD_KEY = 'storeIds' (from @app/common).
- *
- * Reading mapped stores per user: user[storeIds] array on the user record.
- * Reading all stores for project: GET /api/v1/stores?projectId=...
+ * List rows come from GET /users/store-mapping (paged summaries).
+ * Assigning stores still PATCHes user.storeIds.
  */
 
 import { apiClient } from "./api-client";
-import { MAX_LIST_PAGE_SIZE, normalizeListMeta, type RawListMeta } from "./pagination";
+import {
+  clampListPageSize,
+  DEFAULT_LIST_PAGE_SIZE,
+  normalizeListMeta,
+  type ListMeta,
+  type RawListMeta,
+} from "./pagination";
 import { storeService, type StoreRecord } from "./store-service";
 
 const USERS_BASE = "/api/v1/users";
 
-/** The field key used on the user document for store mapping (mirrors backend constant). */
 export const USER_STORE_MAPPING_FIELD_KEY = "storeIds";
+
+export type UserStoreMappingFilter = "all" | "mapped" | "unmapped";
+
+export interface UserStoreMappingSummary {
+  userId: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  designation: string;
+  mappedCount: number;
+  sampleStoreCodes: string[];
+}
+
+export interface UserStoreMappingListResult {
+  data: UserStoreMappingSummary[];
+  meta: ListMeta & { mappedCount: number; unmappedCount: number };
+}
 
 export interface MappedUser {
   backendId: string;
@@ -26,25 +42,7 @@ export interface MappedUser {
   name: string;
   email: string;
   designation: string;
-  /** Array of store ObjectId strings currently mapped to this user */
   mappedStoreIds: string[];
-}
-
-interface RawUser {
-  _id?: string;
-  id?: string;
-  email?: string;
-  firstName?: string;
-  lastName?: string;
-  employeeId?: string;
-  designation?: string | { name?: string };
-  storeIds?: unknown;
-  [key: string]: unknown;
-}
-
-interface PaginatedUsers {
-  data?: RawUser[];
-  meta?: RawListMeta;
 }
 
 export interface BulkMappingResult {
@@ -54,95 +52,92 @@ export interface BulkMappingResult {
   errors: { row: number | string; employeeId?: string; errors: string[] }[];
 }
 
-function normalizeUser(raw: RawUser): MappedUser {
-  const backendId = String(raw._id ?? raw.id ?? "");
-  const name = `${raw.firstName ?? ""} ${raw.lastName ?? ""}`.trim() || raw.email || "";
-  const designation =
-    typeof raw.designation === "object" && raw.designation
-      ? ((raw.designation as any).name ?? "")
-      : String(raw.designation ?? "");
-
-  // storeIds stored as array of ObjectId strings on user doc
-  const rawStoreIds = raw[USER_STORE_MAPPING_FIELD_KEY];
-  let mappedStoreIds: string[] = [];
-  if (Array.isArray(rawStoreIds)) {
-    mappedStoreIds = rawStoreIds.map((id: unknown) => String(id)).filter(Boolean);
-  } else if (typeof rawStoreIds === "string" && rawStoreIds) {
-    mappedStoreIds = [rawStoreIds];
-  }
-
-  return {
-    backendId,
-    employeeId: raw.employeeId ?? backendId,
-    name,
-    email: String(raw.email ?? ""),
-    designation,
-    mappedStoreIds,
-  };
-}
-
 export const userStoreMappingService = {
-  /** List all active users for a project with their current store mappings. */
-  async listUsersWithMapping(projectId: string): Promise<MappedUser[]> {
-    const fetchPage = async (page: number) => {
-      const res = await apiClient.get<PaginatedUsers | RawUser[]>(
-        `${USERS_BASE}?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${MAX_LIST_PAGE_SIZE}`,
-      );
-      const rows = Array.isArray(res) ? res : ((res as PaginatedUsers).data ?? []);
-      return {
-        rows,
-        meta: normalizeListMeta(Array.isArray(res) ? undefined : res.meta, rows.length),
-      };
+  async listPage(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
+    mapped: UserStoreMappingFilter = "all",
+  ): Promise<UserStoreMappingListResult> {
+    const params = new URLSearchParams({
+      projectId,
+      page: String(page),
+      pageSize: String(clampListPageSize(pageSize)),
+      mapped,
+    });
+    const term = search?.trim();
+    if (term) params.set("search", term);
+    const res = await apiClient.get<{
+      data?: UserStoreMappingSummary[];
+      meta?: RawListMeta & { mappedCount?: number; unmappedCount?: number };
+    }>(`${USERS_BASE}/store-mapping?${params.toString()}`);
+    const rows = Array.isArray(res) ? res : (res.data ?? []);
+    const meta = normalizeListMeta(Array.isArray(res) ? undefined : res.meta, rows.length);
+    return {
+      data: rows.map((row) => ({
+        userId: String(row.userId ?? ""),
+        employeeId: String(row.employeeId ?? ""),
+        name: String(row.name ?? ""),
+        email: String(row.email ?? ""),
+        designation: String(row.designation ?? ""),
+        mappedCount: Number(row.mappedCount ?? 0),
+        sampleStoreCodes: Array.isArray(row.sampleStoreCodes)
+          ? row.sampleStoreCodes.map(String)
+          : [],
+      })),
+      meta: {
+        ...meta,
+        mappedCount: Number(
+          (Array.isArray(res) ? undefined : res.meta)?.mappedCount ?? 0,
+        ),
+        unmappedCount: Number(
+          (Array.isArray(res) ? undefined : res.meta)?.unmappedCount ?? 0,
+        ),
+      },
     };
-
-    const firstPage = await fetchPage(1);
-    const rows = [...firstPage.rows];
-
-    for (let page = firstPage.meta.page + 1; page <= firstPage.meta.totalPages; page += 1) {
-      const next = await fetchPage(page);
-      rows.push(...next.rows);
-    }
-
-    return rows.map(normalizeUser);
   },
 
-  /** List all active stores for a project. */
-  async listStores(projectId: string): Promise<StoreRecord[]> {
-    return storeService.listAllByProject(projectId);
+  async getMappedStoreIds(projectId: string, userId: string): Promise<string[]> {
+    const res = await apiClient.get<{ userId?: string; storeIds?: string[] }>(
+      `${USERS_BASE}/store-mapping/${encodeURIComponent(userId)}?projectId=${encodeURIComponent(projectId)}`,
+    );
+    return Array.isArray(res?.storeIds) ? res.storeIds.map(String) : [];
   },
 
-  /**
-   * Update the store mapping for a user.
-   * Sends PATCH /api/v1/users/:userId with { storeIds: [...] }.
-   */
+  async listStoresPage(
+    projectId: string,
+    page = 1,
+    pageSize = DEFAULT_LIST_PAGE_SIZE,
+    search?: string,
+  ) {
+    return storeService.listByProject(projectId, page, pageSize, search);
+  },
+
   async updateMapping(userId: string, storeIds: string[]): Promise<void> {
     await apiClient.patch(`${USERS_BASE}/${encodeURIComponent(userId)}`, {
       [USER_STORE_MAPPING_FIELD_KEY]: storeIds,
     });
   },
 
-  /** Clear all store mappings for a user. */
   async clearMapping(userId: string): Promise<void> {
     await apiClient.patch(`${USERS_BASE}/${encodeURIComponent(userId)}`, {
       [USER_STORE_MAPPING_FIELD_KEY]: [],
     });
   },
 
-  /** Download Excel template for bulk mapping upload. */
   async downloadTemplate(projectId: string): Promise<Blob> {
     return apiClient.getBlob(
       `${USERS_BASE}/bulk/mapping-template?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 
-  /** Export current user-store mapping as Excel. */
   async exportMapping(projectId: string): Promise<Blob> {
     return apiClient.getBlob(
       `${USERS_BASE}/bulk/mapping-export?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 
-  /** Bulk upload user-store mappings from Excel file. */
   async bulkUpload(projectId: string, file: File): Promise<BulkMappingResult> {
     const formData = new FormData();
     formData.append("file", file);
@@ -153,3 +148,5 @@ export const userStoreMappingService = {
     );
   },
 };
+
+export type { StoreRecord };

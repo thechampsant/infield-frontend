@@ -7,7 +7,9 @@ import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { projectUsersService, type BulkUploadResult, type UserListStatus } from "@/lib/api/project-users-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { DesignationsRequiredBanner } from "@/components/project-admin/uploaders/designations-required-banner";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import { UserTable } from "@/components/project-admin/uploaders/users/user-table";
+import { useMasterExport } from "@/hooks/use-master-export";
 import { AddUserModal } from "@/components/project-admin/uploaders/users/add-user-modal";
 import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
 import type {
@@ -29,6 +31,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function UsersMasterPage() {
   const { projectId, accountCode, projectCode } = useProjectContext();
+  const masterExport = useMasterExport(projectId, "users");
   const [addOpen, setAddOpen] = useState(false);
   const [udfOpen, setUdfOpen] = useState(false);
   const [users, setUsers] = useState<ProjectUser[]>([]);
@@ -114,14 +117,8 @@ export default function UsersMasterPage() {
     }
   };
 
-  const handleExport = async () => {
-    if (!projectId) return;
-    try {
-      const blob = await projectUsersService.exportUsers(projectId);
-      downloadBlob(blob, "Users_Export.xlsx");
-    } catch {
-      setError("Export failed. Please try again.");
-    }
+  const handleExport = () => {
+    void masterExport.startExport();
   };
 
   const handleBulkUpload = async (file: File) => {
@@ -197,14 +194,27 @@ export default function UsersMasterPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk user import"
           />
-          <button type="button" className="btn btn-secondary" onClick={handleExport}>
-            ↓ Export
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={masterExport.preparing}
+          >
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export"}
           </button>
           <button type="button" className="btn btn-primary" onClick={() => setAddOpen(true)}>
             + Add User
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       {designationCount === 0 && (
         <DesignationsRequiredBanner
@@ -298,6 +308,7 @@ export default function UsersMasterPage() {
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
         onExport={handleExport}
+        exportPreparing={masterExport.preparing}
       />
 
       <AddUserModal

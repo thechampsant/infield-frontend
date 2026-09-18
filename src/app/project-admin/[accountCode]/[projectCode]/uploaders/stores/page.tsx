@@ -5,7 +5,9 @@ import { formatApiError } from "@/lib/api";
 import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { storeService, type StoreRecord, type BulkStoreResult } from "@/lib/api/store-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import { StoreTable } from "@/components/project-admin/uploaders/stores/store-table";
+import { useMasterExport } from "@/hooks/use-master-export";
 import { AddStoreModal } from "@/components/project-admin/uploaders/stores/add-store-modal";
 import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
 import type { UDFField } from "@/types/project-admin";
@@ -23,6 +25,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function StoresMasterPage() {
   const { projectId } = useProjectContext();
+  const masterExport = useMasterExport(projectId, "stores");
 
   const [addOpen, setAddOpen] = useState(false);
   const [udfOpen, setUdfOpen] = useState(false);
@@ -96,14 +99,8 @@ export default function StoresMasterPage() {
     }
   };
 
-  const handleExport = async () => {
-    if (!projectId) return;
-    try {
-      const blob = await storeService.exportStores(projectId);
-      downloadBlob(blob, "Stores_Export.xlsx");
-    } catch (err) {
-      setError(formatApiError(err, "Export failed. Please try again."));
-    }
+  const handleExport = () => {
+    void masterExport.startExport();
   };
 
   const handleBulkUpload = async (file: File) => {
@@ -190,8 +187,9 @@ export default function StoresMasterPage() {
             type="button"
             className="btn btn-secondary"
             onClick={handleExport}
+            disabled={masterExport.preparing}
           >
-            ↓ Export
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export"}
           </button>
           <button
             type="button"
@@ -202,6 +200,14 @@ export default function StoresMasterPage() {
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       {/* ── Error Banner ── */}
       {error && (
@@ -284,6 +290,7 @@ export default function StoresMasterPage() {
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
         onExport={handleExport}
+        exportPreparing={masterExport.preparing}
       />
 
       {/* ── Add Store Modal ── */}

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { roleService, type BackendRole, type BulkRoleResult } from "@/lib/api/role-service";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import { useMasterExport } from "@/hooks/use-master-export";
 
 interface Props {
   projectId: string;
@@ -11,6 +13,7 @@ interface Props {
 }
 
 export function RolesMasterPage({ projectId, projectName }: Props) {
+  const masterExport = useMasterExport(projectId, "roles");
   const [roles, setRoles] = useState<BackendRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,19 +96,9 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
     }
   }, [projectId]);
 
-  const handleExport = useCallback(async () => {
-    try {
-      const blob = await roleService.exportRoles(projectId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "Roles_Export.xlsx";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setToast({ message: formatApiError(err, "Export failed"), type: "error" });
-    }
-  }, [projectId]);
+  const handleExport = useCallback(() => {
+    void masterExport.startExport();
+  }, [masterExport]);
 
   const handleBulkUpload = useCallback(async (file: File) => {
     setUploading(true);
@@ -192,8 +185,9 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
             type="button"
             className="btn btn-secondary"
             onClick={handleExport}
+            disabled={masterExport.preparing}
           >
-            ↓ Export
+            {masterExport.preparing ? "Preparing Excel…" : "↓ Export"}
           </button>
           <button
             type="button"
@@ -204,6 +198,14 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
           </button>
         </div>
       </div>
+
+      <MasterExportBanners
+        preparing={masterExport.preparing}
+        job={masterExport.job}
+        error={masterExport.error}
+        onDownload={masterExport.downloadReady}
+        onRetry={handleExport}
+      />
 
       {/* Add Role Modal */}
       {addOpen && (
