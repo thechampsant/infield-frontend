@@ -479,21 +479,6 @@ export const productService = {
     }));
   },
 
-  /** Load mappings only for the given store codes (current table page). */
-  async listStoreMappingsForStores(
-    projectId: string,
-    storeCodes: string[],
-  ): Promise<ProductStoreMapping[]> {
-    const codes = [...new Set(storeCodes.map((code) => code.trim()).filter(Boolean))];
-    if (codes.length === 0) return [];
-
-    const res = await apiClient.get<RawProductStoreMapping[]>(
-      `${BASE}/store-mapping?projectId=${encodeURIComponent(projectId)}` +
-        `&storeCodes=${encodeURIComponent(codes.join(","))}`,
-    );
-    return (Array.isArray(res) ? res : []).map(normalizeMapping);
-  },
-
   async getStoreMappingSummary(projectId: string): Promise<{
     totalStores: number;
     mappedStores: number;
