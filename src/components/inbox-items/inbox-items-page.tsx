@@ -42,7 +42,7 @@ const WHY_STYLES: Record<InboxRoutingReason, { label: string; bg: string; color:
   manager: { label: "Manager", bg: "#f1f5f9", color: "#475569" },
 };
 
-const GRID_COLUMNS = "32px 1.5fr 0.9fr 1fr 1fr 1.2fr 1.2fr 1.1fr";
+const GRID_COLUMNS = "32px 1.4fr 0.85fr 1.2fr 1fr 0.9fr 1.1fr 1.1fr 1fr";
 
 function paSlaCell(item: InboxItem): { label: string; bg: string; color: string } {
   if (item.routingReason === "manager") {
@@ -499,7 +499,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               style={{
                 display: "grid",
                 gridTemplateColumns: GRID_COLUMNS,
-                minWidth: 980,
+                minWidth: 1100,
                 padding: "10px 16px",
                 background: "var(--bg-muted, #f8fafc)",
                 borderBottom: "1px solid var(--border, #e2e8f0)",
@@ -513,6 +513,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               <span />
               <span>Submitted By</span>
               <span>Why</span>
+              <span>Pending manager</span>
               <span>Request Type</span>
               <span>Status</span>
               <span>Submitted</span>
@@ -534,7 +535,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                   style={{
                     display: "grid",
                     gridTemplateColumns: GRID_COLUMNS,
-                    minWidth: 980,
+                    minWidth: 1100,
                     padding: "12px 16px",
                     borderBottom: "1px solid var(--border, #f1f5f9)",
                     background: isSelected ? "var(--primary-light, #e0e7ff)" : "#fff",
@@ -578,6 +579,16 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                       {whyStyle.label}
                     </span>
                   </span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+                      {item.pendingManager?.displayName || "—"}
+                    </div>
+                    {item.pendingManager?.employeeId ? (
+                      <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
+                        {item.pendingManager.employeeId}
+                      </div>
+                    ) : null}
+                  </div>
                   <span style={{ fontSize: 13, color: "#334155", textTransform: "capitalize" }}>
                     {item.requestType}
                   </span>
@@ -780,6 +791,15 @@ function DetailContent({ item }: { item: InboxItem }) {
           <div style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)", marginTop: 2 }}>
             {item.submittedBy.employeeId ? `${item.submittedBy.employeeId} · ` : ""}
             {capitalize(item.module)} · {item.requestType}
+          </div>
+          <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>
+            Pending manager:{" "}
+            <span style={{ fontWeight: 500, color: "#0f172a" }}>
+              {item.pendingManager?.displayName || "—"}
+            </span>
+            {item.pendingManager?.employeeId
+              ? ` (${item.pendingManager.employeeId})`
+              : ""}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginTop: 4 }}>
             {item.submittedDate ? formatDateTime(item.submittedDate) : timeAgo(item.submittedDate)}

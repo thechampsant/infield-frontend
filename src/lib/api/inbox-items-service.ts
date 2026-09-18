@@ -87,6 +87,7 @@ export interface InboxItem {
   routingReason: InboxRoutingReason;
   updatedAt: string | null;
   paDueAt: string | null;
+  pendingManager?: InboxSubmittedBy | null;
   escalationStatus: string | null;
   moduleData: Record<string, unknown>;
   displayMetadata: InboxDisplayMetadata;
@@ -175,6 +176,7 @@ interface RawListResponse {
 
 function normalizeItem(raw: Record<string, unknown>): InboxItem {
   const submittedBy = (raw.submittedBy ?? {}) as Record<string, unknown>;
+  const pendingManager = (raw.pendingManager ?? null) as Record<string, unknown> | null;
   const slaDisplay = (raw.slaDisplay ?? {}) as Record<string, unknown>;
   const displayMetadata = (raw.displayMetadata ?? {}) as Record<string, unknown>;
 
@@ -203,6 +205,14 @@ function normalizeItem(raw: Record<string, unknown>): InboxItem {
     routingReason: ((raw.routingReason as string) ?? "manager") as InboxRoutingReason,
     updatedAt: (raw.updatedAt as string) ?? null,
     paDueAt: (raw.paDueAt as string) ?? null,
+    pendingManager: pendingManager
+      ? {
+          userId: (pendingManager.userId as string) ?? "",
+          displayName: (pendingManager.displayName as string) ?? "",
+          designation: (pendingManager.designation as string) ?? "",
+          employeeId: (pendingManager.employeeId as string) || undefined,
+        }
+      : null,
     escalationStatus: (raw.escalationStatus as string) ?? null,
     moduleData: (raw.moduleData as Record<string, unknown>) ?? {},
     displayMetadata: {
