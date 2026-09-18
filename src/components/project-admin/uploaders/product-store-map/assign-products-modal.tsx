@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
-import { productService, type ProductRecord, type ProductStoreMapping } from "@/lib/api/product-service";
+import {
+  productService,
+  type ProductRecord,
+  type ProductStoreMapping,
+} from "@/lib/api/product-service";
 import { formatApiError } from "@/lib/api";
 import type { StoreRecord } from "@/lib/api/store-service";
 
 interface AssignProductsModalProps {
   store: StoreRecord;
-  products: ProductRecord[];
   mappings: ProductStoreMapping[];
   projectId: string;
   open: boolean;
@@ -18,13 +21,14 @@ interface AssignProductsModalProps {
 
 export function AssignProductsModal({
   store,
-  products,
   mappings,
   projectId,
   open,
   onClose,
   onSuccess,
 }: AssignProductsModalProps) {
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -50,12 +54,35 @@ export function AssignProductsModal({
   }, [mappings, store.storeCode]);
 
   useEffect(() => {
-    if (open) {
-      setSelected(new Set(existingProductCodes));
-      setSearch("");
-      setError(null);
-    }
-  }, [open, existingProductCodes]);
+    if (!open || !projectId) return;
+
+    setSelected(new Set(existingProductCodes));
+    setSearch("");
+    setError(null);
+    setProductsLoading(true);
+
+    let cancelled = false;
+    productService
+      .listAllByProject(projectId)
+      .then((rows) => {
+        if (!cancelled) {
+          setProducts(rows.filter((product) => product.isActive));
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProducts([]);
+          setError(formatApiError(err, "Failed to load products"));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setProductsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId, existingProductCodes]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -161,7 +188,7 @@ export function AssignProductsModal({
             type="button"
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={submitting}
+            disabled={submitting || productsLoading}
           >
             {submitting
               ? "Saving..."
@@ -176,7 +203,9 @@ export function AssignProductsModal({
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{store.storeCode}</div>
         </div>
         <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)" }}>
-          {selectedCount} / {products.length} products selected
+          {productsLoading
+            ? "Loading products..."
+            : `${selectedCount} / ${products.length} products selected`}
         </div>
       </div>
 
@@ -202,7 +231,7 @@ export function AssignProductsModal({
           type="button"
           className="btn btn-secondary btn-sm"
           onClick={selectAll}
-          disabled={filtered.length === 0}
+          disabled={filtered.length === 0 || productsLoading}
         >
           Select All
         </button>
@@ -217,7 +246,11 @@ export function AssignProductsModal({
       </div>
 
       <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", maxHeight: 360, overflowY: "auto" }}>
-        {products.length === 0 ? (
+        {productsLoading ? (
+          <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            Loading products...
+          </div>
+        ) : products.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
             No active products found for this project. Add products first.
           </div>

@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
+import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import {
   productService,
-  type ProductRecord,
   type BulkProductStoreMappingResult,
   type ProductStoreMapping,
 } from "@/lib/api/product-service";
 import { storeService, type StoreRecord } from "@/lib/api/store-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { ProductStoreMapTable } from "@/components/project-admin/uploaders/product-store-map/product-store-map-table";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -26,11 +28,25 @@ export default function ProductStoreMapPage() {
 
   const [mappings, setMappings] = useState<ProductStoreMapping[]>([]);
   const [stores, setStores] = useState<StoreRecord[]>([]);
-  const [products, setProducts] = useState<ProductRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<BulkProductStoreMappingResult | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [meta, setMeta] = useState<ListMeta>({
+    page: 1,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    totalCount: 0,
+    totalPages: 1,
+  });
+  const [summary, setSummary] = useState({
+    totalStores: 0,
+    mappedStores: 0,
+    unmappedStores: 0,
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,23 +55,45 @@ export default function ProductStoreMapPage() {
     setLoading(true);
     setError(null);
     try {
-      const [storeRows, productRows, mappingRows] = await Promise.all([
-        storeService.listAllByProject(projectId),
-        productService.listAllByProject(projectId),
-        productService.listStoreMappings(projectId),
+      const [storeList, mappingSummary] = await Promise.all([
+        storeService.listByProject(projectId, page, pageSize, debouncedSearch),
+        productService.getStoreMappingSummary(projectId),
       ]);
-      setStores(storeRows);
-      setProducts(productRows);
+      setStores(storeList.data);
+      setMeta(storeList.meta);
+      setSummary(mappingSummary);
+
+      const storeCodes = storeList.data.map((store) => store.storeCode);
+      const mappingRows = await productService.listStoreMappingsForStores(
+        projectId,
+        storeCodes,
+      );
       setMappings(mappingRows);
+
+      if (page > storeList.meta.totalPages) {
+        setPage(Math.max(1, storeList.meta.totalPages));
+      }
     } catch (err) {
       setError(formatApiError(err, "Failed to load product-store mappings"));
       setStores([]);
-      setProducts([]);
       setMappings([]);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, page, pageSize, debouncedSearch]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = search.trim();
+      setDebouncedSearch((prev) => {
+        if (prev !== next) {
+          setPage(1);
+        }
+        return next;
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [search]);
 
   useEffect(() => {
     load();
@@ -90,7 +128,8 @@ export default function ProductStoreMapPage() {
       const result = await productService.bulkUploadStoreMapping(projectId, file);
       setUploadResult(result);
       if (result.successCount > 0) {
-        load();
+        if (page === 1) load();
+        else setPage(1);
       }
       if (result.invalidCount > 0) {
         setError(
@@ -187,24 +226,31 @@ export default function ProductStoreMapPage() {
         </div>
       )}
 
-      {!loading && stores.length === 0 && (
+      {!loading && meta.totalCount === 0 && (
         <div className="pa-info-banner" style={{ color: "var(--orange, #d97706)", background: "var(--orange-light, #fffbeb)", borderColor: "var(--orange-mid, #fcd34d)", marginBottom: 16 }}>
           <strong>No stores found.</strong> Add stores in the Stores Master tab before creating product-store mappings.
         </div>
       )}
 
-      {!loading && products.length === 0 && (
-        <div className="pa-info-banner" style={{ color: "var(--orange, #d97706)", background: "var(--orange-light, #fffbeb)", borderColor: "var(--orange-mid, #fcd34d)", marginBottom: 16 }}>
-          <strong>No products found.</strong> Add products in the Products Master tab before creating product-store mappings.
-        </div>
-      )}
-
       <ProductStoreMapTable
         stores={stores}
-        products={products}
         mappings={mappings}
         projectId={projectId}
         loading={loading}
+        searchValue={search}
+        onSearchChange={setSearch}
+        summary={summary}
+        pagination={{
+          page: meta.page,
+          pageSize,
+          totalCount: meta.totalCount,
+          totalPages: meta.totalPages,
+          onPageChange: setPage,
+          onPageSizeChange: (size) => {
+            setPageSize(size);
+            setPage(1);
+          },
+        }}
         onRefresh={load}
       />
     </>
