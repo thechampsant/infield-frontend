@@ -44,6 +44,44 @@ const WHY_STYLES: Record<InboxRoutingReason, { label: string; bg: string; color:
 
 const GRID_COLUMNS = "32px 1.4fr 0.85fr 1.2fr 1fr 1.1fr 1.1fr 1fr";
 
+type InboxSortKey = "submittedDate" | "updatedAt" | "slaDeadline";
+
+function SortHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  label: string;
+  sortKey: InboxSortKey;
+  activeKey: InboxSortKey;
+  direction: "asc" | "desc";
+  onSort: (key: InboxSortKey) => void;
+}) {
+  const active = activeKey === sortKey;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        color: active ? "#334155" : "inherit",
+      }}
+      title={`Sort by ${label}`}
+    >
+      {label}
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.35 }}>
+        {active ? (direction === "asc" ? "▲" : "▼") : "↕"}
+      </span>
+    </button>
+  );
+}
+
 function paSlaCell(item: InboxItem): { label: string; bg: string; color: string } {
   if (item.routingReason === "manager") {
     return { label: item.slaStatus, ...(SLA_COLORS[item.slaStatus] ?? SLA_COLORS.OnTime) };
@@ -87,12 +125,12 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   // the filtered module).
   const [moduleOptions, setModuleOptions] = useState<{ value: string; label: string }[]>([]);
 
-  // Filters — sort fixed to newest submitted first
+  // Filters — default newest submitted first; date columns are sortable
   const [filterModule, setFilterModule] = useState("");
   const [filterPaReason, setFilterPaReason] = useState("");
   const [exporting, setExporting] = useState(false);
-  const sortBy = "submittedDate";
-  const sortDirection = "desc" as const;
+  const [sortBy, setSortBy] = useState<InboxSortKey>("submittedDate");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
 
   // Selection for bulk actions
@@ -157,7 +195,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
       setLoading(false);
       setInitialLoaded(true);
     }
-  }, [projectId, page, filterModule, filterPaReason]);
+  }, [projectId, page, filterModule, filterPaReason, sortBy, sortDirection]);
 
   useEffect(() => {
     loadItems();
@@ -166,6 +204,16 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   useEffect(() => {
     setPage(1);
   }, [filterModule, filterPaReason]);
+
+  const handleSort = (key: InboxSortKey) => {
+    if (sortBy === key) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDirection(key === "slaDeadline" ? "asc" : "desc");
+    }
+    setPage(1);
+  };
 
   // Selection helpers
   const toggleSelect = (id: string) => {
@@ -515,9 +563,27 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               <span>Why</span>
               <span>Pending manager</span>
               <span>Request Type</span>
-              <span>Submitted</span>
-              <span>With you since</span>
-              <span>SLA</span>
+              <SortHeader
+                label="Submitted"
+                sortKey="submittedDate"
+                activeKey={sortBy}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="With you since"
+                sortKey="updatedAt"
+                activeKey={sortBy}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="SLA"
+                sortKey="slaDeadline"
+                activeKey={sortBy}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
             </div>
 
             {/* Item rows */}
