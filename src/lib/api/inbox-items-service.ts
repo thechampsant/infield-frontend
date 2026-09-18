@@ -21,6 +21,7 @@ export interface InboxSubmittedBy {
   userId: string;
   displayName: string;
   designation: string;
+  employeeId?: string;
 }
 
 export interface InboxSlaDisplay {
@@ -68,6 +69,7 @@ export interface InboxDisplayMetadata {
 }
 
 export type InboxSlaStatus = "OnTime" | "Warning" | "Breached";
+export type InboxRoutingReason = "no_manager" | "sla_escalated" | "with_pa" | "manager";
 
 export interface InboxItem {
   inboxItemId: string;
@@ -82,6 +84,9 @@ export interface InboxItem {
   slaDeadline: string;
   slaStatus: InboxSlaStatus;
   slaDisplay: InboxSlaDisplay;
+  routingReason: InboxRoutingReason;
+  updatedAt: string | null;
+  paDueAt: string | null;
   escalationStatus: string | null;
   moduleData: Record<string, unknown>;
   displayMetadata: InboxDisplayMetadata;
@@ -135,6 +140,7 @@ export interface InboxFilters {
   requestType?: string;
   status?: string;
   slaStatus?: string;
+  paReason?: "no_manager" | "sla_escalated";
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
@@ -181,6 +187,7 @@ function normalizeItem(raw: Record<string, unknown>): InboxItem {
       userId: (submittedBy.userId as string) ?? "",
       displayName: (submittedBy.displayName as string) ?? "",
       designation: (submittedBy.designation as string) ?? "",
+      employeeId: (submittedBy.employeeId as string) || undefined,
     },
     submittedDate: (raw.submittedDate as string) ?? "",
     currentStatus: (raw.currentStatus as string) ?? "",
@@ -193,6 +200,9 @@ function normalizeItem(raw: Record<string, unknown>): InboxItem {
       indicator: (slaDisplay.indicator as string) ?? "none",
       breachDuration: (slaDisplay.breachDuration as string) ?? null,
     },
+    routingReason: ((raw.routingReason as string) ?? "manager") as InboxRoutingReason,
+    updatedAt: (raw.updatedAt as string) ?? null,
+    paDueAt: (raw.paDueAt as string) ?? null,
     escalationStatus: (raw.escalationStatus as string) ?? null,
     moduleData: (raw.moduleData as Record<string, unknown>) ?? {},
     displayMetadata: {
@@ -219,6 +229,7 @@ function buildQuery(filters: InboxFilters): string {
   if (filters.requestType) params.set("requestType", filters.requestType);
   if (filters.status) params.set("status", filters.status);
   if (filters.slaStatus) params.set("slaStatus", filters.slaStatus);
+  if (filters.paReason) params.set("paReason", filters.paReason);
   if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
   if (filters.dateTo) params.set("dateTo", filters.dateTo);
   if (filters.sortBy) params.set("sortBy", filters.sortBy);
@@ -308,5 +319,14 @@ export const inboxItemsService = {
       inboxItemIds,
       remarks,
     });
+  },
+
+  /**
+   * Download the project PA Inbox + SLA pipeline workbook.
+   */
+  async exportPaSlaReport(projectId: string, module?: string): Promise<Blob> {
+    const params = new URLSearchParams({ projectId });
+    if (module) params.set("module", module);
+    return apiClient.getBlob(`${BASE}/pa-sla-report?${params.toString()}`);
   },
 };

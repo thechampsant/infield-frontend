@@ -9,10 +9,12 @@ import {
   type InboxFilters,
   type InboxPagination,
   type InboxAvailableAction,
+  type InboxRoutingReason,
 } from "@/lib/api/inbox-items-service";
 import {
   actionTone,
   capitalize,
+  formatDateTime,
   formatFieldValue,
   hexToBadgeStyle,
   resolveFields,
@@ -32,6 +34,38 @@ const SLA_COLORS: Record<string, { bg: string; color: string }> = {
   Warning: { bg: "#fef3c7", color: "#d97706" },
   Breached: { bg: "#fee2e2", color: "#dc2626" },
 };
+
+const WHY_STYLES: Record<InboxRoutingReason, { label: string; bg: string; color: string }> = {
+  no_manager: { label: "No manager", bg: "#ffedd5", color: "#c2410c" },
+  sla_escalated: { label: "Escalated", bg: "#fee2e2", color: "#dc2626" },
+  with_pa: { label: "With PAs", bg: "#f1f5f9", color: "#475569" },
+  manager: { label: "Manager", bg: "#f1f5f9", color: "#475569" },
+};
+
+const GRID_COLUMNS = "32px 1.5fr 0.9fr 1fr 1fr 1.2fr 1.2fr 1.1fr";
+
+function paSlaCell(item: InboxItem): { label: string; bg: string; color: string } {
+  if (item.routingReason === "manager") {
+    return { label: item.slaStatus, ...(SLA_COLORS[item.slaStatus] ?? SLA_COLORS.OnTime) };
+  }
+  if (item.routingReason === "sla_escalated") {
+    return {
+      label: item.paDueAt ? formatDateTime(item.paDueAt) : "Escalated",
+      ...SLA_COLORS.Breached,
+    };
+  }
+  if (item.paDueAt) {
+    const overdue = new Date(item.paDueAt).getTime() < Date.now();
+    return {
+      label: formatDateTime(item.paDueAt),
+      ...(overdue ? SLA_COLORS.Breached : { bg: "#ffedd5", color: "#c2410c" }),
+    };
+  }
+  if (item.routingReason === "no_manager") {
+    return { label: "No manager", bg: "#ffedd5", color: "#c2410c" };
+  }
+  return { label: "With PAs", bg: "#f1f5f9", color: "#475569" };
+}
 
 export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) {
   // List state
@@ -55,6 +89,8 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
 
   // Filters — sort fixed to newest submitted first
   const [filterModule, setFilterModule] = useState("");
+  const [filterPaReason, setFilterPaReason] = useState("");
+  const [exporting, setExporting] = useState(false);
   const sortBy = "submittedDate";
   const sortDirection = "desc" as const;
   const [page, setPage] = useState(1);
@@ -88,6 +124,9 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
         sortDirection,
       };
       if (filterModule) filters.module = filterModule;
+      if (filterPaReason === "no_manager" || filterPaReason === "sla_escalated") {
+        filters.paReason = filterPaReason;
+      }
 
       const res = await inboxItemsService.getAssignedToMe(filters);
       setItems(res.items);
@@ -96,7 +135,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
       // Capture module options only from the UNFILTERED response so the
       // full list stays available. Prefer availableFilters; fall back to
       // summary.byModule, then to the modules present in the returned items.
-      const isUnfiltered = !filterModule;
+      const isUnfiltered = !filterModule && !filterPaReason;
       if (isUnfiltered) {
         const moduleFilter = res.availableFilters.find((f) => f.filterKey === "module");
         let modOpts = moduleFilter?.options ?? [];
@@ -118,7 +157,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
       setLoading(false);
       setInitialLoaded(true);
     }
-  }, [projectId, page, filterModule]);
+  }, [projectId, page, filterModule, filterPaReason]);
 
   useEffect(() => {
     loadItems();
@@ -126,7 +165,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
 
   useEffect(() => {
     setPage(1);
-  }, [filterModule]);
+  }, [filterModule, filterPaReason]);
 
   // Selection helpers
   const toggleSelect = (id: string) => {
@@ -147,6 +186,29 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   };
 
   const moduleFilterOptions = moduleOptions;
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await inboxItemsService.exportPaSlaReport(
+        projectId,
+        filterModule || undefined,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "PA_Inbox_Export.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setToast({
+        type: "error",
+        message: err instanceof Error ? err.message : "Export failed",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // ─── Actions ────────────────────────────────────────────────────────────
 
@@ -286,6 +348,27 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           ))}
         </select>
 
+        <select
+          className="form-input"
+          value={filterPaReason}
+          onChange={(e) => setFilterPaReason(e.target.value)}
+          style={{ width: "auto", minWidth: 150 }}
+        >
+          <option value="">All Why</option>
+          <option value="no_manager">No manager</option>
+          <option value="sla_escalated">Escalated</option>
+        </select>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ fontSize: 12, padding: "6px 14px", marginLeft: "auto" }}
+          onClick={handleExport}
+          disabled={exporting}
+        >
+          {exporting ? "Exporting…" : "Export"}
+        </button>
+
         {/* Inline updating indicator (shown during refetch after first load) */}
         {initialLoaded && loading && (
           <span
@@ -405,7 +488,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             style={{
               border: "1px solid var(--border, #e2e8f0)",
               borderRadius: 8,
-              overflow: "hidden",
+              overflowX: "auto",
               opacity: loading ? 0.6 : 1,
               transition: "opacity 0.15s",
               pointerEvents: loading ? "none" : "auto",
@@ -415,7 +498,8 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "32px 1.5fr 1fr 1fr 1fr 80px",
+                gridTemplateColumns: GRID_COLUMNS,
+                minWidth: 980,
                 padding: "10px 16px",
                 background: "var(--bg-muted, #f8fafc)",
                 borderBottom: "1px solid var(--border, #e2e8f0)",
@@ -428,15 +512,18 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             >
               <span />
               <span>Submitted By</span>
+              <span>Why</span>
               <span>Request Type</span>
               <span>Status</span>
               <span>Submitted</span>
+              <span>With you since</span>
               <span>SLA</span>
             </div>
 
             {/* Item rows */}
             {items.map((item) => {
-              const slaStyle = SLA_COLORS[item.slaStatus] ?? SLA_COLORS.OnTime;
+              const slaCell = paSlaCell(item);
+              const whyStyle = WHY_STYLES[item.routingReason] ?? WHY_STYLES.with_pa;
               const isSelected = selectedIds.has(item.inboxItemId);
               const statusCfg = item.displayMetadata.statusConfig[item.currentStatus];
               const statusBadge = hexToBadgeStyle(statusCfg?.colorCode);
@@ -446,7 +533,8 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                   key={item.inboxItemId}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "32px 1.5fr 1fr 1fr 1fr 80px",
+                    gridTemplateColumns: GRID_COLUMNS,
+                    minWidth: 980,
                     padding: "12px 16px",
                     borderBottom: "1px solid var(--border, #f1f5f9)",
                     background: isSelected ? "var(--primary-light, #e0e7ff)" : "#fff",
@@ -470,9 +558,26 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                       {item.submittedBy.displayName || "Unknown"}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
-                      {capitalize(item.module)}
+                      {item.submittedBy.employeeId
+                        ? `${item.submittedBy.employeeId} · ${capitalize(item.module)}`
+                        : capitalize(item.module)}
                     </div>
                   </div>
+                  <span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: whyStyle.bg,
+                        color: whyStyle.color,
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {whyStyle.label}
+                    </span>
+                  </span>
                   <span style={{ fontSize: 13, color: "#334155", textTransform: "capitalize" }}>
                     {item.requestType}
                   </span>
@@ -492,20 +597,23 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                     </span>
                   </span>
                   <span style={{ fontSize: 12, color: "#475569" }}>
-                    {timeAgo(item.submittedDate)}
+                    {item.submittedDate ? formatDateTime(item.submittedDate) : "—"}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#475569" }}>
+                    {item.updatedAt ? formatDateTime(item.updatedAt) : "—"}
                   </span>
                   <span
                     style={{
                       fontSize: 11,
                       padding: "2px 8px",
                       borderRadius: 10,
-                      background: slaStyle.bg,
-                      color: slaStyle.color,
+                      background: slaCell.bg,
+                      color: slaCell.color,
                       fontWeight: 500,
                       textAlign: "center",
                     }}
                   >
-                    {item.slaStatus}
+                    {slaCell.label}
                   </span>
                 </div>
               );
@@ -644,7 +752,8 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
 function DetailContent({ item }: { item: InboxItem }) {
   const statusCfg = item.displayMetadata.statusConfig[item.currentStatus];
   const statusBadge = hexToBadgeStyle(statusCfg?.colorCode);
-  const slaStyle = SLA_COLORS[item.slaStatus] ?? SLA_COLORS.OnTime;
+  const slaStyle = paSlaCell(item);
+  const whyStyle = WHY_STYLES[item.routingReason] ?? WHY_STYLES.with_pa;
 
   const fields = resolveFields(item.displayMetadata.sections, item.moduleData);
   const textFields = fields.filter((f) => !f.isImage);
@@ -669,10 +778,11 @@ function DetailContent({ item }: { item: InboxItem }) {
             {item.submittedBy.displayName || "Unknown"}
           </div>
           <div style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)", marginTop: 2 }}>
+            {item.submittedBy.employeeId ? `${item.submittedBy.employeeId} · ` : ""}
             {capitalize(item.module)} · {item.requestType}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginTop: 4 }}>
-            {timeAgo(item.submittedDate)}
+            {item.submittedDate ? formatDateTime(item.submittedDate) : timeAgo(item.submittedDate)}
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
@@ -694,12 +804,24 @@ function DetailContent({ item }: { item: InboxItem }) {
               fontSize: 10,
               padding: "1px 8px",
               borderRadius: 8,
+              background: whyStyle.bg,
+              color: whyStyle.color,
+              fontWeight: 600,
+            }}
+          >
+            {whyStyle.label}
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              padding: "1px 8px",
+              borderRadius: 8,
               background: slaStyle.bg,
               color: slaStyle.color,
               fontWeight: 600,
             }}
           >
-            SLA: {item.slaStatus}
+            SLA: {slaStyle.label}
           </span>
           {item.totalLevels > 1 && (
             <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
