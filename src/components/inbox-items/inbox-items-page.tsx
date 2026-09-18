@@ -42,7 +42,7 @@ const WHY_STYLES: Record<InboxRoutingReason, { label: string; bg: string; color:
   manager: { label: "Manager", bg: "#f1f5f9", color: "#475569" },
 };
 
-const GRID_COLUMNS = "32px 1.4fr 0.85fr 1.2fr 1fr 0.9fr 1.1fr 1.1fr 1fr";
+const GRID_COLUMNS = "32px 1.4fr 0.85fr 1.2fr 1fr 1.1fr 1.1fr 1fr";
 
 function paSlaCell(item: InboxItem): { label: string; bg: string; color: string } {
   if (item.routingReason === "manager") {
@@ -515,7 +515,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               <span>Why</span>
               <span>Pending manager</span>
               <span>Request Type</span>
-              <span>Status</span>
               <span>Submitted</span>
               <span>With you since</span>
               <span>SLA</span>
@@ -526,8 +525,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               const slaCell = paSlaCell(item);
               const whyStyle = WHY_STYLES[item.routingReason] ?? WHY_STYLES.with_pa;
               const isSelected = selectedIds.has(item.inboxItemId);
-              const statusCfg = item.displayMetadata.statusConfig[item.currentStatus];
-              const statusBadge = hexToBadgeStyle(statusCfg?.colorCode);
 
               return (
                 <div
@@ -591,21 +588,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                   </div>
                   <span style={{ fontSize: 13, color: "#334155", textTransform: "capitalize" }}>
                     {item.requestType}
-                  </span>
-                  <span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        borderRadius: 10,
-                        background: statusBadge.bg,
-                        border: `1px solid ${statusBadge.border}`,
-                        color: statusBadge.color,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {statusCfg?.displayLabel ?? item.currentStatus.replace(/_/g, " ")}
-                    </span>
                   </span>
                   <span style={{ fontSize: 12, color: "#475569" }}>
                     {item.submittedDate ? formatDateTime(item.submittedDate) : "—"}
