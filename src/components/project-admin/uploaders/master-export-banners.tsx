@@ -21,7 +21,7 @@ export function MasterExportBanners({
     <>
       {preparing && (
         <div className="pa-info-banner" style={{ marginBottom: 16 }}>
-          <strong>Preparing Excel…</strong> You can keep using this page. The file will download
+          <strong>Preparing Excel…</strong> You can switch tabs. The file will download
           automatically when it is ready.
         </div>
       )}
