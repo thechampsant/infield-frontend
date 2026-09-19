@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronLeft,
   LayoutGrid,
+  LayoutDashboard,
   RefreshCw,
 } from "lucide-react";
 import { projectAdminBase, projectAdminDrawerNav } from "@/lib/nav/nav";
@@ -32,6 +33,7 @@ const ICONS = {
   fileText: FileText,
   pieChart: PieChart,
   refreshCw: RefreshCw,
+  layoutDashboard: LayoutDashboard,
 } as const;
 
 export type PaProfile = {
@@ -184,7 +186,9 @@ export function ProjectAdminDrawer({
               ? pathname.includes("/uploaders/")
               : item.label === "Modules"
                 ? pathname.includes("/modules")
-                : pathname.startsWith(item.href);
+                : item.label === "Dashboards"
+                  ? pathname.includes("/dashboards")
+                  : pathname.startsWith(item.href);
           const Icon = ICONS[item.icon];
           return (
             <Link

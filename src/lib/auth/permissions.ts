@@ -9,6 +9,7 @@ export const ADMIN_ACCESS_AREAS = [
   "web-modules",
   "form-builder",
   "reports",
+  "dashboards",
 ] as const;
 
 export type AdminAccessArea = (typeof ADMIN_ACCESS_AREAS)[number];
@@ -28,6 +29,7 @@ export const ADMIN_ACCESS_LABELS: Record<AdminAccessArea, string> = {
   "web-modules": "Web Modules",
   "form-builder": "Form Builder",
   reports: "Reports",
+  dashboards: "Dashboards",
 };
 
 const AREA_SET = new Set<string>(ADMIN_ACCESS_AREAS);
@@ -38,6 +40,7 @@ const LANDING_ORDER: AdminAccessArea[] = [
   "form-builder",
   "web-modules",
   "reports",
+  "dashboards",
 ];
 
 const LANDING_HREF: Record<AdminAccessArea, (base: string) => string> = {
@@ -46,6 +49,7 @@ const LANDING_HREF: Record<AdminAccessArea, (base: string) => string> = {
   "form-builder": (base) => `${base}/form-builder`,
   "web-modules": (base) => `${base}/web-modules`,
   reports: (base) => `${base}/reports`,
+  dashboards: (base) => `${base}/dashboards`,
 };
 
 function normalizeRole(role?: string): string {
@@ -138,6 +142,7 @@ export function canNavigateBackToProjects(
 
 /** Map a project-admin path to its setup-area flag. Check web-modules before modules. */
 export function adminAccessAreaForPath(pathname: string): AdminAccessArea | null {
+  if (pathname.includes("/dashboards")) return "dashboards";
   if (pathname.includes("/web-modules")) return "web-modules";
   if (pathname.includes("/uploaders")) return "uploaders";
   if (pathname.includes("/form-builder")) return "form-builder";

@@ -105,7 +105,7 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
 export type ProjectAdminDrawerItem = {
   label: string;
   href: string;
-  icon: "users" | "settings" | "fileText" | "pieChart" | "refreshCw";
+  icon: "users" | "settings" | "fileText" | "pieChart" | "refreshCw" | "layoutDashboard";
 };
 
 export function projectAdminBase(accountCode: string, projectCode: string): string {
@@ -119,7 +119,7 @@ export function projectAdminDrawerNav(
   options?: {
     canManageModules?: boolean;
     adminAccess?: Array<
-      "uploaders" | "modules" | "web-modules" | "form-builder" | "reports"
+      "uploaders" | "modules" | "web-modules" | "form-builder" | "reports" | "dashboards"
     >;
   },
 ): ProjectAdminDrawerItem[] {
@@ -155,6 +155,13 @@ export function projectAdminDrawerNav(
   }
   if (has("reports")) {
     items.push({ label: "Reports", href: `${base}/reports`, icon: "pieChart" });
+  }
+  if (has("dashboards")) {
+    items.push({
+      label: "Dashboards",
+      href: `${base}/dashboards`,
+      icon: "layoutDashboard",
+    });
   }
   return items;
 }

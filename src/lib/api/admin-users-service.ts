@@ -65,7 +65,8 @@ function normalizeAdminAccess(raw: unknown): AdminAccessArea[] | undefined {
       item === "modules" ||
       item === "web-modules" ||
       item === "form-builder" ||
-      item === "reports",
+      item === "reports" ||
+      item === "dashboards",
   );
 }
 
