@@ -63,6 +63,8 @@ export interface BulkStoreResult {
   invalidCount: number;
   successes: { id: string; storeCode: string; action?: string }[];
   errors: { row?: string | number; data?: unknown; errors: string[] }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 interface StoreFormFieldsResponse {

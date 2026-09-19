@@ -51,6 +51,8 @@ export interface ReporteeBulkMappingResult {
   successCount: number;
   invalidCount: number;
   errors: { row: number | string; managerEmployeeId?: string; errors: string[] }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 export const userReporteeMappingService = {

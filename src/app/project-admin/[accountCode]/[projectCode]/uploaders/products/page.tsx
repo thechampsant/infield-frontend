@@ -11,6 +11,10 @@ import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { ProductTable } from "@/components/project-admin/uploaders/products/product-table";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
 import { AddProductModal } from "@/components/project-admin/uploaders/products/add-product-modal";
 import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
@@ -37,6 +41,7 @@ export default function ProductsMasterPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<BulkProductResult | null>(null);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
   const [meta, setMeta] = useState<ListMeta>({
@@ -98,6 +103,7 @@ export default function ProductsMasterPage() {
     try {
       const result = await productService.bulkUpload(projectId, file);
       setUploadResult(result);
+      setHistoryRefresh((n) => n + 1);
       if (result.successCount > 0) {
         // Newest rows sort first, so jump back to page 1 to show them.
         if (page === 1) load();
@@ -207,6 +213,13 @@ export default function ProductsMasterPage() {
               <li>...and {uploadResult.errors.length - 10} more errors</li>
             )}
           </ul>
+          <div style={{ marginTop: 8 }}>
+            <UploadErrorLogButton
+              projectId={projectId}
+              auditId={uploadResult.auditId}
+              hasErrorLog={uploadResult.hasErrorLog}
+            />
+          </div>
         </div>
       )}
 
@@ -249,6 +262,12 @@ export default function ProductsMasterPage() {
         scope="product"
         projectId={projectId}
         onSuccess={load}
+      />
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["products"]}
+        refreshToken={historyRefresh}
       />
     </>
   );

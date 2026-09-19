@@ -103,6 +103,8 @@ export interface BulkDesignationResult {
   invalidCount: number;
   successes: { id: string; name: string }[];
   errors: { row?: string | number; data?: unknown; errors: string[] }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 export const designationService = {

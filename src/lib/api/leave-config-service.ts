@@ -170,6 +170,8 @@ export interface HolidayUploadSummary {
 
 export interface HolidayUploadResponse extends LeaveConfigResponse {
   uploadSummary?: HolidayUploadSummary;
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 export interface LeaveCreditReconcileRequest {
@@ -780,6 +782,8 @@ function normalizeUploadResponse(value: unknown, projectId: string): HolidayUplo
   return {
     ...normalizeResponse(value, projectId),
     uploadSummary: normalizeUploadSummary(raw.uploadSummary),
+    auditId: typeof raw.auditId === "string" ? raw.auditId : undefined,
+    hasErrorLog: Boolean(raw.hasErrorLog),
   };
 }
 

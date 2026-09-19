@@ -93,6 +93,8 @@ export interface TargetUploadSummary {
   rejected: number;
   unchanged: number;
   errors: TargetUploadError[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 export interface TargetUploadedRow {
@@ -350,6 +352,8 @@ function normalizeUploadSummary(value: unknown): TargetUploadSummary {
           : [text(error.message) || "Invalid row"],
       };
     }),
+    auditId: text(raw.auditId) || undefined,
+    hasErrorLog: Boolean(raw.hasErrorLog),
   };
 }
 

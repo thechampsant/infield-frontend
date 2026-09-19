@@ -5,6 +5,10 @@ import { formatApiError } from "@/lib/api";
 import { roleService, type BackendRole, type BulkRoleResult } from "@/lib/api/role-service";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
 
 interface Props {
@@ -21,6 +25,8 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
 
   const [toast, setToast] = useState<ToastState | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [uploadResult, setUploadResult] = useState<BulkRoleResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Add role form state
@@ -104,6 +110,8 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
     setUploading(true);
     try {
       const result: BulkRoleResult = await roleService.bulkUpload(projectId, file);
+      setUploadResult(result);
+      setHistoryRefresh((n) => n + 1);
       if (result.successCount > 0) {
         setToast({
           message: `Imported ${result.successCount} of ${result.total} roles.`,
@@ -366,6 +374,22 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
           <div className="dt-footer-info">{footerLabel}</div>
         </div>
       </div>
+
+      {uploadResult?.hasErrorLog && (
+        <div style={{ marginTop: 16 }}>
+          <UploadErrorLogButton
+            projectId={projectId}
+            auditId={uploadResult.auditId}
+            hasErrorLog={uploadResult.hasErrorLog}
+          />
+        </div>
+      )}
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["roles"]}
+        refreshToken={historyRefresh}
+      />
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

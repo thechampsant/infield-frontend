@@ -8,6 +8,10 @@ import {
 } from "@/lib/api/pjp-upload-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -27,6 +31,7 @@ export default function PjpUploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<PjpUploadResult | null>(null);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +60,7 @@ export default function PjpUploadPage() {
       try {
         const result = await pjpUploadService.bulkUpload(projectId, file);
         setUploadResult(result);
+        setHistoryRefresh((n) => n + 1);
         if (result.inserted > 0 && result.rejected === 0) {
           setSuccess(
             `Successfully uploaded ${result.inserted} PJP entries.`,
@@ -205,8 +211,21 @@ export default function PjpUploadPage() {
               <li>...and {uploadResult.errors.length - 15} more errors</li>
             )}
           </ul>
+          <div style={{ marginTop: 8 }}>
+            <UploadErrorLogButton
+              projectId={projectId}
+              auditId={uploadResult.auditId}
+              hasErrorLog={uploadResult.hasErrorLog}
+            />
+          </div>
         </div>
       )}
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["pjp"]}
+        refreshToken={historyRefresh}
+      />
     </>
   );
 }

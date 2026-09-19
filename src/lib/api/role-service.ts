@@ -191,4 +191,6 @@ export interface BulkRoleResult {
   invalidCount: number;
   successes: { id: string; name: string }[];
   errors: { row: number | string; data: unknown; errors: string[] }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }

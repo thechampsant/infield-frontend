@@ -16,6 +16,7 @@ import { projectAdminBase } from "@/lib/nav/nav";
 import { DesignationPicker } from "./designation-picker";
 import { DesignationViewsCard } from "./designation-views-card";
 import { ViewManagementTable } from "./view-management-table";
+import { UploadAuditHistory } from "@/components/project-admin/uploaders/upload-audit-history";
 import {
   configToDraft,
   createEmptyDraft,
@@ -486,6 +487,8 @@ export function CustomViewPage({
         variant="danger"
         isLoading={removing}
       />
+
+      <UploadAuditHistory projectId={projectId} kinds={["custom-view"]} />
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

@@ -8,6 +8,10 @@ import { projectUsersService, type BulkUploadResult, type UserListStatus } from 
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { DesignationsRequiredBanner } from "@/components/project-admin/uploaders/designations-required-banner";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 import { UserTable } from "@/components/project-admin/uploaders/users/user-table";
 import { useMasterExport } from "@/hooks/use-master-export";
 import { AddUserModal } from "@/components/project-admin/uploaders/users/add-user-modal";
@@ -45,6 +49,7 @@ export default function UsersMasterPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
   const [search, setSearch] = useState("");
@@ -129,6 +134,7 @@ export default function UsersMasterPage() {
     try {
       const result = await projectUsersService.bulkUpload(projectId, file);
       setUploadResult(result);
+      setHistoryRefresh((n) => n + 1);
       if (result.successCount > 0) {
         // Newest rows sort first, so jump back to page 1 to show them.
         if (page === 1) load();
@@ -276,6 +282,13 @@ export default function UsersMasterPage() {
               <li>...and {uploadResult.errors.length - 10} more errors</li>
             )}
           </ul>
+          <div style={{ marginTop: 8 }}>
+            <UploadErrorLogButton
+              projectId={projectId}
+              auditId={uploadResult.auditId}
+              hasErrorLog={uploadResult.hasErrorLog}
+            />
+          </div>
         </div>
       )}
 
@@ -329,6 +342,12 @@ export default function UsersMasterPage() {
         scope="user"
         projectId={projectId}
         onSuccess={load}
+      />
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["users"]}
+        refreshToken={historyRefresh}
       />
     </>
   );

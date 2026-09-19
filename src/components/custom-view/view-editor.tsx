@@ -10,6 +10,7 @@ import {
   type CustomViewTaggingLogic,
 } from "@/lib/api";
 import { ColumnStructureBuilder } from "./column-structure-builder";
+import { UploadErrorLogButton } from "@/components/project-admin/uploaders/upload-audit-history";
 
 export const MONTH_LABELS = [
   "January",
@@ -121,6 +122,7 @@ export function ViewEditor({
 }: Props) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [lastAudit, setLastAudit] = useState<{ auditId?: string; hasErrorLog?: boolean }>({});
   const [showUploader, setShowUploader] = useState(!view.latestFileName);
   const persistPromiseRef = useRef<Promise<CustomViewConfiguration | void> | null>(null);
   const viewIdRef = useRef(view.id);
@@ -260,7 +262,8 @@ export function ViewEditor({
     }
     setUploading(true);
     try {
-      await customViewService.upload(projectId, view.id, month, year, file);
+      const uploaded = await customViewService.upload(projectId, view.id, month, year, file);
+      setLastAudit({ auditId: uploaded.auditId, hasErrorLog: uploaded.hasErrorLog });
       const saved = await customViewService.get(projectId, view.id);
       setShowUploader(false);
       onSaved(saved, view.localId);
@@ -400,6 +403,11 @@ export function ViewEditor({
         <button type="button" className="cv-btn cv-btn-primary" onClick={handleSave} disabled={saving || uploading}>
           {saving ? "Saving..." : "Save view"}
         </button>
+        <UploadErrorLogButton
+          projectId={projectId}
+          auditId={lastAudit.auditId}
+          hasErrorLog={lastAudit.hasErrorLog}
+        />
       </div>
     </div>
   );

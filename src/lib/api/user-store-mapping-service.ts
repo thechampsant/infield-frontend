@@ -50,6 +50,8 @@ export interface BulkMappingResult {
   successCount: number;
   invalidCount: number;
   errors: { row: number | string; employeeId?: string; errors: string[] }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 export const userStoreMappingService = {

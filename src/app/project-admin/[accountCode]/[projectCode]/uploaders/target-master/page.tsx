@@ -12,6 +12,10 @@ import {
   type TargetVsAchievementConfiguration,
 } from "@/lib/api";
 import { useProjectContext } from "@/lib/project-admin/project-context";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 
 const PAGE_SIZE = 50;
 const PREFERRED_TARGET_COLUMNS = [
@@ -113,6 +117,7 @@ export default function TargetMasterUploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<UploadKind | null>(null);
   const [uploadSummary, setUploadSummary] = useState<TargetUploadSummary | null>(null);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const [rowKind, setRowKind] = useState<UploadKind>("target");
   const [rowsPage, setRowsPage] = useState(1);
   const [periodDraft, setPeriodDraft] = useState("");
@@ -237,6 +242,7 @@ export default function TargetMasterUploadPage() {
         ? await targetVsAchievementService.uploadTarget(selectedConfig.id, projectId, file)
         : await targetVsAchievementService.uploadFocus(selectedConfig.id, projectId, file);
       setUploadSummary(summary);
+      setHistoryRefresh((n) => n + 1);
       setRowKind(kind);
       setRowsPage(1);
       setRowsRefreshKey((key) => key + 1);
@@ -433,6 +439,13 @@ export default function TargetMasterUploadPage() {
               <li>...and {uploadSummary.errors.length - 12} more errors</li>
             )}
           </ul>
+          <div style={{ marginTop: 8 }}>
+            <UploadErrorLogButton
+              projectId={projectId}
+              auditId={uploadSummary.auditId}
+              hasErrorLog={uploadSummary.hasErrorLog}
+            />
+          </div>
         </div>
       )}
 
@@ -643,6 +656,13 @@ export default function TargetMasterUploadPage() {
           </div>
         </div>
       )}
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["target-master", "focus-target"]}
+        refreshToken={historyRefresh}
+        showKind
+      />
     </>
   );
 }

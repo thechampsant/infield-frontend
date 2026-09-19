@@ -23,6 +23,8 @@ export interface PjpUploadResult {
   inserted: number;
   rejected: number;
   errors: PjpUploadError[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 export const pjpUploadService = {

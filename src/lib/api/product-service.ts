@@ -82,6 +82,8 @@ export interface BulkProductResult {
     data?: unknown;
     errors: string[];
   }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 interface ProductFormFieldsResponse {
@@ -132,6 +134,8 @@ export interface BulkProductStoreMappingResult {
     productCode?: string;
     errors: string[];
   }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 const KNOWN_CORE_KEYS = new Set([
