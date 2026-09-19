@@ -1,8 +1,21 @@
 /**
- * Project dashboards — named embed URLs Super Admin adds per project.
+ * Project dashboards — named iframe embed URLs Super Admin adds per project.
  */
 
 import { apiClient } from "./api-client";
+
+/** Pull the iframe src when Super Admin pastes embed markup instead of a bare URL. */
+export function extractDashboardEmbedUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/<iframe/i.test(trimmed)) {
+    const quoted = /\bsrc\s*=\s*["']([^"']+)["']/i.exec(trimmed);
+    if (quoted?.[1]) return quoted[1].trim();
+    const unquoted = /\bsrc\s*=\s*([^\s>]+)/i.exec(trimmed);
+    if (unquoted?.[1]) return unquoted[1].trim();
+  }
+  return trimmed;
+}
 
 const BASE = "/api/v1/project-dashboards";
 
@@ -52,15 +65,18 @@ export const projectDashboardsService = {
   },
 
   async create(input: { projectId: string; name: string; url: string }): Promise<ProjectDashboard> {
-    const res = await apiClient.post<RawProjectDashboard>(BASE, input);
+    const res = await apiClient.post<RawProjectDashboard>(BASE, {
+      ...input,
+      url: extractDashboardEmbedUrl(input.url),
+    });
     return normalizeDashboard(res ?? {});
   },
 
   async update(id: string, input: { name?: string; url?: string }): Promise<ProjectDashboard> {
-    const res = await apiClient.patch<RawProjectDashboard>(
-      `${BASE}/${encodeURIComponent(id)}`,
-      input,
-    );
+    const res = await apiClient.patch<RawProjectDashboard>(`${BASE}/${encodeURIComponent(id)}`, {
+      ...input,
+      ...(input.url !== undefined ? { url: extractDashboardEmbedUrl(input.url) } : {}),
+    });
     return normalizeDashboard(res ?? {});
   },
 

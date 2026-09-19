@@ -310,7 +310,7 @@ export type {
   CreateAdminUserInput,
   CreateAdminUserResult,
 } from "./admin-users-service";
-export { projectDashboardsService } from "./project-dashboards-service";
+export { projectDashboardsService, extractDashboardEmbedUrl } from "./project-dashboards-service";
 export type { ProjectDashboard } from "./project-dashboards-service";
 
 // Re-export types
