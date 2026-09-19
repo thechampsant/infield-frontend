@@ -634,6 +634,12 @@
 
 .pa-shell .form-label .req { color: var(--red); margin-left: 2px; }
 
+.pa-shell .form-hint {
+  font-size: 11px;
+  color: var(--text-muted, #7a95b5);
+  line-height: 1.4;
+}
+
 .pa-shell .form-input {
   width: 100%;
   padding: 8px 12px;

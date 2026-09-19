@@ -9,6 +9,7 @@ import { ActionHistoryButton } from "@/components/inbox/action-history-drawer";
 import { inboxFileUrl } from "@/components/inbox/inbox-format";
 import {
   ACTION_FILE_ACCEPT,
+  ACTION_FILE_HINT,
   ACTION_FILE_TYPE_ERROR,
   isAllowedActionFile,
 } from "@/lib/inbox-action-file";
@@ -787,6 +788,12 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               <label className="form-label">
                 Attachment <span className="req">*</span>
               </label>
+              <div
+                className="form-hint"
+                style={{ marginTop: 0, marginBottom: 2, fontSize: 12, color: "var(--text-muted, #7a95b5)" }}
+              >
+                {ACTION_FILE_HINT}
+              </div>
               <input
                 type="file"
                 accept={ACTION_FILE_ACCEPT}
@@ -803,9 +810,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                   setRemarkFileTypeError(false);
                 }}
               />
-              <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
-                PDF, JPG, PNG, or WebP
-              </span>
               {remarkFile ? (
                 <span style={{ fontSize: 12, color: "#334155" }}>{remarkFile.name}</span>
               ) : null}
