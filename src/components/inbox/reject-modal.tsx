@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Paperclip, X } from "lucide-react";
 
 export function RejectModal({
   open,
@@ -15,15 +15,16 @@ export function RejectModal({
   count: number;
   employeeName?: string;
   submitting?: boolean;
-  /** Resolves with the mandatory rejection reason. */
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, file: File) => void;
   onCancel: () => void;
 }) {
   const [reason, setReason] = useState("");
-  const [invalid, setInvalid] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [invalidReason, setInvalidReason] = useState(false);
+  const [invalidFile, setInvalidFile] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  // Parent mounts this modal fresh per open, so state starts clean; just focus.
   useEffect(() => {
     if (!open) return;
     const id = window.setTimeout(() => textareaRef.current?.focus(), 50);
@@ -43,17 +44,24 @@ export function RejectModal({
 
   function handleConfirm() {
     const trimmed = reason.trim();
+    let blocked = false;
     if (!trimmed) {
-      setInvalid(true);
+      setInvalidReason(true);
       textareaRef.current?.focus();
-      return;
+      blocked = true;
     }
-    onConfirm(trimmed);
+    if (!file) {
+      setInvalidFile(true);
+      if (trimmed) fileRef.current?.click();
+      blocked = true;
+    }
+    if (blocked || !file) return;
+    onConfirm(trimmed, file);
   }
 
   const description =
     count > 1
-      ? `Reason for rejecting ${count} requests:`
+      ? `Reason for rejecting ${count} requests. The same attachment is added to every selected request.`
       : `Reason for rejecting ${employeeName ?? "this request"}:`;
 
   return (
@@ -81,18 +89,45 @@ export function RejectModal({
         <div className="ibx-modal-field">
           <textarea
             ref={textareaRef}
-            className={invalid ? "invalid" : ""}
+            className={invalidReason ? "invalid" : ""}
             placeholder="Enter rejection reason..."
             value={reason}
             onChange={(e) => {
               setReason(e.target.value);
-              if (invalid && e.target.value.trim()) setInvalid(false);
+              if (invalidReason && e.target.value.trim()) setInvalidReason(false);
             }}
-            aria-invalid={invalid}
+            aria-invalid={invalidReason}
             aria-label="Rejection reason"
           />
-          {invalid && (
+          {invalidReason && (
             <div className="ibx-modal-error">A rejection reason is required.</div>
+          )}
+        </div>
+        <div className="ibx-modal-field">
+          <label className="ibx-file-label">
+            Attachment <span className="ibx-req">*</span>
+          </label>
+          <input
+            ref={fileRef}
+            type="file"
+            className={invalidFile && !file ? "invalid" : ""}
+            disabled={submitting}
+            onChange={(e) => {
+              const next = e.target.files?.[0] ?? null;
+              setFile(next);
+              if (next) setInvalidFile(false);
+            }}
+            aria-invalid={invalidFile && !file}
+            aria-label="Rejection attachment"
+          />
+          {file ? (
+            <div className="ibx-file-name">
+              <Paperclip aria-hidden="true" />
+              {file.name}
+            </div>
+          ) : null}
+          {invalidFile && !file && (
+            <div className="ibx-modal-error">An attachment is required.</div>
           )}
         </div>
         <div className="ibx-modal-actions">

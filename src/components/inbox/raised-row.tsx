@@ -159,6 +159,7 @@ export function RaisedRow({
                 fields={fields}
                 attachments={details?.attachments}
                 onOpenAttachment={onOpenAttachment}
+                history={details?.approvalHistory}
                 footer={<DecisionRow item={item} />}
               />
             )}

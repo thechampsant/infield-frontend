@@ -19,6 +19,16 @@
   display: flex; align-items: center; gap: var(--if2-sp-12);
   margin-bottom: var(--if2-sp-20); flex-wrap: wrap;
 }
+.if2-app .inbox-head-actions { margin-left: auto; }
+.if2-app .ibx-btn-accent {
+  background: var(--if2-blue-pale, #eef5ff);
+  color: var(--if2-navy);
+  border-color: var(--if2-navy);
+}
+.if2-app .ibx-btn-accent:hover {
+  background: var(--if2-navy);
+  color: #fff;
+}
 .if2-app .inbox-title {
   font-size: 24px; font-weight: 800; color: var(--if2-navy);
   letter-spacing: -0.5px; line-height: 1.1;
@@ -307,6 +317,26 @@
 }
 .if2-app .ibx-modal-field textarea:focus-visible { outline: 2px solid var(--if2-blue); outline-offset: 0; border-color: var(--if2-blue); }
 .if2-app .ibx-modal-field textarea.invalid { border-color: var(--if2-red); outline-color: var(--if2-red); }
+.if2-app .ibx-modal-field input[type="file"] {
+  width: 100%; font-size: 12px; color: var(--if2-text);
+}
+.if2-app .ibx-modal-field input[type="file"].invalid { outline: 1px solid var(--if2-red); }
+.if2-app .ibx-file-label {
+  display: block; font-size: 11px; font-weight: 700; color: var(--if2-text-mid);
+  margin-bottom: var(--if2-sp-4);
+}
+.if2-app .ibx-req { color: var(--if2-red); }
+.if2-app .ibx-file-name {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--if2-navy); margin-top: var(--if2-sp-4);
+}
+.if2-app .ibx-history { margin-top: var(--if2-sp-16); }
+.if2-app .ibx-history-list { margin: 8px 0 0; padding: 0; list-style: none; }
+.if2-app .ibx-history-item {
+  padding: 8px 0; border-top: 1px solid var(--if2-border);
+}
+.if2-app .ibx-history-meta { font-size: 12px; color: var(--if2-text); }
+.if2-app .ibx-history-remarks { font-size: 12px; color: var(--if2-text-muted); margin-top: 4px; }
 .if2-app .ibx-modal-error { font-size: 10px; font-weight: 700; color: var(--if2-red); margin-top: var(--if2-sp-4); }
 .if2-app .ibx-modal-actions { display: flex; gap: var(--if2-sp-8); padding: var(--if2-sp-20) var(--if2-sp-28) var(--if2-sp-28); }
 .if2-app .ibx-modal-actions .btn { flex: 1; }

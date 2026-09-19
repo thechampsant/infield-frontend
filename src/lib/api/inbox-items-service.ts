@@ -12,6 +12,7 @@
  */
 
 import { apiClient } from "./api-client";
+import type { ActionAttachment } from "./inbox-service";
 
 const BASE = "/api/v1/inbox";
 
@@ -274,20 +275,28 @@ export const inboxItemsService = {
   /**
    * Approve a single inbox item.
    */
-  async approve(inboxItemId: string, remarks: string = "Approved by admin"): Promise<InboxActionResult> {
+  async approve(
+    inboxItemId: string,
+    remarks: string,
+    attachment: ActionAttachment,
+  ): Promise<InboxActionResult> {
     return apiClient.patch<InboxActionResult>(
       `${BASE}/${encodeURIComponent(inboxItemId)}/approve`,
-      { remarks }
+      { remarks, attachment }
     );
   },
 
   /**
    * Reject a single inbox item.
    */
-  async reject(inboxItemId: string, remarks: string): Promise<InboxActionResult> {
+  async reject(
+    inboxItemId: string,
+    remarks: string,
+    attachment: ActionAttachment,
+  ): Promise<InboxActionResult> {
     return apiClient.patch<InboxActionResult>(
       `${BASE}/${encodeURIComponent(inboxItemId)}/reject`,
-      { remarks }
+      { remarks, attachment }
     );
   },
 
@@ -304,20 +313,30 @@ export const inboxItemsService = {
   /**
    * Bulk approve multiple items.
    */
-  async bulkApprove(inboxItemIds: string[], remarks: string = "Approved by admin"): Promise<InboxBulkResult> {
+  async bulkApprove(
+    inboxItemIds: string[],
+    remarks: string,
+    attachment: ActionAttachment,
+  ): Promise<InboxBulkResult> {
     return apiClient.post<InboxBulkResult>(`${BASE}/bulk-approve`, {
       inboxItemIds,
       remarks,
+      attachment,
     });
   },
 
   /**
    * Bulk reject multiple items.
    */
-  async bulkReject(inboxItemIds: string[], remarks: string): Promise<InboxBulkResult> {
+  async bulkReject(
+    inboxItemIds: string[],
+    remarks: string,
+    attachment: ActionAttachment,
+  ): Promise<InboxBulkResult> {
     return apiClient.post<InboxBulkResult>(`${BASE}/bulk-reject`, {
       inboxItemIds,
       remarks,
+      attachment,
     });
   },
 

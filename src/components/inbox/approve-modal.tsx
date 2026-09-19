@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Paperclip } from "lucide-react";
 
 export function ApproveModal({
   open,
@@ -17,9 +17,13 @@ export function ApproveModal({
   /** Employee name for single-request approvals. */
   employeeName?: string;
   submitting?: boolean;
-  onConfirm: () => void;
+  onConfirm: (file: File) => void;
   onCancel: () => void;
 }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [invalid, setInvalid] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -33,8 +37,17 @@ export function ApproveModal({
 
   const description =
     count > 1
-      ? `Approve ${count} requests?`
+      ? `Approve ${count} requests? The same attachment is added to every selected request.`
       : `Approve ${employeeName ?? "this request"}?`;
+
+  function handleConfirm() {
+    if (!file) {
+      setInvalid(true);
+      inputRef.current?.click();
+      return;
+    }
+    onConfirm(file);
+  }
 
   return (
     <div
@@ -58,6 +71,33 @@ export function ApproveModal({
           </div>
           <div className="ibx-modal-desc">{description}</div>
         </div>
+        <div className="ibx-modal-field">
+          <label className="ibx-file-label">
+            Attachment <span className="ibx-req">*</span>
+          </label>
+          <input
+            ref={inputRef}
+            type="file"
+            className={invalid && !file ? "invalid" : ""}
+            disabled={submitting}
+            onChange={(e) => {
+              const next = e.target.files?.[0] ?? null;
+              setFile(next);
+              if (next) setInvalid(false);
+            }}
+            aria-invalid={invalid && !file}
+            aria-label="Approval attachment"
+          />
+          {file ? (
+            <div className="ibx-file-name">
+              <Paperclip aria-hidden="true" />
+              {file.name}
+            </div>
+          ) : null}
+          {invalid && !file && (
+            <div className="ibx-modal-error">An attachment is required.</div>
+          )}
+        </div>
         <div className="ibx-modal-actions">
           <button
             type="button"
@@ -70,7 +110,7 @@ export function ApproveModal({
           <button
             type="button"
             className="ibx-btn ibx-btn-primary"
-            onClick={onConfirm}
+            onClick={handleConfirm}
             disabled={submitting}
           >
             {submitting ? "Approving…" : "Yes, Approve"}

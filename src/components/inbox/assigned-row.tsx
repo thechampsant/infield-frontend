@@ -149,6 +149,7 @@ export function AssignedRow({
                 fields={meta.fields ?? []}
                 attachments={details?.attachments}
                 onOpenAttachment={onOpenAttachment}
+                history={details?.approvalHistory}
               />
             )}
           </td>

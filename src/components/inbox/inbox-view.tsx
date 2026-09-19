@@ -14,6 +14,7 @@ import {
   type SortDirection,
 } from "@/lib/api/inbox-service";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import { useAuth } from "@/lib/auth/auth-context";
 import { InboxToolbar, type DateRange } from "./inbox-toolbar";
 import { BulkActionBar } from "./bulk-action-bar";
 import { AssignedRow } from "./assigned-row";
@@ -23,6 +24,7 @@ import { RejectModal } from "./reject-modal";
 import { AttachmentLightbox } from "./attachment-lightbox";
 import { InboxEmpty } from "./inbox-empty";
 import { TriCheckbox, type CheckState } from "./tri-checkbox";
+import { ActionHistoryButton } from "./action-history-drawer";
 
 type Tab = "assigned" | "raised";
 
@@ -39,6 +41,8 @@ function broadcastPending(count: number) {
 }
 
 export function InboxView() {
+  const { user } = useAuth();
+  const projectId = user?.projectId ?? "";
   const [tab, setTab] = useState<Tab>("assigned");
 
   // Sort + filter persist across tab switches within the session.
@@ -205,15 +209,16 @@ export function InboxView() {
   }
 
   // ── Action handlers ──
-  async function confirmApprove() {
+  async function confirmApprove(file: File) {
     if (!approveTarget) return;
     setSubmitting(true);
     try {
+      const attachment = await inboxService.uploadActionFile(file);
       if (approveTarget.mode === "single") {
-        await inboxService.approve(approveTarget.id);
+        await inboxService.approve(approveTarget.id, undefined, attachment);
         setToast({ message: "Approved successfully", type: "success" });
       } else {
-        const res = await inboxService.bulkApprove(approveTarget.ids);
+        const res = await inboxService.bulkApprove(approveTarget.ids, undefined, attachment);
         setToast({
           message:
             res.failed.length > 0
@@ -233,15 +238,16 @@ export function InboxView() {
     }
   }
 
-  async function confirmReject(reason: string) {
+  async function confirmReject(reason: string, file: File) {
     if (!rejectTarget) return;
     setSubmitting(true);
     try {
+      const attachment = await inboxService.uploadActionFile(file);
       if (rejectTarget.mode === "single") {
-        await inboxService.reject(rejectTarget.id, reason);
+        await inboxService.reject(rejectTarget.id, reason, attachment);
         setToast({ message: "Rejected", type: "success" });
       } else {
-        const res = await inboxService.bulkReject(rejectTarget.ids, reason);
+        const res = await inboxService.bulkReject(rejectTarget.ids, reason, attachment);
         setToast({
           message:
             res.failed.length > 0
@@ -282,6 +288,11 @@ export function InboxView() {
             {pendingCount} Pending
           </span>
         )}
+        {projectId ? (
+          <div className="inbox-head-actions">
+            <ActionHistoryButton projectId={projectId} className="ibx-btn ibx-btn-accent" />
+          </div>
+        ) : null}
       </div>
 
       {/* Tabs */}

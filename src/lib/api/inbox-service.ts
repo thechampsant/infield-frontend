@@ -57,12 +57,41 @@ export interface AttachmentItem {
   renderer: AttachmentRenderer;
 }
 
+export interface ActionAttachment {
+  gcsPath: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+}
+
+export interface ActionAttachmentRef extends ActionAttachment {
+  url: string;
+}
+
 export interface ApprovalHistoryEntry {
   level: number;
   action: string;
   performedBy: UserReference;
   actionDate: string;
   remarks?: string;
+  attachment?: ActionAttachmentRef;
+}
+
+export interface InboxActionHistoryItem {
+  inboxItemId: string;
+  module: string;
+  requestType: string;
+  requestId: string;
+  employeeName: string;
+  action: string;
+  actionDate: string;
+  remarks?: string;
+  attachment?: ActionAttachmentRef;
+}
+
+export interface InboxActionHistoryResponse {
+  items: InboxActionHistoryItem[];
+  pagination: PaginationInfo;
 }
 
 export interface ApprovalHistorySummaryEntry {
@@ -605,7 +634,61 @@ export const inboxService = {
     return apiClient.get<InboxItemDetails>(`${BASE}/${inboxItemId}/details`);
   },
 
-  async approve(inboxItemId: string, remarks?: string): Promise<void> {
+  async uploadActionFile(file: File): Promise<ActionAttachment> {
+    if (USE_MOCK_API) {
+      await delay(150);
+      return {
+        gcsPath: `mock/inbox-actions/${file.name}`,
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        fileSize: file.size,
+      };
+    }
+    const formData = new FormData();
+    formData.append("files", file);
+    formData.append("entity", "inbox-actions");
+    const uploaded = await apiClient.postFormData<{
+      files?: Array<{ originalName?: string; gcsPath?: string }>;
+    }>("/api/v1/gcs/upload", formData);
+    const first = uploaded?.files?.[0];
+    if (!first?.gcsPath) {
+      throw new Error("File upload failed");
+    }
+    return {
+      gcsPath: first.gcsPath,
+      fileName: file.name || first.originalName || "attachment",
+      mimeType: file.type || "application/octet-stream",
+      fileSize: file.size,
+    };
+  },
+
+  async getActionHistory(
+    projectId: string,
+    page = 1,
+    pageSize = 20,
+  ): Promise<InboxActionHistoryResponse> {
+    if (USE_MOCK_API) {
+      await delay(200);
+      return {
+        items: [],
+        pagination: { page, pageSize, totalItems: 0, totalPages: 0 },
+      };
+    }
+    const params = new URLSearchParams({
+      projectId,
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    return apiClient.get<InboxActionHistoryResponse>(
+      `${BASE}/action-history?${params.toString()}`,
+    );
+  },
+
+  async approve(
+    inboxItemId: string,
+    remarks: string | undefined,
+    attachment: ActionAttachment,
+  ): Promise<void> {
     if (USE_MOCK_API) {
       await delay(250);
       const item = findAssigned(inboxItemId);
@@ -617,11 +700,15 @@ export const inboxService = {
     }
     await apiClient.request<void>(`${BASE}/${inboxItemId}/approve`, {
       method: "PATCH",
-      body: JSON.stringify({ remarks: remarks ?? "" }),
+      body: JSON.stringify({ remarks: remarks ?? "", attachment }),
     });
   },
 
-  async reject(inboxItemId: string, remarks: string): Promise<void> {
+  async reject(
+    inboxItemId: string,
+    remarks: string,
+    attachment: ActionAttachment,
+  ): Promise<void> {
     if (USE_MOCK_API) {
       await delay(250);
       const item = findAssigned(inboxItemId);
@@ -633,11 +720,15 @@ export const inboxService = {
     }
     await apiClient.request<void>(`${BASE}/${inboxItemId}/reject`, {
       method: "PATCH",
-      body: JSON.stringify({ remarks }),
+      body: JSON.stringify({ remarks, attachment }),
     });
   },
 
-  async bulkApprove(inboxItemIds: string[], remarks = ""): Promise<BulkActionResponse> {
+  async bulkApprove(
+    inboxItemIds: string[],
+    remarks: string | undefined,
+    attachment: ActionAttachment,
+  ): Promise<BulkActionResponse> {
     if (USE_MOCK_API) {
       await delay(400);
       const succeeded: string[] = [];
@@ -656,11 +747,16 @@ export const inboxService = {
     }
     return apiClient.post<BulkActionResponse>(`${BASE}/bulk-approve`, {
       inboxItemIds,
-      remarks,
+      remarks: remarks ?? "",
+      attachment,
     });
   },
 
-  async bulkReject(inboxItemIds: string[], remarks: string): Promise<BulkActionResponse> {
+  async bulkReject(
+    inboxItemIds: string[],
+    remarks: string,
+    attachment: ActionAttachment,
+  ): Promise<BulkActionResponse> {
     if (USE_MOCK_API) {
       await delay(400);
       const succeeded: string[] = [];
@@ -680,6 +776,7 @@ export const inboxService = {
     return apiClient.post<BulkActionResponse>(`${BASE}/bulk-reject`, {
       inboxItemIds,
       remarks,
+      attachment,
     });
   },
 };

@@ -76,3 +76,17 @@ export function initials(name: string): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+export function inboxFileUrl(gcsPath: string): string {
+  if (/^https?:\/\//i.test(gcsPath) || gcsPath.startsWith("/api/inbox-file")) {
+    return gcsPath;
+  }
+  const params = new URLSearchParams({ path: gcsPath });
+  if (typeof window !== "undefined") {
+    const token =
+      window.localStorage.getItem("infield_token") ||
+      window.localStorage.getItem("infield.accessToken");
+    if (token) params.set("token", token);
+  }
+  return `/api/inbox-file?${params.toString()}`;
+}

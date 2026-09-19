@@ -3,14 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
-import {
-  inboxItemsService,
-  type InboxItem,
-  type InboxFilters,
-  type InboxPagination,
-  type InboxAvailableAction,
-  type InboxRoutingReason,
-} from "@/lib/api/inbox-items-service";
+import { inboxItemsService, type InboxItem, type InboxFilters, type InboxPagination, type InboxAvailableAction, type InboxRoutingReason } from "@/lib/api/inbox-items-service";
+import { inboxService, type ApprovalHistoryEntry } from "@/lib/api/inbox-service";
+import { ActionHistoryButton } from "@/components/inbox/action-history-drawer";
+import { inboxFileUrl } from "@/components/inbox/inbox-format";
 import {
   actionTone,
   capitalize,
@@ -138,7 +134,6 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
 
   // Detail dialog state
   const [detailItem, setDetailItem] = useState<InboxItem | null>(null);
-  const [detailProcessing, setDetailProcessing] = useState(false);
 
   // Remark dialog state
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
@@ -146,6 +141,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   const [remarkTargetIds, setRemarkTargetIds] = useState<string[]>([]);
   const [remarkRequired, setRemarkRequired] = useState(true);
   const [remarkText, setRemarkText] = useState("");
+  const [remarkFile, setRemarkFile] = useState<File | null>(null);
   const [remarkSubmitting, setRemarkSubmitting] = useState(false);
 
   // Fetch items
@@ -260,73 +256,48 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
 
   // ─── Actions ────────────────────────────────────────────────────────────
 
-  const runApprove = async (id: string, remarks = "Approved") => {
-    setDetailProcessing(true);
-    try {
-      await inboxItemsService.approve(id, remarks);
-      setToast({ type: "success", message: "Request approved." });
-      setDetailItem(null);
-      await loadItems();
-      setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
-    } catch (err) {
-      setToast({ type: "error", message: err instanceof Error ? err.message : "Failed to approve" });
-    } finally {
-      setDetailProcessing(false);
-    }
-  };
-
   // Handle a per-item action button from the detail dialog
   const handleItemAction = (item: InboxItem, action: InboxAvailableAction) => {
     const key = action.actionKey;
-    // Approve with no confirmation → send default "Approved"
-    if (key === "approve" && !action.confirmationRequired) {
-      void runApprove(item.inboxItemId, "Approved");
-      return;
-    }
-    // Otherwise open confirmation/remarks dialog
     setRemarkAction(key as "reject" | "send-back" | "approve");
     setRemarkTargetIds([item.inboxItemId]);
-    setRemarkRequired(action.remarksRequired);
+    setRemarkRequired(key === "send-back" ? action.remarksRequired : key === "reject" || action.remarksRequired);
     setRemarkText("");
+    setRemarkFile(null);
     setRemarkDialogOpen(true);
   };
 
   // Bulk action openers
-  const openBulkRemark = (action: "reject" | "send-back") => {
+  const openBulkRemark = (action: "reject" | "send-back" | "approve") => {
     setRemarkAction(action);
     setRemarkTargetIds(Array.from(selectedIds));
-    setRemarkRequired(true);
+    setRemarkRequired(action !== "approve");
     setRemarkText("");
+    setRemarkFile(null);
     setRemarkDialogOpen(true);
-  };
-
-  const handleBulkApprove = async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-    try {
-      await inboxItemsService.bulkApprove(ids);
-      setToast({ type: "success", message: `${ids.length} request${ids.length > 1 ? "s" : ""} approved.` });
-      setSelectedIds(new Set());
-      await loadItems();
-    } catch (err) {
-      setToast({ type: "error", message: err instanceof Error ? err.message : "Bulk approve failed" });
-    }
   };
 
   const handleRemarkSubmit = async () => {
     if (remarkRequired && !remarkText.trim()) return;
+    const needsFile = remarkAction === "approve" || remarkAction === "reject";
+    if (needsFile && !remarkFile) return;
     const remarks = remarkText.trim() || (remarkAction === "approve" ? "Approved" : "");
     setRemarkSubmitting(true);
     try {
       const ids = remarkTargetIds;
       const single = ids.length === 1;
+      const attachment = needsFile && remarkFile
+        ? await inboxService.uploadActionFile(remarkFile)
+        : null;
 
       if (remarkAction === "approve") {
-        if (single) await inboxItemsService.approve(ids[0], remarks);
-        else await inboxItemsService.bulkApprove(ids, remarks);
+        if (!attachment) return;
+        if (single) await inboxItemsService.approve(ids[0], remarks, attachment);
+        else await inboxItemsService.bulkApprove(ids, remarks, attachment);
       } else if (remarkAction === "reject") {
-        if (single) await inboxItemsService.reject(ids[0], remarks);
-        else await inboxItemsService.bulkReject(ids, remarks);
+        if (!attachment) return;
+        if (single) await inboxItemsService.reject(ids[0], remarks, attachment);
+        else await inboxItemsService.bulkReject(ids, remarks, attachment);
       } else {
         if (single) await inboxItemsService.sendBack(ids[0], remarks);
         else await inboxItemsService.bulkSendBack(ids, remarks);
@@ -370,6 +341,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             Review and action pending requests for {projectName}.
           </div>
         </div>
+        <ActionHistoryButton projectId={projectId} />
       </div>
 
       {/* Filters */}
@@ -465,7 +437,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             type="button"
             className="btn btn-primary"
             style={{ fontSize: 12, padding: "5px 12px" }}
-            onClick={handleBulkApprove}
+            onClick={() => openBulkRemark("approve")}
           >
             Approve All
           </button>
@@ -742,9 +714,9 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                           : { color: hex, borderColor: hex }
                       }
                       onClick={() => handleItemAction(detailItem, action)}
-                      disabled={detailProcessing}
+                      disabled={remarkSubmitting}
                     >
-                      {detailProcessing && solid ? "Processing…" : action.label}
+                      {remarkSubmitting && solid ? "Processing…" : action.label}
                     </button>
                   );
                 })}
@@ -774,7 +746,11 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               type="button"
               className="btn btn-primary"
               onClick={handleRemarkSubmit}
-              disabled={(remarkRequired && !remarkText.trim()) || remarkSubmitting}
+              disabled={
+                (remarkRequired && !remarkText.trim()) ||
+                ((remarkAction === "approve" || remarkAction === "reject") && !remarkFile) ||
+                remarkSubmitting
+              }
             >
               {remarkSubmitting ? "Submitting…" : "Confirm"}
             </button>
@@ -798,6 +774,21 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               This will apply to {remarkTargetIds.length} selected items
             </span>
           )}
+          {(remarkAction === "approve" || remarkAction === "reject") && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label className="form-label">
+                Attachment <span className="req">*</span>
+              </label>
+              <input
+                type="file"
+                className="form-input"
+                onChange={(e) => setRemarkFile(e.target.files?.[0] ?? null)}
+              />
+              {remarkFile ? (
+                <span style={{ fontSize: 12, color: "#334155" }}>{remarkFile.name}</span>
+              ) : null}
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -817,6 +808,22 @@ function DetailContent({ item }: { item: InboxItem }) {
   const fields = resolveFields(item.displayMetadata.sections, item.moduleData);
   const textFields = fields.filter((f) => !f.isImage);
   const imageFields = fields.filter((f) => f.isImage);
+  const [history, setHistory] = useState<ApprovalHistoryEntry[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    inboxService
+      .getDetails(item.inboxItemId)
+      .then((details) => {
+        if (!cancelled) setHistory(details.approvalHistory ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setHistory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.inboxItemId]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -936,6 +943,56 @@ function DetailContent({ item }: { item: InboxItem }) {
       {imageFields.map((f) => (
         <ImageField key={f.fieldKey} field={f} />
       ))}
+
+      {history.length > 0 && (
+        <div>
+          <div
+            style={{
+              fontSize: 10,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "var(--text-muted, #94a3b8)",
+              marginBottom: 8,
+            }}
+          >
+            Request history
+          </div>
+          <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {history.map((entry, idx) => (
+              <li
+                key={`${entry.action}-${entry.actionDate}-${idx}`}
+                style={{
+                  padding: "8px 0",
+                  borderTop: "1px solid var(--border, #e2e8f0)",
+                  fontSize: 13,
+                }}
+              >
+                <div>
+                  <strong style={{ textTransform: "capitalize" }}>{entry.action}</strong>
+                  {" · "}
+                  {entry.performedBy?.displayName || "Approver"}
+                  {entry.actionDate ? ` · ${formatDateTime(entry.actionDate)}` : ""}
+                </div>
+                {entry.remarks ? (
+                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                    {entry.remarks}
+                  </div>
+                ) : null}
+                {entry.attachment?.gcsPath ? (
+                  <a
+                    href={inboxFileUrl(entry.attachment.gcsPath)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, display: "inline-block", marginTop: 4 }}
+                  >
+                    {entry.attachment.fileName}
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }
