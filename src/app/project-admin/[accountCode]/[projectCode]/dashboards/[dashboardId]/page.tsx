@@ -74,11 +74,8 @@ export default function DashboardViewerRoute() {
   }
 
   return (
-    <div
-      className="att-config-page"
-      style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 140px)", gap: 12 }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="att-config-page pa-dashboard-embed">
+      <div className="pa-dashboard-embed__bar">
         <Link href={listHref} className="att-back-modules">
           <ChevronLeft size={14} /> Dashboards
         </Link>
@@ -89,14 +86,10 @@ export default function DashboardViewerRoute() {
       <iframe
         src={dashboard.url}
         title={dashboard.name}
-        style={{
-          flex: 1,
-          width: "100%",
-          minHeight: "70vh",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          background: "var(--surface)",
-        }}
+        frameBorder={0}
+        width="100%"
+        height="100%"
+        allowFullScreen
       />
     </div>
   );

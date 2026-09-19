@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import {
+  extractDashboardEmbedUrl,
   projectDashboardsService,
   type ProjectDashboard,
 } from "@/lib/api/project-dashboards-service";
@@ -80,13 +81,13 @@ export function DashboardsPage({
 
   async function handleSave() {
     const trimmedName = name.trim();
-    const trimmedUrl = url.trim();
+    const embedUrl = extractDashboardEmbedUrl(url);
     if (!trimmedName) {
       setFormError("Name is required");
       return;
     }
-    if (!isHttpUrl(trimmedUrl)) {
-      setFormError("Enter a valid http or https link");
+    if (!isHttpUrl(embedUrl)) {
+      setFormError("Paste the embed URL or the full iframe snippet");
       return;
     }
     setSaving(true);
@@ -95,13 +96,13 @@ export function DashboardsPage({
       if (editing) {
         await projectDashboardsService.update(editing.id, {
           name: trimmedName,
-          url: trimmedUrl,
+          url: embedUrl,
         });
       } else {
         await projectDashboardsService.create({
           projectId,
           name: trimmedName,
-          url: trimmedUrl,
+          url: embedUrl,
         });
       }
       setFormOpen(false);
@@ -138,7 +139,7 @@ export function DashboardsPage({
           <div className="pa-eyebrow">Setup</div>
           <div className="pa-page-title">Dashboards</div>
           <div className="pa-page-desc">
-            Embedded dashboards for {projectName}. Open one to view it in this window.
+            Embedded dashboards for {projectName}. Open one to view it as an iframe in this window.
           </div>
         </div>
         {canManage ? (
@@ -169,7 +170,7 @@ export function DashboardsPage({
       {!loading && !error && rows.length === 0 ? (
         <div className="pa-info-banner">
           {canManage
-            ? 'No dashboards yet. Click "+ Add dashboard" to add a name and link.'
+            ? 'No dashboards yet. Click "+ Add dashboard" to add a name and embed URL.'
             : "No dashboards have been assigned yet."}
         </div>
       ) : null}
@@ -252,14 +253,19 @@ export function DashboardsPage({
         </div>
         <div className="form-group">
           <label className="form-label">
-            Link <span className="req">*</span>
+            Embed URL <span className="req">*</span>
           </label>
-          <input
+          <textarea
             className="form-input"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://"
+            placeholder='https://… or <iframe src="https://…" frameborder="0" width="100%" height="100%" />'
+            rows={4}
+            style={{ minHeight: 88, resize: "vertical", fontFamily: "inherit" }}
           />
+          <div className="form-hint">
+            Paste the iframe src, or the full iframe snippet. It opens in this window.
+          </div>
         </div>
       </Modal>
 

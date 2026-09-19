@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "./api-client";
-import { projectDashboardsService } from "./project-dashboards-service";
+import {
+  extractDashboardEmbedUrl,
+  projectDashboardsService,
+} from "./project-dashboards-service";
 
 vi.mock("./api-client", () => ({
   apiClient: {
@@ -62,5 +65,16 @@ describe("projectDashboardsService", () => {
     });
     expect(patch).toHaveBeenCalledWith("/api/v1/project-dashboards/d1", { name: "Updated" });
     expect(del).toHaveBeenCalledWith("/api/v1/project-dashboards/d1");
+  });
+
+  it("extracts iframe src from embed markup", () => {
+    const src =
+      "https://dashboard.onvo.ai/embed/dashboards/0de2249f-815f-455f-b8db-2304d3988d69?token=eyJhbGciOiJIUzI1NiJ9.payload.sig";
+    expect(
+      extractDashboardEmbedUrl(
+        `<iframe src="${src}" frameborder="0" width="100%" height="100%" />`,
+      ),
+    ).toBe(src);
+    expect(extractDashboardEmbedUrl(`  ${src}  `)).toBe(src);
   });
 });
