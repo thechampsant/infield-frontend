@@ -1,6 +1,8 @@
 export const ACTION_FILE_ACCEPT =
   ".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp";
 
+export const ACTION_FILE_HINT = "Accepted: PDF, JPG, PNG, or WebP";
+
 export const ACTION_FILE_TYPE_ERROR =
   "Only PDF, JPG, PNG, or WebP files are allowed.";
 

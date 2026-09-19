@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Paperclip } from "lucide-react";
 import {
   ACTION_FILE_ACCEPT,
+  ACTION_FILE_HINT,
   ACTION_FILE_TYPE_ERROR,
   isAllowedActionFile,
 } from "@/lib/inbox-action-file";
@@ -81,6 +82,7 @@ export function ApproveModal({
           <label className="ibx-file-label">
             Attachment <span className="ibx-req">*</span>
           </label>
+          <div className="ibx-file-hint">{ACTION_FILE_HINT}</div>
           <input
             ref={inputRef}
             type="file"
@@ -103,7 +105,6 @@ export function ApproveModal({
             aria-invalid={(invalid && !file) || typeError}
             aria-label="Approval attachment"
           />
-          <div className="ibx-file-hint">PDF, JPG, PNG, or WebP</div>
           {file ? (
             <div className="ibx-file-name">
               <Paperclip aria-hidden="true" />
