@@ -1,15 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import {
+  extractDashboardEmbedUrl,
   projectDashboardsService,
   type ProjectDashboard,
 } from "@/lib/api/project-dashboards-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 export default function DashboardViewerRoute() {
   const params = useParams<{ dashboardId: string }>();
@@ -20,6 +30,10 @@ export default function DashboardViewerRoute() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const listHref = `${projectAdminBase(accountCode, projectCode)}/dashboards`;
+  const embedSrc = useMemo(
+    () => extractDashboardEmbedUrl(dashboard?.url ?? ""),
+    [dashboard?.url],
+  );
 
   useEffect(() => {
     if (!dashboardId) return;
@@ -52,7 +66,7 @@ export default function DashboardViewerRoute() {
     );
   }
 
-  if (projectError || error || !dashboard?.url) {
+  if (projectError || error || !dashboard || !isHttpUrl(embedSrc)) {
     return (
       <div className="att-config-page">
         <Link href={listHref} className="att-back-modules">
@@ -67,7 +81,7 @@ export default function DashboardViewerRoute() {
             marginTop: 16,
           }}
         >
-          {projectError ?? error ?? "Dashboard not found"}
+          {projectError ?? error ?? "Dashboard embed URL is missing or invalid"}
         </div>
       </div>
     );
@@ -83,14 +97,18 @@ export default function DashboardViewerRoute() {
           {dashboard.name}
         </div>
       </div>
-      <iframe
-        src={dashboard.url}
-        title={dashboard.name}
-        frameBorder={0}
-        width="100%"
-        height="100%"
-        allowFullScreen
-      />
+      <div className="pa-dashboard-embed__frame">
+        <iframe
+          src={embedSrc}
+          title={dashboard.name}
+          frameBorder={0}
+          width="100%"
+          height="100%"
+          allow="clipboard-write; fullscreen"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
     </div>
   );
 }
