@@ -5,12 +5,12 @@ import { uploadAuditService } from "./upload-audit-service";
 vi.mock("./api-client", () => ({
   apiClient: {
     getRaw: vi.fn(),
-    get: vi.fn(),
+    getBlob: vi.fn(),
   },
 }));
 
 const getRaw = vi.mocked(apiClient.getRaw);
-const get = vi.mocked(apiClient.get);
+const getBlob = vi.mocked(apiClient.getBlob);
 
 describe("uploadAuditService", () => {
   afterEach(() => {
@@ -45,21 +45,17 @@ describe("uploadAuditService", () => {
     expect(url).toContain("pageSize=100");
   });
 
-  it("downloads file and error log from signed url routes", async () => {
-    get.mockResolvedValue({ url: "https://signed.example/file.xlsx" });
+  it("downloads file and error log as xlsx blobs", async () => {
+    getBlob.mockResolvedValue(new Blob(["xlsx"]));
 
-    await expect(uploadAuditService.downloadFile("abc", "proj-1")).resolves.toBe(
-      "https://signed.example/file.xlsx",
-    );
-    await expect(uploadAuditService.downloadErrorLog("abc", "proj-1")).resolves.toBe(
-      "https://signed.example/file.xlsx",
-    );
+    await uploadAuditService.downloadFile("abc", "proj-1");
+    await uploadAuditService.downloadErrorLog("abc", "proj-1");
 
-    expect(get).toHaveBeenNthCalledWith(
+    expect(getBlob).toHaveBeenNthCalledWith(
       1,
       "/api/v1/upload-audits/abc/file?projectId=proj-1",
     );
-    expect(get).toHaveBeenNthCalledWith(
+    expect(getBlob).toHaveBeenNthCalledWith(
       2,
       "/api/v1/upload-audits/abc/error-log?projectId=proj-1",
     );
