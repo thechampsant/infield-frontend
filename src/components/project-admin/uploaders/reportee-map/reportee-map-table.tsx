@@ -11,6 +11,7 @@ import type {
   UserReporteeMappingSummary,
 } from "@/lib/api/user-reportee-mapping-service";
 import { LIST_PAGE_SIZE_OPTIONS } from "@/lib/api/pagination";
+import { formatUserNameWithCode } from "@/lib/project-admin/user-display";
 import type { ServerPagination } from "@/components/project-admin/shared/data-table";
 
 interface ReporteeMapTableProps {
@@ -249,7 +250,7 @@ export function ReporteeMapTable({
                         ...cellTruncate,
                       }}
                     >
-                      {row.name}
+                      {formatUserNameWithCode(row.name, row.employeeId)}
                     </div>
                     <div style={{ fontSize: 10, color: "var(--text-muted)", ...cellTruncate }}>
                       {row.email}
