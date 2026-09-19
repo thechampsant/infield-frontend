@@ -9,7 +9,8 @@ import {
   type ListMeta,
 } from "@/lib/api/pagination";
 import {
-  downloadBlob,
+  openSignedUrl,
+  prepareDownloadTab,
   UPLOAD_AUDIT_KIND_LABELS,
   uploadAuditService,
   type UploadAuditKind,
@@ -20,7 +21,6 @@ export function UploadErrorLogButton({
   projectId,
   auditId,
   hasErrorLog,
-  fileName,
 }: {
   projectId: string;
   auditId?: string;
@@ -37,9 +37,12 @@ export function UploadErrorLogButton({
       disabled={busy}
       onClick={async () => {
         setBusy(true);
+        const tab = prepareDownloadTab();
         try {
-          const blob = await uploadAuditService.downloadErrorLog(auditId, projectId);
-          downloadBlob(blob, fileName || "upload_errors.xlsx");
+          const url = await uploadAuditService.downloadErrorLog(auditId, projectId);
+          openSignedUrl(url, tab);
+        } catch {
+          tab?.close();
         } finally {
           setBusy(false);
         }
@@ -179,19 +182,15 @@ export function UploadAuditHistory({
 
   async function handleDownload(row: UploadAuditRow, variant: "file" | "error-log") {
     setDownloadingId(`${row.id}:${variant}`);
+    const tab = prepareDownloadTab();
     try {
-      const blob =
+      const url =
         variant === "file"
           ? await uploadAuditService.downloadFile(row.id, projectId)
           : await uploadAuditService.downloadErrorLog(row.id, projectId);
-      const suffix = variant === "error-log" ? "_errors.xlsx" : row.originalFileName;
-      downloadBlob(
-        blob,
-        variant === "error-log"
-          ? row.originalFileName.replace(/\.xlsx?$/i, "") + suffix
-          : suffix,
-      );
+      openSignedUrl(url, tab);
     } catch (err) {
+      tab?.close();
       setError(formatApiError(err, "Failed to download file"));
     } finally {
       setDownloadingId(null);

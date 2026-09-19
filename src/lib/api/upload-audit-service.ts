@@ -91,24 +91,36 @@ export const uploadAuditService = {
     };
   },
 
-  downloadFile(id: string, projectId: string): Promise<Blob> {
-    return apiClient.getBlob(
+  downloadFile(id: string, projectId: string): Promise<string> {
+    return fetchSignedUrl(
       `${BASE}/${encodeURIComponent(id)}/file?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 
-  downloadErrorLog(id: string, projectId: string): Promise<Blob> {
-    return apiClient.getBlob(
+  downloadErrorLog(id: string, projectId: string): Promise<string> {
+    return fetchSignedUrl(
       `${BASE}/${encodeURIComponent(id)}/error-log?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 };
 
-export function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+async function fetchSignedUrl(endpoint: string): Promise<string> {
+  const res = await apiClient.get<{ url?: string }>(endpoint);
+  if (!res?.url) {
+    throw new Error("Download URL was not returned");
+  }
+  return res.url;
+}
+
+/** Open a blank tab in the click handler so the later signed-URL navigation is not blocked. */
+export function prepareDownloadTab(): Window | null {
+  return window.open("about:blank", "_blank");
+}
+
+export function openSignedUrl(url: string, tab?: Window | null) {
+  if (tab && !tab.closed) {
+    tab.location.href = url;
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
 }
