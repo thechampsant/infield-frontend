@@ -9,7 +9,7 @@ import { useProjectContext } from "@/lib/project-admin/project-context";
 import { DesignationsRequiredBanner } from "@/components/project-admin/uploaders/designations-required-banner";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { UserTable } from "@/components/project-admin/uploaders/users/user-table";
@@ -200,6 +200,11 @@ export default function UsersMasterPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk user import"
           />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["users"]}
+            refreshToken={historyRefresh}
+          />
           <button
             type="button"
             className="btn btn-secondary"
@@ -344,11 +349,6 @@ export default function UsersMasterPage() {
         onSuccess={load}
       />
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["users"]}
-        refreshToken={historyRefresh}
-      />
     </>
   );
 }

@@ -13,7 +13,7 @@ import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { ReporteeMapTable } from "@/components/project-admin/uploaders/reportee-map/reportee-map-table";
@@ -202,6 +202,11 @@ export default function ReporteeMapPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for reportee mapping"
           />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["reportee-map"]}
+            refreshToken={historyRefresh}
+          />
           <button
             type="button"
             className="btn btn-secondary"
@@ -336,11 +341,6 @@ export default function ReporteeMapPage() {
         onRefresh={load}
       />
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["reportee-map"]}
-        refreshToken={historyRefresh}
-      />
     </>
   );
 }

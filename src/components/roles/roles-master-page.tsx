@@ -6,7 +6,7 @@ import { roleService, type BackendRole, type BulkRoleResult } from "@/lib/api/ro
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
@@ -188,6 +188,11 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
             style={{ display: "none" }}
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk role import"
+          />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["roles"]}
+            refreshToken={historyRefresh}
           />
           <button
             type="button"
@@ -384,12 +389,6 @@ export function RolesMasterPage({ projectId, projectName }: Props) {
           />
         </div>
       )}
-
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["roles"]}
-        refreshToken={historyRefresh}
-      />
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

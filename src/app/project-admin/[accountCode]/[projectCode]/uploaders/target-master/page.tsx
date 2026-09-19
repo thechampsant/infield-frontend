@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 
@@ -319,6 +319,12 @@ export default function TargetMasterUploadPage() {
             style={{ display: "none" }}
             onChange={(event) => handleFileChange("target", event.target.files?.[0])}
             aria-label="Upload Excel file for Target Master"
+          />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["target-master", "focus-target"]}
+            refreshToken={historyRefresh}
+            showKind
           />
         </div>
       </div>
@@ -657,12 +663,6 @@ export default function TargetMasterUploadPage() {
         </div>
       )}
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["target-master", "focus-target"]}
-        refreshToken={historyRefresh}
-        showKind
-      />
     </>
   );
 }

@@ -13,7 +13,7 @@ import { useProjectContext } from "@/lib/project-admin/project-context";
 import { ProductStoreMapTable } from "@/components/project-admin/uploaders/product-store-map/product-store-map-table";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
@@ -185,6 +185,11 @@ export default function ProductStoreMapPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk product-store mapping"
           />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["product-store-map"]}
+            refreshToken={historyRefresh}
+          />
           <button
             type="button"
             className="btn btn-secondary"
@@ -275,11 +280,6 @@ export default function ProductStoreMapPage() {
         onRefresh={load}
       />
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["product-store-map"]}
-        refreshToken={historyRefresh}
-      />
     </>
   );
 }
