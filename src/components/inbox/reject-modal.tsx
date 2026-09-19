@@ -8,6 +8,7 @@ import {
   ACTION_FILE_TYPE_ERROR,
   isAllowedActionFile,
 } from "@/lib/inbox-action-file";
+import { ActionFileHint } from "./action-file-hint";
 
 export function RejectModal({
   open,
@@ -68,7 +69,7 @@ export function RejectModal({
 
   const description =
     count > 1
-      ? `Reason for rejecting ${count} requests. The same attachment is added to every selected request.`
+      ? `Reason for rejecting ${count} requests. The same attachment is added to every selected request. ${ACTION_FILE_HINT}.`
       : `Reason for rejecting ${employeeName ?? "this request"}:`;
 
   return (
@@ -89,7 +90,7 @@ export function RejectModal({
         </div>
         <div className="ibx-modal-body">
           <div className="ibx-modal-title" id="ibxRejectTitle">
-            Reject Request?
+            {count > 1 ? "Reject Requests?" : "Reject Request?"}
           </div>
           <div className="ibx-modal-desc">{description}</div>
         </div>
@@ -114,7 +115,7 @@ export function RejectModal({
           <label className="ibx-file-label">
             Attachment <span className="ibx-req">*</span>
           </label>
-          <div className="ibx-file-hint">{ACTION_FILE_HINT}</div>
+          <ActionFileHint />
           <input
             ref={fileRef}
             type="file"
