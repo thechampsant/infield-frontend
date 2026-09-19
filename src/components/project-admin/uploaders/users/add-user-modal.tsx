@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
-import { designationService } from "@/lib/api/designation-service";
+import { UserManagerPicker } from "@/components/project-admin/uploaders/users/user-manager-picker";
+import { designationService, type Designation } from "@/lib/api/designation-service";
 import {
   getRuntimeStaticField,
   projectUsersService,
 } from "@/lib/api/project-users-service";
+import { userReporteeMappingService } from "@/lib/api/user-reportee-mapping-service";
 import { validateUserShiftTimes } from "@/lib/project-admin/user-shift-times";
 import type {
   UDFField,
@@ -41,11 +43,10 @@ export function AddUserModal({
     designation: "",
     doj: "",
   });
-  const [designations, setDesignations] = useState<
-    { id: string; name: string }[]
-  >([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
   const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>({});
   const [reportees, setReportees] = useState<string[]>([]);
+  const [managerId, setManagerId] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -58,9 +59,7 @@ export function AddUserModal({
     if (!open || !projectId) return;
     designationService
       .listByProject(projectId)
-      .then((list) =>
-        setDesignations(list.map((d) => ({ id: d.id, name: d.name }))),
-      )
+      .then(setDesignations)
       .catch(() => setDesignations([]));
   }, [open, projectId]);
 
@@ -77,6 +76,7 @@ export function AddUserModal({
       });
       setUdfValues({});
       setReportees([]);
+      setManagerId("");
       setErrors([]);
       setSubmitError(null);
     }
@@ -114,7 +114,7 @@ export function AddUserModal({
 
     setSubmitting(true);
     try {
-      await projectUsersService.create({
+      const createdId = await projectUsersService.create({
         projectId,
         employeeId: form.id,
         firstName: form.firstName,
@@ -126,6 +126,12 @@ export function AddUserModal({
         doj: form.doj || undefined,
         udfs: udfValues,
       });
+      if (managerId) {
+        if (!createdId) {
+          throw new Error("User created but manager could not be assigned");
+        }
+        await userReporteeMappingService.assignManager(projectId, createdId, managerId);
+      }
       onSuccess();
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Failed to create user");
@@ -253,6 +259,23 @@ export function AddUserModal({
           prefix=""
         />
       )}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+        }}
+      >
+        <UserManagerPicker
+          projectId={projectId}
+          value={managerId}
+            onChange={(id) => setManagerId(id)}
+          reporteeIds={reportees}
+          formDesignationId={form.designation}
+          designations={designations}
+        />
+      </div>
 
       {udfFields.length > 0 && (
         <>

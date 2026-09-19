@@ -10,6 +10,7 @@ interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: number;
+  zIndex?: number;
 }
 
 export function Modal({
@@ -19,14 +20,16 @@ export function Modal({
   children,
   footer,
   width = 520,
+  zIndex = 20,
 }: ModalProps) {
   useEffect(() => {
+    if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [open, onClose]);
 
   return (
     <div
@@ -36,7 +39,7 @@ export function Modal({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 20,
+        zIndex,
         background: "rgba(8,15,24,.55)",
         backdropFilter: "blur(4px)",
         display: "flex",

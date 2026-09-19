@@ -123,4 +123,43 @@ describe("userReporteeMappingService.assign helpers", () => {
       { reporteeIds: ["r1"] },
     );
   });
+
+  it("loads the mapped manager for one user", async () => {
+    get.mockResolvedValue({
+      manager: { userId: "m1", employeeId: "MGR-012", name: "Priya Sharma" },
+    });
+
+    await expect(userReporteeMappingService.getManager("proj-1", "u1")).resolves.toEqual({
+      userId: "m1",
+      employeeId: "MGR-012",
+      name: "Priya Sharma",
+    });
+    expect(get).toHaveBeenCalledWith(
+      "/api/v1/users/reportee-mapping/u1/manager?projectId=proj-1",
+    );
+  });
+
+  it("returns null when the user has no manager", async () => {
+    get.mockResolvedValue({ manager: null });
+
+    await expect(userReporteeMappingService.getManager("proj-1", "u1")).resolves.toBeNull();
+  });
+
+  it("assigns or clears a manager", async () => {
+    patch.mockResolvedValue(undefined);
+
+    await userReporteeMappingService.assignManager("proj-1", "u1", "m1");
+    await userReporteeMappingService.assignManager("proj-1", "u1", null);
+
+    expect(patch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/users/reportee-mapping/u1/manager?projectId=proj-1",
+      { managerId: "m1" },
+    );
+    expect(patch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/users/reportee-mapping/u1/manager?projectId=proj-1",
+      { managerId: null },
+    );
+  });
 });

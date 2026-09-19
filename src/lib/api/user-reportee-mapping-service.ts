@@ -55,6 +55,12 @@ export interface ReporteeBulkMappingResult {
   hasErrorLog?: boolean;
 }
 
+export interface DirectManagerDisplay {
+  userId: string;
+  employeeId: string;
+  name: string;
+}
+
 export const userReporteeMappingService = {
   async listPage(
     projectId: string,
@@ -113,6 +119,30 @@ export const userReporteeMappingService = {
       `${USERS_BASE}/reportee-mapping/${encodeURIComponent(userId)}?projectId=${encodeURIComponent(projectId)}`,
     );
     return Array.isArray(res?.reporteeIds) ? res.reporteeIds.map(String) : [];
+  },
+
+  async getManager(projectId: string, userId: string): Promise<DirectManagerDisplay | null> {
+    const res = await apiClient.get<{ manager?: DirectManagerDisplay | null }>(
+      `${USERS_BASE}/reportee-mapping/${encodeURIComponent(userId)}/manager?projectId=${encodeURIComponent(projectId)}`,
+    );
+    const manager = res?.manager;
+    if (!manager?.userId) return null;
+    return {
+      userId: String(manager.userId),
+      employeeId: String(manager.employeeId ?? ""),
+      name: String(manager.name ?? ""),
+    };
+  },
+
+  async assignManager(
+    projectId: string,
+    userId: string,
+    managerId: string | null,
+  ): Promise<void> {
+    await apiClient.patch(
+      `${USERS_BASE}/reportee-mapping/${encodeURIComponent(userId)}/manager?projectId=${encodeURIComponent(projectId)}`,
+      { managerId },
+    );
   },
 
   async listUsersPage(

@@ -31,7 +31,7 @@ interface RawUser {
   lastName?: string;
   phoneNumber?: string;
   employeeId?: string;
-  designation?: string | { name?: string; roleName?: string };
+  designation?: string | { _id?: string; id?: string; name?: string; roleName?: string };
   status?: string;
   isActive?: boolean;
   udfData?: Record<string, unknown>;
@@ -91,14 +91,15 @@ function normalizeStatus(raw: RawUser): "active" | "inactive" {
   return "active";
 }
 
-function designationLabel(raw: RawUser): { designation: string; role: string } {
+function designationLabel(raw: RawUser): { designation: string; role: string; designationId: string } {
   if (typeof raw.designation === "object" && raw.designation) {
     return {
       designation: raw.designation.name ?? "",
       role: raw.designation.roleName ?? "",
+      designationId: String(raw.designation._id ?? raw.designation.id ?? ""),
     };
   }
-  return { designation: String(raw.designation ?? ""), role: "" };
+  return { designation: String(raw.designation ?? ""), role: "", designationId: "" };
 }
 
 function normalizeDateInputValue(value: unknown): string {
@@ -115,7 +116,7 @@ function normalizeDateInputValue(value: unknown): string {
 }
 
 function normalizeUser(raw: RawUser): ProjectUser {
-  const { designation, role } = designationLabel(raw);
+  const { designation, role, designationId } = designationLabel(raw);
   const name = `${raw.firstName ?? ""} ${raw.lastName ?? ""}`.trim() || raw.email || "";
   const backendId = raw._id ?? raw.id ?? "";
 
@@ -139,6 +140,7 @@ function normalizeUser(raw: RawUser): ProjectUser {
     mobile: raw.phoneNumber ?? "",
     email: raw.email ?? "",
     designation,
+    designationId: designationId || undefined,
     role,
     doj:
       normalizeDateInputValue(raw.doj) ||
@@ -554,7 +556,7 @@ export const projectUsersService = {
     });
   },
 
-  async create(input: CreateProjectUserInput): Promise<void> {
+  async create(input: CreateProjectUserInput): Promise<string> {
     const payload: Record<string, unknown> = {
       projectId: input.projectId,
       employeeId: input.employeeId,
@@ -567,7 +569,8 @@ export const projectUsersService = {
       ...(input.udfs ?? {}),
       ...(input.reportees !== undefined ? { reportees: input.reportees } : {}),
     };
-    await apiClient.post(BASE, payload);
+    const res = await apiClient.post<{ _id?: string; id?: string }>(BASE, payload);
+    return String(res?._id ?? res?.id ?? "");
   },
 
   /** Soft-delete a field user (sets isActive=false). */

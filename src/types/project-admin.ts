@@ -71,6 +71,7 @@ export interface User {
 
 export interface ProjectUser extends User {
   backendId: string;
+  designationId?: string;
   reporteeIds: string[];
 }
 
