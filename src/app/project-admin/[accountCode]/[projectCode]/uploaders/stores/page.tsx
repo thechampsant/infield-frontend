@@ -7,7 +7,7 @@ import { storeService, type StoreRecord, type BulkStoreResult } from "@/lib/api/
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { StoreTable } from "@/components/project-admin/uploaders/stores/store-table";
@@ -189,6 +189,11 @@ export default function StoresMasterPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk store import"
           />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["stores"]}
+            refreshToken={historyRefresh}
+          />
           <button
             type="button"
             className="btn btn-secondary"
@@ -327,11 +332,6 @@ export default function StoresMasterPage() {
         onSuccess={load}
       />
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["stores"]}
-        refreshToken={historyRefresh}
-      />
     </>
   );
 }

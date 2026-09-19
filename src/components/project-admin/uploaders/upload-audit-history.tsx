@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { formatApiError } from "@/lib/api";
+import { History, X } from "lucide-react";
+import { ApiError, formatApiError } from "@/lib/api";
 import {
   DEFAULT_LIST_PAGE_SIZE,
   LIST_PAGE_SIZE_OPTIONS,
@@ -49,7 +50,7 @@ export function UploadErrorLogButton({
   );
 }
 
-export function UploadAuditHistory({
+export function UploadAuditHistoryButton({
   projectId,
   kinds,
   refreshToken = 0,
@@ -59,6 +60,74 @@ export function UploadAuditHistory({
   kinds: UploadAuditKind[];
   refreshToken?: number;
   showKind?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button type="button" className="btn btn-accent" onClick={() => setOpen(true)}>
+        <History size={14} />
+        History
+      </button>
+      {open && (
+        <div className="pa-history-overlay" onClick={() => setOpen(false)}>
+          <aside
+            className="pa-history-drawer"
+            role="dialog"
+            aria-label="Upload history"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pa-history-drawer-head">
+              <strong>History</strong>
+              <button
+                type="button"
+                className="pa-history-drawer-close"
+                aria-label="Close history"
+                onClick={() => setOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="pa-history-drawer-body">
+              <UploadAuditHistory
+                projectId={projectId}
+                kinds={kinds}
+                refreshToken={refreshToken}
+                showKind={showKind}
+                active
+                embedded
+              />
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function UploadAuditHistory({
+  projectId,
+  kinds,
+  refreshToken = 0,
+  showKind = false,
+  active = true,
+  embedded = false,
+}: {
+  projectId: string;
+  kinds: UploadAuditKind[];
+  refreshToken?: number;
+  showKind?: boolean;
+  active?: boolean;
+  embedded?: boolean;
 }) {
   const [rows, setRows] = useState<UploadAuditRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -86,6 +155,16 @@ export function UploadAuditHistory({
         setPage(Math.max(1, result.meta.totalPages));
       }
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setRows([]);
+        setMeta({
+          page: 1,
+          pageSize,
+          totalCount: 0,
+          totalPages: 1,
+        });
+        return;
+      }
       setError(formatApiError(err, "Failed to load upload history"));
       setRows([]);
     } finally {
@@ -94,8 +173,9 @@ export function UploadAuditHistory({
   }, [projectId, kindKey, page, pageSize]);
 
   useEffect(() => {
+    if (!active) return;
     void load();
-  }, [load, refreshToken]);
+  }, [active, load, refreshToken]);
 
   async function handleDownload(row: UploadAuditRow, variant: "file" | "error-log") {
     setDownloadingId(`${row.id}:${variant}`);
@@ -119,13 +199,15 @@ export function UploadAuditHistory({
   }
 
   return (
-    <section className="data-table-wrap" style={{ marginTop: 24 }}>
-      <div className="data-table-toolbar">
-        <strong>Upload history</strong>
-        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
-          All Project Admins on this project can see these files
-        </span>
-      </div>
+    <section className="data-table-wrap" style={{ marginTop: embedded ? 0 : 24 }}>
+      {!embedded && (
+        <div className="data-table-toolbar">
+          <strong>Upload history</strong>
+          <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+            All Project Admins on this project can see these files
+          </span>
+        </div>
+      )}
 
       {error && (
         <div

@@ -20,7 +20,7 @@ import {
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
@@ -270,6 +270,11 @@ export function DesignationsPage({ projectId, projectName }: Props) {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk designation import"
           />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["designations"]}
+            refreshToken={historyRefresh}
+          />
           <button
             type="button"
             className="btn btn-secondary"
@@ -448,12 +453,6 @@ export function DesignationsPage({ projectId, projectName }: Props) {
           />
         </div>
       )}
-
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["designations"]}
-        refreshToken={historyRefresh}
-      />
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

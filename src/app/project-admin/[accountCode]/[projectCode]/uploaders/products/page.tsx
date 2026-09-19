@@ -12,7 +12,7 @@ import { useProjectContext } from "@/lib/project-admin/project-context";
 import { ProductTable } from "@/components/project-admin/uploaders/products/product-table";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
@@ -163,6 +163,11 @@ export default function ProductsMasterPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for bulk product import"
           />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["products"]}
+            refreshToken={historyRefresh}
+          />
           <button
             type="button"
             className="btn btn-secondary"
@@ -264,11 +269,6 @@ export default function ProductsMasterPage() {
         onSuccess={load}
       />
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["products"]}
-        refreshToken={historyRefresh}
-      />
     </>
   );
 }

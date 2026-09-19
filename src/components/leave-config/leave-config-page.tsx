@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { Button } from "@/components/ui/button";
@@ -984,12 +984,6 @@ export function LeaveConfigPage({
         </div>
       )}
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["holidays"]}
-        refreshToken={historyRefresh}
-      />
-
       {view.mode === "list" && (
         <PolicyList
           config={config}
@@ -1022,6 +1016,13 @@ export function LeaveConfigPage({
           onOpenReconcile={isActive ? () => openReconcileDialog(view.policyIndex) : undefined}
           onUpload={(file) => handleUploadHolidays(view.policyIndex, file)}
           onDownloadTemplate={() => handleDownloadHolidayTemplate(view.policyIndex)}
+          historyButton={
+            <UploadAuditHistoryButton
+              projectId={projectId}
+              kinds={["holidays"]}
+              refreshToken={historyRefresh}
+            />
+          }
           onChange={(nextPolicy) =>
             updateConfig((current) => ({
               ...current,
@@ -1384,6 +1385,7 @@ function PolicyEditor({
   onChange,
   onUpload,
   onDownloadTemplate,
+  historyButton,
 }: {
   policy: LeavePolicy;
   policyIndex: number;
@@ -1397,6 +1399,7 @@ function PolicyEditor({
   onChange: (policy: LeavePolicy) => void;
   onUpload: (file: File) => void;
   onDownloadTemplate: () => void;
+  historyButton?: ReactNode;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const groupWiseEnabled = Boolean(policy.groupWiseHolidaysEnabled);
@@ -1615,6 +1618,7 @@ function PolicyEditor({
               >
                 <FileUp size={14} /> Upload
               </button>
+              {historyButton}
               <button
                 type="button"
                 className="leave-secondary-btn small"

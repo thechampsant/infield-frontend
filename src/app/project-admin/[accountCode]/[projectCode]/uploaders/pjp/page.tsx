@@ -9,7 +9,7 @@ import {
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
 import {
-  UploadAuditHistory,
+  UploadAuditHistoryButton,
   UploadErrorLogButton,
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
@@ -120,6 +120,11 @@ export default function PjpUploadPage() {
             onChange={handleFileChange}
             aria-label="Upload Excel file for PJP bulk upload"
           />
+          <UploadAuditHistoryButton
+            projectId={projectId}
+            kinds={["pjp"]}
+            refreshToken={historyRefresh}
+          />
           <button
             type="button"
             className="btn btn-secondary"
@@ -221,11 +226,6 @@ export default function PjpUploadPage() {
         </div>
       )}
 
-      <UploadAuditHistory
-        projectId={projectId}
-        kinds={["pjp"]}
-        refreshToken={historyRefresh}
-      />
     </>
   );
 }
