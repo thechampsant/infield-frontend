@@ -957,7 +957,9 @@
   min-height: calc(100vh - 148px);
 }
 
-.pa-shell .pa-dashboard-embed iframe {
+.pa-shell .pa-dashboard-embed__host,
+.pa-shell .pa-dashboard-embed iframe,
+.pa-shell .pa-dashboard-embed onvo-dashboard {
   position: absolute;
   inset: 0;
   display: block;

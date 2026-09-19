@@ -17,6 +17,35 @@ export function extractDashboardEmbedUrl(value: string): string {
   return trimmed;
 }
 
+export type ParsedDashboardEmbed =
+  | { kind: "onvo"; src: string; baseUrl: string; dashboardId: string; token: string }
+  | { kind: "iframe"; src: string };
+
+/** Onvo's Next app sends X-Frame-Options: SAMEORIGIN, so those embeds cannot be iframed. */
+export function parseDashboardEmbed(raw: string): ParsedDashboardEmbed | null {
+  const src = extractDashboardEmbedUrl(raw);
+  if (!src) return null;
+  try {
+    const url = new URL(src);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    const token = url.searchParams.get("token")?.trim() ?? "";
+    const match = url.pathname.match(/^\/embed\/dashboards\/([^/]+)\/?$/i);
+    const host = url.hostname.toLowerCase();
+    if (token && match?.[1] && (host === "dashboard.onvo.ai" || host.endsWith(".onvo.ai"))) {
+      return {
+        kind: "onvo",
+        src,
+        baseUrl: `${url.protocol}//${url.host}`,
+        dashboardId: decodeURIComponent(match[1]),
+        token,
+      };
+    }
+    return { kind: "iframe", src };
+  } catch {
+    return null;
+  }
+}
+
 const BASE = "/api/v1/project-dashboards";
 
 export interface ProjectDashboard {

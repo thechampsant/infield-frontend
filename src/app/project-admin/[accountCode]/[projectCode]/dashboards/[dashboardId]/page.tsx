@@ -3,23 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ExternalLink } from "lucide-react";
+import { OnvoDashboardEmbed } from "@/components/project-admin/dashboards/onvo-dashboard-embed";
 import {
-  extractDashboardEmbedUrl,
+  parseDashboardEmbed,
   projectDashboardsService,
   type ProjectDashboard,
 } from "@/lib/api/project-dashboards-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { useProjectContext } from "@/lib/project-admin/project-context";
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 export default function DashboardViewerRoute() {
   const params = useParams<{ dashboardId: string }>();
@@ -30,8 +22,8 @@ export default function DashboardViewerRoute() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const listHref = `${projectAdminBase(accountCode, projectCode)}/dashboards`;
-  const embedSrc = useMemo(
-    () => extractDashboardEmbedUrl(dashboard?.url ?? ""),
+  const embed = useMemo(
+    () => parseDashboardEmbed(dashboard?.url ?? ""),
     [dashboard?.url],
   );
 
@@ -66,7 +58,7 @@ export default function DashboardViewerRoute() {
     );
   }
 
-  if (projectError || error || !dashboard || !isHttpUrl(embedSrc)) {
+  if (projectError || error || !dashboard || !embed) {
     return (
       <div className="att-config-page">
         <Link href={listHref} className="att-back-modules">
@@ -96,18 +88,35 @@ export default function DashboardViewerRoute() {
         <div className="pa-page-title" style={{ margin: 0, fontSize: 18 }}>
           {dashboard.name}
         </div>
+        <a
+          href={embed.src}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="att-back-modules"
+          style={{ marginLeft: "auto" }}
+        >
+          <ExternalLink size={14} /> Open
+        </a>
       </div>
       <div className="pa-dashboard-embed__frame">
-        <iframe
-          src={embedSrc}
-          title={dashboard.name}
-          frameBorder={0}
-          width="100%"
-          height="100%"
-          allow="clipboard-write; fullscreen"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
+        {embed.kind === "onvo" ? (
+          <OnvoDashboardEmbed
+            baseUrl={embed.baseUrl}
+            token={embed.token}
+            dashboardId={embed.dashboardId}
+          />
+        ) : (
+          <iframe
+            src={embed.src}
+            title={dashboard.name}
+            frameBorder={0}
+            width="100%"
+            height="100%"
+            allow="clipboard-write; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        )}
       </div>
     </div>
   );
