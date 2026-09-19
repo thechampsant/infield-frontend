@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "./api-client";
 import {
   extractDashboardEmbedUrl,
+  parseDashboardEmbed,
   projectDashboardsService,
 } from "./project-dashboards-service";
 
@@ -76,5 +77,21 @@ describe("projectDashboardsService", () => {
       ),
     ).toBe(src);
     expect(extractDashboardEmbedUrl(`  ${src}  `)).toBe(src);
+  });
+
+  it("parses Onvo embed URLs for the in-page component", () => {
+    const src =
+      "https://dashboard.onvo.ai/embed/dashboards/0de2249f-815f-455f-b8db-2304d3988d69?token=eyJhbGciOiJIUzI1NiJ9.payload.sig";
+    expect(parseDashboardEmbed(`<iframe src="${src}" frameborder="0" />`)).toEqual({
+      kind: "onvo",
+      src,
+      baseUrl: "https://dashboard.onvo.ai",
+      dashboardId: "0de2249f-815f-455f-b8db-2304d3988d69",
+      token: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
+    });
+    expect(parseDashboardEmbed("https://lookerstudio.google.com/embed/reporting/abc")).toEqual({
+      kind: "iframe",
+      src: "https://lookerstudio.google.com/embed/reporting/abc",
+    });
   });
 });
