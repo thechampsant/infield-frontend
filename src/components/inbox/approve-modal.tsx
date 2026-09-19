@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, Paperclip } from "lucide-react";
+import {
+  ACTION_FILE_ACCEPT,
+  ACTION_FILE_TYPE_ERROR,
+  isAllowedActionFile,
+} from "@/lib/inbox-action-file";
 
 export function ApproveModal({
   open,
@@ -22,6 +27,7 @@ export function ApproveModal({
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [invalid, setInvalid] = useState(false);
+  const [typeError, setTypeError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -78,25 +84,37 @@ export function ApproveModal({
           <input
             ref={inputRef}
             type="file"
-            className={invalid && !file ? "invalid" : ""}
+            accept={ACTION_FILE_ACCEPT}
+            className={(invalid && !file) || typeError ? "invalid" : ""}
             disabled={submitting}
             onChange={(e) => {
               const next = e.target.files?.[0] ?? null;
+              if (next && !isAllowedActionFile(next)) {
+                setFile(null);
+                setTypeError(true);
+                setInvalid(false);
+                e.target.value = "";
+                return;
+              }
               setFile(next);
+              setTypeError(false);
               if (next) setInvalid(false);
             }}
-            aria-invalid={invalid && !file}
+            aria-invalid={(invalid && !file) || typeError}
             aria-label="Approval attachment"
           />
+          <div className="ibx-file-hint">PDF, JPG, PNG, or WebP</div>
           {file ? (
             <div className="ibx-file-name">
               <Paperclip aria-hidden="true" />
               {file.name}
             </div>
           ) : null}
-          {invalid && !file && (
+          {typeError ? (
+            <div className="ibx-modal-error">{ACTION_FILE_TYPE_ERROR}</div>
+          ) : invalid && !file ? (
             <div className="ibx-modal-error">An attachment is required.</div>
-          )}
+          ) : null}
         </div>
         <div className="ibx-modal-actions">
           <button

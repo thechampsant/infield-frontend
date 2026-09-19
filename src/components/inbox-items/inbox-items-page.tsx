@@ -8,6 +8,11 @@ import { inboxService, type ApprovalHistoryEntry } from "@/lib/api/inbox-service
 import { ActionHistoryButton } from "@/components/inbox/action-history-drawer";
 import { inboxFileUrl } from "@/components/inbox/inbox-format";
 import {
+  ACTION_FILE_ACCEPT,
+  ACTION_FILE_TYPE_ERROR,
+  isAllowedActionFile,
+} from "@/lib/inbox-action-file";
+import {
   actionTone,
   capitalize,
   formatDateTime,
@@ -142,6 +147,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   const [remarkRequired, setRemarkRequired] = useState(true);
   const [remarkText, setRemarkText] = useState("");
   const [remarkFile, setRemarkFile] = useState<File | null>(null);
+  const [remarkFileTypeError, setRemarkFileTypeError] = useState(false);
   const [remarkSubmitting, setRemarkSubmitting] = useState(false);
 
   // Fetch items
@@ -264,6 +270,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     setRemarkRequired(key === "send-back" ? action.remarksRequired : key === "reject" || action.remarksRequired);
     setRemarkText("");
     setRemarkFile(null);
+    setRemarkFileTypeError(false);
     setRemarkDialogOpen(true);
   };
 
@@ -274,6 +281,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     setRemarkRequired(action !== "approve");
     setRemarkText("");
     setRemarkFile(null);
+    setRemarkFileTypeError(false);
     setRemarkDialogOpen(true);
   };
 
@@ -781,11 +789,28 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               </label>
               <input
                 type="file"
+                accept={ACTION_FILE_ACCEPT}
                 className="form-input"
-                onChange={(e) => setRemarkFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  const next = e.target.files?.[0] ?? null;
+                  if (next && !isAllowedActionFile(next)) {
+                    setRemarkFile(null);
+                    setRemarkFileTypeError(true);
+                    e.target.value = "";
+                    return;
+                  }
+                  setRemarkFile(next);
+                  setRemarkFileTypeError(false);
+                }}
               />
+              <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
+                PDF, JPG, PNG, or WebP
+              </span>
               {remarkFile ? (
                 <span style={{ fontSize: 12, color: "#334155" }}>{remarkFile.name}</span>
+              ) : null}
+              {remarkFileTypeError ? (
+                <span style={{ fontSize: 12, color: "#dc2626" }}>{ACTION_FILE_TYPE_ERROR}</span>
               ) : null}
             </div>
           )}

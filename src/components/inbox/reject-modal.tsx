@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Paperclip, X } from "lucide-react";
+import {
+  ACTION_FILE_ACCEPT,
+  ACTION_FILE_TYPE_ERROR,
+  isAllowedActionFile,
+} from "@/lib/inbox-action-file";
 
 export function RejectModal({
   open,
@@ -22,6 +27,7 @@ export function RejectModal({
   const [file, setFile] = useState<File | null>(null);
   const [invalidReason, setInvalidReason] = useState(false);
   const [invalidFile, setInvalidFile] = useState(false);
+  const [typeError, setTypeError] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -110,25 +116,37 @@ export function RejectModal({
           <input
             ref={fileRef}
             type="file"
-            className={invalidFile && !file ? "invalid" : ""}
+            accept={ACTION_FILE_ACCEPT}
+            className={(invalidFile && !file) || typeError ? "invalid" : ""}
             disabled={submitting}
             onChange={(e) => {
               const next = e.target.files?.[0] ?? null;
+              if (next && !isAllowedActionFile(next)) {
+                setFile(null);
+                setTypeError(true);
+                setInvalidFile(false);
+                e.target.value = "";
+                return;
+              }
               setFile(next);
+              setTypeError(false);
               if (next) setInvalidFile(false);
             }}
-            aria-invalid={invalidFile && !file}
+            aria-invalid={(invalidFile && !file) || typeError}
             aria-label="Rejection attachment"
           />
+          <div className="ibx-file-hint">PDF, JPG, PNG, or WebP</div>
           {file ? (
             <div className="ibx-file-name">
               <Paperclip aria-hidden="true" />
               {file.name}
             </div>
           ) : null}
-          {invalidFile && !file && (
+          {typeError ? (
+            <div className="ibx-modal-error">{ACTION_FILE_TYPE_ERROR}</div>
+          ) : invalidFile && !file ? (
             <div className="ibx-modal-error">An attachment is required.</div>
-          )}
+          ) : null}
         </div>
         <div className="ibx-modal-actions">
           <button
