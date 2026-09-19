@@ -326,6 +326,9 @@
   margin-bottom: var(--if2-sp-4);
 }
 .if2-app .ibx-req { color: var(--if2-red); }
+.if2-app .ibx-file-hint {
+  font-size: 11px; color: var(--if2-text-muted); margin-top: var(--if2-sp-4);
+}
 .if2-app .ibx-file-name {
   display: flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--if2-navy); margin-top: var(--if2-sp-4);

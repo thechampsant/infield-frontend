@@ -18,6 +18,7 @@
  * Mirrors the mock/real seam used by `attendance-config.ts`.
  */
 
+import { ACTION_FILE_TYPE_ERROR, isAllowedActionFile } from "@/lib/inbox-action-file";
 import { apiClient } from "./api-client";
 
 const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
@@ -635,6 +636,9 @@ export const inboxService = {
   },
 
   async uploadActionFile(file: File): Promise<ActionAttachment> {
+    if (!isAllowedActionFile(file)) {
+      throw new Error(ACTION_FILE_TYPE_ERROR);
+    }
     if (USE_MOCK_API) {
       await delay(150);
       return {
