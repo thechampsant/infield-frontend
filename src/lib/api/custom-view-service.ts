@@ -44,6 +44,8 @@ export interface CustomViewUploadResult {
   fileName: string;
   fileSize: number;
   rowCount: number;
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 export interface CustomViewListPage {
@@ -258,6 +260,8 @@ export const customViewService = {
       fileName: asString(item.fileName),
       fileSize: asNumber(item.fileSize),
       rowCount: asNumber(item.rowCount),
+      auditId: asString(item.auditId) || undefined,
+      hasErrorLog: Boolean(item.hasErrorLog),
     };
   },
 };

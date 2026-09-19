@@ -73,6 +73,8 @@ export interface BulkUploadResult {
   invalidCount: number;
   successes: { id: string; email: string; employeeId: string; action?: string }[];
   errors: { row?: string | number; data?: unknown; errors: string[] }[];
+  auditId?: string;
+  hasErrorLog?: boolean;
 }
 
 interface UserFormFieldsResponseData {

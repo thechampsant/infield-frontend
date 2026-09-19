@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import {
   designationService,
+  type BulkDesignationResult,
   type Designation,
   type PermissionOption,
 } from "@/lib/api/designation-service";
@@ -18,6 +19,10 @@ import {
 } from "@/lib/designations/backend-roles";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 import { useMasterExport } from "@/hooks/use-master-export";
 import {
   AddDesignationModal,
@@ -48,6 +53,8 @@ export function DesignationsPage({ projectId, projectName }: Props) {
   const [removing, setRemoving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [uploadResult, setUploadResult] = useState<BulkDesignationResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const roleById = useMemo(
@@ -188,6 +195,8 @@ export function DesignationsPage({ projectId, projectName }: Props) {
     setUploading(true);
     try {
       const result = await designationService.bulkUpload(projectId, file);
+      setUploadResult(result);
+      setHistoryRefresh((n) => n + 1);
       if (result.successCount > 0) {
         setToast({
           message: `Imported ${result.successCount} of ${result.total} designations.`,
@@ -429,6 +438,22 @@ export function DesignationsPage({ projectId, projectName }: Props) {
           </div>
         </div>
       )}
+
+      {uploadResult?.hasErrorLog && (
+        <div style={{ marginTop: 16 }}>
+          <UploadErrorLogButton
+            projectId={projectId}
+            auditId={uploadResult.auditId}
+            hasErrorLog={uploadResult.hasErrorLog}
+          />
+        </div>
+      )}
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["designations"]}
+        refreshToken={historyRefresh}
+      />
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

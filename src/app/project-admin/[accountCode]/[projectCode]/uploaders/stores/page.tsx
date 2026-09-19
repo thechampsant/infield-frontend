@@ -6,6 +6,10 @@ import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
 import { storeService, type StoreRecord, type BulkStoreResult } from "@/lib/api/store-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 import { StoreTable } from "@/components/project-admin/uploaders/stores/store-table";
 import { useMasterExport } from "@/hooks/use-master-export";
 import { AddStoreModal } from "@/components/project-admin/uploaders/stores/add-store-modal";
@@ -34,6 +38,7 @@ export default function StoresMasterPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const [uploadResult, setUploadResult] = useState<BulkStoreResult | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
@@ -111,6 +116,7 @@ export default function StoresMasterPage() {
     try {
       const result = await storeService.bulkUpload(projectId, file);
       setUploadResult(result);
+      setHistoryRefresh((n) => n + 1);
       if (result.successCount > 0) {
         // Newest rows sort first, so jump back to page 1 to show them.
         if (page === 1) load();
@@ -265,6 +271,13 @@ export default function StoresMasterPage() {
               <li>...and {uploadResult.errors.length - 10} more errors</li>
             )}
           </ul>
+          <div style={{ marginTop: 8 }}>
+            <UploadErrorLogButton
+              projectId={projectId}
+              auditId={uploadResult.auditId}
+              hasErrorLog={uploadResult.hasErrorLog}
+            />
+          </div>
         </div>
       )}
 
@@ -312,6 +325,12 @@ export default function StoresMasterPage() {
         scope="store"
         projectId={projectId}
         onSuccess={load}
+      />
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["stores"]}
+        refreshToken={historyRefresh}
       />
     </>
   );

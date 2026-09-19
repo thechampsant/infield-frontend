@@ -20,6 +20,10 @@ import {
   X,
 } from "lucide-react";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import {
+  UploadAuditHistory,
+  UploadErrorLogButton,
+} from "@/components/project-admin/uploaders/upload-audit-history";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal, ModalFooter } from "@/components/ui/modal";
@@ -428,6 +432,11 @@ export function LeaveConfigPage({
   const [warnings, setWarnings] = useState<string[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [uploadSummary, setUploadSummary] = useState<HolidayUploadSummary | null>(null);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [lastHolidayAudit, setLastHolidayAudit] = useState<{
+    auditId?: string;
+    hasErrorLog?: boolean;
+  }>({});
   const [view, setView] = useState<ViewState>({ mode: "list" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -653,6 +662,11 @@ export function LeaveConfigPage({
       const response = await leaveConfigService.uploadHolidays(projectId, policy._id, file);
       applyResponse(response.config, response.warnings);
       setUploadSummary(response.uploadSummary ?? null);
+      setLastHolidayAudit({
+        auditId: response.auditId,
+        hasErrorLog: response.hasErrorLog,
+      });
+      setHistoryRefresh((n) => n + 1);
       setToast({ type: "success", message: "Holiday file uploaded." });
     } catch (err) {
       setToast({ type: "error", message: formatApiError(err, "Holiday upload failed") });
@@ -960,8 +974,21 @@ export function LeaveConfigPage({
         <div className="leave-upload-summary">
           Uploaded holidays: {uploadSummary.added} added, {uploadSummary.skipped} skipped,{" "}
           {uploadSummary.invalid} invalid.
+          <div style={{ marginTop: 8 }}>
+            <UploadErrorLogButton
+              projectId={projectId}
+              auditId={lastHolidayAudit.auditId}
+              hasErrorLog={lastHolidayAudit.hasErrorLog}
+            />
+          </div>
         </div>
       )}
+
+      <UploadAuditHistory
+        projectId={projectId}
+        kinds={["holidays"]}
+        refreshToken={historyRefresh}
+      />
 
       {view.mode === "list" && (
         <PolicyList
