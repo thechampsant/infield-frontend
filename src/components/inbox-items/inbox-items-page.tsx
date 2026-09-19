@@ -6,6 +6,7 @@ import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { inboxItemsService, type InboxItem, type InboxFilters, type InboxPagination, type InboxAvailableAction, type InboxRoutingReason } from "@/lib/api/inbox-items-service";
 import { inboxService, type ApprovalHistoryEntry } from "@/lib/api/inbox-service";
 import { ActionHistoryButton } from "@/components/inbox/action-history-drawer";
+import { ActionFileHint } from "@/components/inbox/action-file-hint";
 import { inboxFileUrl } from "@/components/inbox/inbox-format";
 import {
   ACTION_FILE_ACCEPT,
@@ -329,12 +330,13 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     }
   };
 
+  const isBulkRemark = remarkTargetIds.length > 1;
   const remarkTitle =
     remarkAction === "approve"
-      ? "Approve Request"
+      ? isBulkRemark ? "Approve Requests" : "Approve Request"
       : remarkAction === "reject"
-        ? "Reject Request"
-        : "Send Back Request";
+        ? isBulkRemark ? "Reject Requests" : "Reject Request"
+        : isBulkRemark ? "Send Back Requests" : "Send Back Request";
 
   // ─── Render ─────────────────────────────────────────────────────────────
 
@@ -778,9 +780,12 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             rows={4}
             style={{ resize: "vertical" }}
           />
-          {remarkTargetIds.length > 1 && (
-            <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>
-              This will apply to {remarkTargetIds.length} selected items
+          {isBulkRemark && (
+            <span style={{ fontSize: 12, color: "#64748b" }}>
+              This will apply to {remarkTargetIds.length} selected items.
+              {(remarkAction === "approve" || remarkAction === "reject")
+                ? ` The same attachment is added to every request. ${ACTION_FILE_HINT}.`
+                : ""}
             </span>
           )}
           {(remarkAction === "approve" || remarkAction === "reject") && (
@@ -788,12 +793,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               <label className="form-label">
                 Attachment <span className="req">*</span>
               </label>
-              <div
-                className="form-hint"
-                style={{ marginTop: 0, marginBottom: 2, fontSize: 12, color: "var(--text-muted, #7a95b5)" }}
-              >
-                {ACTION_FILE_HINT}
-              </div>
+              <ActionFileHint />
               <input
                 type="file"
                 accept={ACTION_FILE_ACCEPT}

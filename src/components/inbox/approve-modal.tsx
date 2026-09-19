@@ -8,6 +8,7 @@ import {
   ACTION_FILE_TYPE_ERROR,
   isAllowedActionFile,
 } from "@/lib/inbox-action-file";
+import { ActionFileHint } from "./action-file-hint";
 
 export function ApproveModal({
   open,
@@ -44,7 +45,7 @@ export function ApproveModal({
 
   const description =
     count > 1
-      ? `Approve ${count} requests? The same attachment is added to every selected request.`
+      ? `Approve ${count} requests? The same attachment is added to every selected request. ${ACTION_FILE_HINT}.`
       : `Approve ${employeeName ?? "this request"}?`;
 
   function handleConfirm() {
@@ -74,7 +75,7 @@ export function ApproveModal({
         </div>
         <div className="ibx-modal-body">
           <div className="ibx-modal-title" id="ibxApproveTitle">
-            Approve Request?
+            {count > 1 ? "Approve Requests?" : "Approve Request?"}
           </div>
           <div className="ibx-modal-desc">{description}</div>
         </div>
@@ -82,7 +83,7 @@ export function ApproveModal({
           <label className="ibx-file-label">
             Attachment <span className="ibx-req">*</span>
           </label>
-          <div className="ibx-file-hint">{ACTION_FILE_HINT}</div>
+          <ActionFileHint />
           <input
             ref={inputRef}
             type="file"

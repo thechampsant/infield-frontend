@@ -367,6 +367,16 @@
 .att-config-page .form-label .req {
   color: var(--color-danger);
 }
+.att-config-page .ibx-action-file-hint {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 4px 0 6px;
+}
 .att-config-page .form-input {
   width: 100%;
   padding: 8px 12px;
