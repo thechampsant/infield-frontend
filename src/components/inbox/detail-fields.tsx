@@ -2,7 +2,12 @@
 
 import type { ReactNode } from "react";
 import { Paperclip } from "lucide-react";
-import type { AttachmentItem, DisplayField } from "@/lib/api/inbox-service";
+import type {
+  ApprovalHistoryEntry,
+  AttachmentItem,
+  DisplayField,
+} from "@/lib/api/inbox-service";
+import { formatDateTime, inboxFileUrl } from "./inbox-format";
 
 /**
  * Config-driven detail renderer. Fields come from the request type's
@@ -14,12 +19,14 @@ export function DetailFields({
   attachments,
   attachmentSubtitle,
   onOpenAttachment,
+  history,
   footer,
 }: {
   fields: DisplayField[];
   attachments?: AttachmentItem[];
   attachmentSubtitle?: string;
   onOpenAttachment?: (attachment: AttachmentItem) => void;
+  history?: ApprovalHistoryEntry[];
   footer?: ReactNode;
 }) {
   return (
@@ -62,6 +69,38 @@ export function DetailFields({
               </span>
             </button>
           ))}
+        </div>
+      )}
+
+      {history && history.length > 0 && (
+        <div className="ibx-history">
+          <span className="ibx-field-label">Request history</span>
+          <ol className="ibx-history-list">
+            {history.map((entry, idx) => (
+              <li key={`${entry.action}-${entry.actionDate}-${idx}`} className="ibx-history-item">
+                <div className="ibx-history-meta">
+                  <strong style={{ textTransform: "capitalize" }}>{entry.action}</strong>
+                  {" · "}
+                  {entry.performedBy?.displayName || "Approver"}
+                  {entry.actionDate ? ` · ${formatDateTime(entry.actionDate)}` : ""}
+                </div>
+                {entry.remarks ? (
+                  <div className="ibx-history-remarks">{entry.remarks}</div>
+                ) : null}
+                {entry.attachment?.gcsPath ? (
+                  <a
+                    className="ibx-attach"
+                    href={inboxFileUrl(entry.attachment.gcsPath)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Paperclip aria-hidden="true" />
+                    <span className="ibx-attach-name">{entry.attachment.fileName}</span>
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ol>
         </div>
       )}
 
