@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { udfConfigService } from "@/lib/api";
+import { projectUsersService } from "@/lib/api/project-users-service";
+import { formatUserNameWithCode } from "@/lib/project-admin/user-display";
 import { isShiftTimeFieldKey } from "@/lib/project-admin/user-shift-times";
 import type { UDFField, UDFValue } from "@/types/project-admin";
 
@@ -52,6 +54,16 @@ export function UDFFormFields({
       const entries = await Promise.all(
         sourceFields.map(async (field) => {
           try {
+            if (field.fieldKey === "reportees") {
+              const users = await projectUsersService.listAllByProject(projectId);
+              const items = users
+                .filter((user) => Boolean(user.backendId))
+                .map((user) => ({
+                  label: formatUserNameWithCode(user.name, user.id),
+                  value: user.backendId,
+                }));
+              return [field.id, items] as const;
+            }
             const rows = await udfConfigService.previewSource(field.sourceKey!, {
               projectId,
             });

@@ -7,6 +7,7 @@ import {
   type UserReporteeMappingSummary,
 } from "@/lib/api/user-reportee-mapping-service";
 import { formatApiError } from "@/lib/api";
+import { formatUserNameWithCode } from "@/lib/project-admin/user-display";
 import { MAX_LIST_PAGE_SIZE } from "@/lib/api/pagination";
 import type { ProjectUser } from "@/types/project-admin";
 
@@ -172,7 +173,7 @@ export function AssignReporteesModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={`Assign Reportees — ${user.name}`}
+      title={`Assign Reportees — ${formatUserNameWithCode(user.name, user.employeeId)}`}
       width={600}
       footer={
         <>
@@ -204,9 +205,11 @@ export function AssignReporteesModal({
         }}
       >
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)" }}>{user.name}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)" }}>
+            {formatUserNameWithCode(user.name, user.employeeId)}
+          </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            {user.employeeId || user.email}
+            {user.email}
           </div>
         </div>
         {user.designation && (
@@ -303,6 +306,9 @@ export function AssignReporteesModal({
           users.map((candidate, idx) => {
             const isChecked = selected.has(candidate.backendId);
             const inactive = candidate.status === "inactive";
+            const subtitle = [candidate.designation, inactive ? "Inactive" : ""]
+              .filter(Boolean)
+              .join(" · ");
             return (
               <label
                 key={candidate.backendId}
@@ -341,13 +347,11 @@ export function AssignReporteesModal({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {candidate.name}
+                    {formatUserNameWithCode(candidate.name, candidate.id)}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                    {candidate.id}
-                    {candidate.designation ? ` · ${candidate.designation}` : ""}
-                    {inactive ? " · Inactive" : ""}
-                  </div>
+                  {subtitle ? (
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{subtitle}</div>
+                  ) : null}
                 </div>
                 {isChecked && (
                   <div
