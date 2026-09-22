@@ -29,6 +29,7 @@ interface RawUser {
   email?: string;
   firstName?: string;
   lastName?: string;
+  fullName?: string;
   phoneNumber?: string;
   employeeId?: string;
   designation?: string | { _id?: string; id?: string; name?: string; roleName?: string };
@@ -45,7 +46,7 @@ interface RawUser {
 
 /** Keys that belong to the core user document and should NOT be treated as UDF data */
 const KNOWN_USER_KEYS = new Set([
-  "_id", "id", "__v", "email", "firstName", "lastName", "phoneNumber",
+  "_id", "id", "__v", "email", "firstName", "lastName", "fullName", "phoneNumber",
   "employeeId", "designation", "status", "isActive", "udfData",
   "createdAt", "updatedAt", "doj", "dateOfJoining", "dateOfExit", "reportees",
   "projectId", "accountId", "accountName", "password", "role",
@@ -117,7 +118,10 @@ function normalizeDateInputValue(value: unknown): string {
 
 function normalizeUser(raw: RawUser): ProjectUser {
   const { designation, role, designationId } = designationLabel(raw);
-  const name = `${raw.firstName ?? ""} ${raw.lastName ?? ""}`.trim() || raw.email || "";
+  const name = (raw.fullName && String(raw.fullName).trim())
+    || `${raw.firstName ?? ""} ${raw.lastName ?? ""}`.trim()
+    || raw.email
+    || "";
   const backendId = raw._id ?? raw.id ?? "";
 
   // UDF data may come in a nested udfData field OR spread at root level

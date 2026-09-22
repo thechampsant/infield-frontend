@@ -287,6 +287,15 @@ export function EditUserModal({
             <input {...field("lastName")} />
           </div>
           <div className="form-group">
+            <label className="form-label">Full Name</label>
+            <input
+              className="form-input"
+              value={`${form.firstName} ${form.lastName}`.trim()}
+              disabled
+              placeholder="Populated automatically"
+            />
+          </div>
+          <div className="form-group">
             <label className="form-label">
               Mobile <span className="req">*</span>
             </label>
