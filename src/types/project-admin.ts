@@ -8,7 +8,7 @@ export interface AuditEntry {
   changedAt: string;
 }
 
-export type UDFType = "alphanumeric" | "numeric" | "dropdown";
+export type UDFType = "alphanumeric" | "numeric" | "dropdown" | "boolean";
 export type UDFScope = "user" | "store" | "product";
 
 export interface UDFOptionItem {
@@ -16,7 +16,7 @@ export interface UDFOptionItem {
   value: string;
 }
 
-export type UDFValue = string | string[];
+export type UDFValue = string | string[] | boolean;
 
 export interface UDFField {
   id: number;

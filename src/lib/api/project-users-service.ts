@@ -174,7 +174,7 @@ function normalizeUdfData(value: unknown): Record<string, UDFValue> {
     if (Array.isArray(item)) {
       return [key, item.map(String)] as const;
     }
-    return [key, item == null ? "" : String(item)] as const;
+    return [key, typeof item === "boolean" ? item : item == null ? "" : String(item)] as const;
   });
   return Object.fromEntries(entries);
 }
@@ -190,6 +190,7 @@ function parseFormFields(payload: unknown): UDFField[] {
     const typeRaw = String(f.type ?? f.fieldType ?? "alphanumeric").toLowerCase();
     let type: UDFField["type"] = "alphanumeric";
     if (typeRaw.includes("num")) type = "numeric";
+    if (typeRaw.includes("bool")) type = "boolean";
     if (typeRaw.includes("drop") || typeRaw.includes("select")) type = "dropdown";
 
     const options = f.options ?? f.values ?? f.dropdownValues;
@@ -227,12 +228,12 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
       }
       if (
         typeRaw === "DATE" ||
-        typeRaw === "BOOLEAN" ||
         typeRaw === "IMAGE" ||
         typeRaw === "FILE"
       ) {
         type = null;
       }
+      if (typeRaw === "BOOLEAN") type = "boolean";
       if (!type) return null;
 
       const config =

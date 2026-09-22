@@ -25,6 +25,7 @@ export interface SyncJob {
 export interface SyncRun {
   runId: string;
   jobKey: string;
+  jobName?: string | null;
   projectId: string;
   trigger: "manual" | "cron";
   targetDate?: string | null;

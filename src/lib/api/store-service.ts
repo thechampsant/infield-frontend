@@ -29,7 +29,7 @@ export interface StoreRecord {
   projectId: string;
   storeType?: string;
   isActive: boolean;
-  udfs: Record<string, string | string[]>;
+  udfs: Record<string, string | string[] | boolean>;
 }
 
 interface RawStore {
@@ -82,12 +82,14 @@ const KNOWN_CORE_KEYS = new Set([
   'createdBy', 'updatedBy', '__v', 'isDeleted', 'deletedAt', 'deletedBy', 'version',
 ]);
 
-function extractUdfs(raw: RawStore): Record<string, string | string[]> {
-  const udfs: Record<string, string | string[]> = {};
+function extractUdfs(raw: RawStore): Record<string, string | string[] | boolean> {
+  const udfs: Record<string, string | string[] | boolean> = {};
   for (const [key, val] of Object.entries(raw)) {
     if (KNOWN_CORE_KEYS.has(key)) continue;
     if (Array.isArray(val)) {
       udfs[key] = val.map(String);
+    } else if (typeof val === "boolean") {
+      udfs[key] = val;
     } else if (val != null) {
       udfs[key] = String(val);
     }
@@ -160,9 +162,10 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
       if (typeRaw === "DROPDOWN" || typeRaw === "SELECT" || typeRaw === "API_SELECT" || typeRaw === "CASCADING_SELECT") {
         type = "dropdown";
       }
-      if (typeRaw === "DATE" || typeRaw === "BOOLEAN" || typeRaw === "IMAGE" || typeRaw === "FILE") {
+      if (typeRaw === "DATE" || typeRaw === "IMAGE" || typeRaw === "FILE") {
         type = null;
       }
+      if (typeRaw === "BOOLEAN") type = "boolean";
       if (!type) return null;
 
       const config =
@@ -209,7 +212,7 @@ export interface CreateStoreInput {
   storeName: string;
   latitude: number;
   longitude: number;
-  udfs?: Record<string, string | string[]>;
+  udfs?: Record<string, string | string[] | boolean>;
 }
 
 export interface UpdateStoreInput {
@@ -217,7 +220,7 @@ export interface UpdateStoreInput {
   storeName?: string;
   latitude?: number;
   longitude?: number;
-  udfs?: Record<string, string | string[]>;
+  udfs?: Record<string, string | string[] | boolean>;
 }
 
 export interface SaveStoreSchemaInput {

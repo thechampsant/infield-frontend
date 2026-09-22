@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { storeService, type StoreRecord } from "@/lib/api/store-service";
 import { formatApiError } from "@/lib/api";
-import { validateShiftTimes } from "@/lib/project-admin/user-shift-times";
+import {
+  shiftFieldsChanged,
+  validateShiftTimes,
+  withNightShiftDefault,
+} from "@/lib/project-admin/user-shift-times";
 import type { UDFField, UDFValue } from "@/types/project-admin";
 
 interface EditStoreModalProps {
@@ -31,7 +35,12 @@ export function EditStoreModal({
     latitude: String(store.latitude),
     longitude: String(store.longitude),
   });
-  const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>(store.udfs);
+  const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>(
+    withNightShiftDefault(udfFields, store.udfs),
+  );
+  const initialUdfValues = useRef<Record<string, UDFValue>>(
+    withNightShiftDefault(udfFields, store.udfs),
+  );
   const [errors, setErrors] = useState<string[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -45,11 +54,13 @@ export function EditStoreModal({
         latitude: String(store.latitude),
         longitude: String(store.longitude),
       });
-      setUdfValues(store.udfs);
+      const values = withNightShiftDefault(udfFields, store.udfs);
+      setUdfValues(values);
+      initialUdfValues.current = values;
       setErrors([]);
       setSubmitError(null);
     }
-  }, [open, store]);
+  }, [open, store, udfFields]);
 
   const field = (name: keyof typeof form) => ({
     value: form[name],
@@ -75,6 +86,12 @@ export function EditStoreModal({
       return;
     }
 
+    if (shiftFieldsChanged(initialUdfValues.current, udfValues) && !window.confirm(
+      "This change applies to future check-ins. Any already-open attendance keeps its original shift timing and Night Shift setting.",
+    )) {
+      return;
+    }
+
     setSubmitting(true);
     try {
       await storeService.update(store.backendId, {
@@ -82,7 +99,7 @@ export function EditStoreModal({
         storeName: form.storeName.trim() || undefined,
         latitude: form.latitude.trim() ? Number(form.latitude) : undefined,
         longitude: form.longitude.trim() ? Number(form.longitude) : undefined,
-        udfs: udfValues as Record<string, string | string[]>,
+        udfs: udfValues,
       });
       onSuccess();
     } catch (e) {

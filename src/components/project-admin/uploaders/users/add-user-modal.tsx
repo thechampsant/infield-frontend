@@ -10,7 +10,10 @@ import {
   projectUsersService,
 } from "@/lib/api/project-users-service";
 import { userReporteeMappingService } from "@/lib/api/user-reportee-mapping-service";
-import { validateUserShiftTimes } from "@/lib/project-admin/user-shift-times";
+import {
+  validateUserShiftTimes,
+  withNightShiftDefault,
+} from "@/lib/project-admin/user-shift-times";
 import type {
   UDFField,
   UDFValue,
@@ -79,8 +82,10 @@ export function AddUserModal({
       setManagerId("");
       setErrors([]);
       setSubmitError(null);
+    } else {
+      setUdfValues((values) => withNightShiftDefault(udfFields, values));
     }
-  }, [open]);
+  }, [open, udfFields]);
 
   const handleSubmit = async () => {
     const errs: string[] = [];

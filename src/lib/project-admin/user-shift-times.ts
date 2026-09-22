@@ -2,11 +2,39 @@ import type { UDFField, UDFValue } from "@/types/project-admin";
 
 export const SHIFT_START_FIELD_KEY = "shiftStartTime";
 export const SHIFT_END_FIELD_KEY = "shiftEndTime";
+export const NIGHT_SHIFT_FIELD_KEY = "nightShift";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export function isShiftTimeFieldKey(fieldKey: string): boolean {
   return fieldKey === SHIFT_START_FIELD_KEY || fieldKey === SHIFT_END_FIELD_KEY;
+}
+
+export function hasNightShiftFields(fields: UDFField[]): boolean {
+  return [NIGHT_SHIFT_FIELD_KEY, SHIFT_START_FIELD_KEY, SHIFT_END_FIELD_KEY].every((fieldKey) =>
+    fields.some((field) => field.fieldKey === fieldKey),
+  );
+}
+
+/** Default missing or malformed persisted values to false; only boolean true enables Night Shift. */
+export function withNightShiftDefault(
+  fields: UDFField[],
+  values: Record<string, UDFValue>,
+): Record<string, UDFValue> {
+  if (!fields.some((field) => field.fieldKey === NIGHT_SHIFT_FIELD_KEY)) return values;
+  return {
+    ...values,
+    [NIGHT_SHIFT_FIELD_KEY]: values[NIGHT_SHIFT_FIELD_KEY] === true,
+  };
+}
+
+export function shiftFieldsChanged(
+  original: Record<string, UDFValue>,
+  current: Record<string, UDFValue>,
+): boolean {
+  return [NIGHT_SHIFT_FIELD_KEY, SHIFT_START_FIELD_KEY, SHIFT_END_FIELD_KEY].some(
+    (fieldKey) => original[fieldKey] !== current[fieldKey],
+  );
 }
 
 function stringValue(value: UDFValue | undefined): string {
@@ -61,10 +89,27 @@ export function validateShiftTimes(
         };
   }
 
-  if (timeToMinutes(end) <= timeToMinutes(start)) {
+  const nightShift = values[NIGHT_SHIFT_FIELD_KEY] === true;
+  const endMinutes = timeToMinutes(end);
+  const startMinutes = timeToMinutes(start);
+  if (endMinutes === startMinutes) {
     return {
       errorKeys,
-      message: "Shift end time must be later than shift start time.",
+      message: "Shift start and end time cannot be the same unless both are 00:00.",
+    };
+  }
+
+  if (nightShift && endMinutes > startMinutes) {
+    return {
+      errorKeys,
+      message: "Night Shift needs an end time earlier than the start time.",
+    };
+  }
+
+  if (!nightShift && endMinutes < startMinutes) {
+    return {
+      errorKeys,
+      message: "Overnight timings require Night Shift to be enabled.",
     };
   }
 

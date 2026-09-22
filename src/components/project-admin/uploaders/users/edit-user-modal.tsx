@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { ConfirmManagerChangeModal } from "@/components/project-admin/uploaders/users/confirm-manager-change-modal";
@@ -15,7 +15,11 @@ import {
   type DirectManagerDisplay,
 } from "@/lib/api/user-reportee-mapping-service";
 import { formatUserNameWithCode } from "@/lib/project-admin/user-display";
-import { validateUserShiftTimes } from "@/lib/project-admin/user-shift-times";
+import {
+  shiftFieldsChanged,
+  validateUserShiftTimes,
+  withNightShiftDefault,
+} from "@/lib/project-admin/user-shift-times";
 import type {
   UDFField,
   UDFValue,
@@ -52,7 +56,12 @@ export function EditUserModal({
     doj: user.doj,
   });
   const [designations, setDesignations] = useState<Designation[]>([]);
-  const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>(user.udfs);
+  const [udfValues, setUdfValues] = useState<Record<string, UDFValue>>(
+    withNightShiftDefault(udfFields, user.udfs),
+  );
+  const initialUdfValues = useRef<Record<string, UDFValue>>(
+    withNightShiftDefault(udfFields, user.udfs),
+  );
   const [reportees, setReportees] = useState<string[]>(user.reporteeIds);
   const [managerId, setManagerId] = useState("");
   const [managerLabel, setManagerLabel] = useState("");
@@ -92,7 +101,9 @@ export function EditUserModal({
         designation: "",
         doj: user.doj,
       });
-      setUdfValues(user.udfs);
+      const values = withNightShiftDefault(udfFields, user.udfs);
+      setUdfValues(values);
+      initialUdfValues.current = values;
       setReportees(user.reporteeIds);
       setManagerId("");
       setManagerLabel("");
@@ -102,7 +113,7 @@ export function EditUserModal({
       setErrors([]);
       setSubmitError(null);
     }
-  }, [open, user]);
+  }, [open, udfFields, user]);
 
   useEffect(() => {
     if (!open || !projectId || !backendUserId) return;
@@ -175,6 +186,11 @@ export function EditUserModal({
     }
 
     const managerChanged = managerId !== initialManagerId;
+    if (shiftFieldsChanged(initialUdfValues.current, udfValues) && !window.confirm(
+      "This change applies to future check-ins. Any already-open attendance keeps its original shift timing and Night Shift setting.",
+    )) {
+      return;
+    }
     if (managerChanged && initialManagerId) {
       setConfirmOpen(true);
       return;
