@@ -5,7 +5,7 @@ import { Modal } from "@/components/project-admin/shared/modal";
 import { UDFFormFields } from "@/components/project-admin/udf/udf-form-fields";
 import { storeService } from "@/lib/api/store-service";
 import { formatApiError } from "@/lib/api";
-import { validateShiftTimes } from "@/lib/project-admin/user-shift-times";
+import { validateShiftTimes, withNightShiftDefault } from "@/lib/project-admin/user-shift-times";
 import type { UDFField, UDFValue } from "@/types/project-admin";
 
 interface AddStoreModalProps {
@@ -43,8 +43,10 @@ export function AddStoreModal({
       setUdfValues({});
       setErrors([]);
       setSubmitError(null);
+    } else {
+      setUdfValues((values) => withNightShiftDefault(udfFields, values));
     }
-  }, [open]);
+  }, [open, udfFields]);
 
   const field = (name: keyof typeof form) => ({
     value: form[name],
@@ -88,7 +90,7 @@ export function AddStoreModal({
         storeName: form.storeName.trim(),
         latitude: Number(form.latitude),
         longitude: Number(form.longitude),
-        udfs: udfValues as Record<string, string | string[]>,
+        udfs: udfValues,
       });
       onSuccess();
     } catch (e) {

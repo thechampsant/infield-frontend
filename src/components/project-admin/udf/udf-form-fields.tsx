@@ -5,7 +5,11 @@ import { Check, ChevronDown, Search, X } from "lucide-react";
 import { udfConfigService } from "@/lib/api";
 import { projectUsersService } from "@/lib/api/project-users-service";
 import { formatUserNameWithCode } from "@/lib/project-admin/user-display";
-import { isShiftTimeFieldKey } from "@/lib/project-admin/user-shift-times";
+import {
+  hasNightShiftFields,
+  isShiftTimeFieldKey,
+  NIGHT_SHIFT_FIELD_KEY,
+} from "@/lib/project-admin/user-shift-times";
 import type { UDFField, UDFValue } from "@/types/project-admin";
 
 interface UDFFormFieldsProps {
@@ -110,6 +114,9 @@ export function UDFFormFields({
     return typeof value === "string" ? value : "";
   };
 
+  const booleanValue = (fieldKey: string) => values[fieldKey] === true;
+  const nightShiftReady = hasNightShiftFields(fields);
+
   const arrayValue = (fieldKey: string) => {
     const value = values[fieldKey];
     return Array.isArray(value) ? value.map(String) : [];
@@ -183,7 +190,29 @@ export function UDFFormFields({
                   {f.mandatory && <span className="req"> *</span>}
                 </label>
 
-                {isShiftTimeFieldKey(f.fieldKey) ? (
+                {f.fieldKey === NIGHT_SHIFT_FIELD_KEY && f.type === "boolean" ? (
+                  <>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button
+                        type="button"
+                        className={`btn ${booleanValue(f.fieldKey) ? "btn-primary" : "btn-secondary"}`}
+                        aria-pressed={booleanValue(f.fieldKey)}
+                        disabled={!nightShiftReady}
+                        onClick={() => set(f.fieldKey, !booleanValue(f.fieldKey))}
+                      >
+                        {booleanValue(f.fieldKey) ? "Yes" : "No"}
+                      </button>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        {booleanValue(f.fieldKey) ? "Night Shift enabled" : "Night Shift disabled"}
+                      </span>
+                    </div>
+                    {!nightShiftReady && (
+                      <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>
+                        Add Night Shift and both timing fields to the User/Store UDF schema first.
+                      </div>
+                    )}
+                  </>
+                ) : isShiftTimeFieldKey(f.fieldKey) ? (
                   <>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <input

@@ -1438,6 +1438,28 @@
   text-transform: uppercase;
 }
 
+.pa-shell .sync-run-outcomes__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.pa-shell .sync-run-outcomes__pagination > div {
+  display: flex;
+  gap: 6px;
+}
+
+.pa-shell .sync-run-outcomes__pagination .sync-jobs-button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
 .pa-shell .sync-history-pagination {
   width: 100%;
   display: flex;

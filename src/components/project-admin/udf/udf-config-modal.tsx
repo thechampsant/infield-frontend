@@ -586,8 +586,9 @@ export function UDFConfigModal({
 
         {(scope === "user" || scope === "store") && (
           <div className="pa-info-banner">
-            For attendance shift timing, projects can optionally add STRING UDF fields with
-            field keys <strong>shiftStartTime</strong> and <strong>shiftEndTime</strong>.
+            For attendance Night Shift, manually add a BOOLEAN <strong>nightShift</strong> field
+            and STRING fields <strong>shiftStartTime</strong> and <strong>shiftEndTime</strong>.
+            All three exact keys are required before Night Shift can be enabled.
             {scope === "store" ? " Store" : " User"} create/edit forms will render
             these as HH:mm time inputs.
           </div>
