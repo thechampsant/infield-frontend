@@ -112,6 +112,7 @@ export function ReportBuilderPage({
     valueField: "udfFields",
   });
   const [dateFilter, setDateFilter] = useState<ReportDateFilterConfig>({});
+  const [status, setStatus] = useState<"draft" | "published">("draft");
 
   // Fields fetched from API
   const [primaryFields, setPrimaryFields] = useState<ReportFieldMetadata[]>([]);
@@ -267,6 +268,7 @@ export function ReportBuilderPage({
       },
     );
     setDateFilter(config.dateFilter || {});
+    setStatus(config.status === "published" ? "published" : "draft");
 
     setAutoSaveStatus("saved");
   }, []);
@@ -471,11 +473,14 @@ export function ReportBuilderPage({
     try {
       let activeReportId = reportId;
 
-      // For new unsaved reports: silently save as draft first to get an ID
+      // Preview reads the saved config, so persist the columns currently on screen first.
       if (!activeReportId) {
-        const payload = buildPayload('draft');
+        const payload = buildPayload("draft");
         const saved = await reportConfigService.createConfig(payload);
         activeReportId = saved._id;
+      } else {
+        await reportConfigService.updateConfig(activeReportId, buildPayload(status));
+        setAutoSaveStatus("saved");
       }
 
       if (!activeReportId) return;
@@ -496,7 +501,7 @@ export function ReportBuilderPage({
     } finally {
       setIsPreviewing(false);
     }
-  }, [selectedColumns, reportId, buildPayload]);
+  }, [selectedColumns, reportId, buildPayload, status]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
