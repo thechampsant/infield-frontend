@@ -221,11 +221,21 @@ export function FieldPickerPanel({
     [selectedFields, onSelectionChange],
   );
 
-  // Update header name
   const updateHeaderName = useCallback(
     (index: number, newName: string) => {
       const next = [...selectedFields];
-      // Revert to original display name if empty
+      next[index] = {
+        ...next[index],
+        headerName: newName,
+      };
+      onSelectionChange(next);
+    },
+    [selectedFields, onSelectionChange],
+  );
+
+  const commitHeaderName = useCallback(
+    (index: number, newName: string) => {
+      const next = [...selectedFields];
       next[index] = {
         ...next[index],
         headerName: newName.trim() || next[index].displayName,
@@ -414,14 +424,18 @@ export function FieldPickerPanel({
               <div
                 key={`${field.sourceKey}-${field.fieldKey}`}
                 className="rounded px-2 py-2 hover:bg-gray-50 group"
-                draggable={showDragHandles}
-                onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(index)}
               >
                 <div className="flex items-center gap-2">
                   {showDragHandles && (
-                    <GripVertical className="h-3.5 w-3.5 text-gray-400 cursor-grab" />
+                    <span
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      className="inline-flex cursor-grab"
+                    >
+                      <GripVertical className="h-3.5 w-3.5 text-gray-400" />
+                    </span>
                   )}
                   <span className="text-xs text-gray-400 w-5">{index + 1}</span>
                   {showEditableHeaders ? (
@@ -429,11 +443,8 @@ export function FieldPickerPanel({
                       type="text"
                       value={field.headerName}
                       onChange={(e) => updateHeaderName(index, e.target.value)}
-                      onBlur={(e) => {
-                        if (!e.target.value.trim()) {
-                          updateHeaderName(index, "");
-                        }
-                      }}
+                      onBlur={(e) => commitHeaderName(index, e.target.value)}
+                      onMouseDown={(e) => e.stopPropagation()}
                       maxLength={50}
                       className="flex-1 text-sm border border-transparent hover:border-gray-300 focus:border-blue-500 rounded px-1 py-0.5 focus:outline-none"
                     />
@@ -446,6 +457,7 @@ export function FieldPickerPanel({
                   <button
                     type="button"
                     onClick={() => removeField(index)}
+                    onMouseDown={(e) => e.stopPropagation()}
                     className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-50 rounded"
                   >
                     <X className="h-3.5 w-3.5 text-red-500" />
