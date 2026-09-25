@@ -8,7 +8,7 @@ export interface AuditEntry {
   changedAt: string;
 }
 
-export type UDFType = "alphanumeric" | "numeric" | "dropdown" | "boolean";
+export type UDFType = "alphanumeric" | "numeric" | "dropdown" | "boolean" | "date";
 export type UDFScope = "user" | "store" | "product";
 
 export interface UDFOptionItem {
@@ -30,6 +30,8 @@ export interface UDFField {
   valueKey?: string;
   multiple?: boolean;
   mandatory: boolean;
+  status?: boolean;
+  showInMasterTable?: boolean;
 }
 
 export interface UserStaticField {

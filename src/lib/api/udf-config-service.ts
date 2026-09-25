@@ -147,6 +147,7 @@ export interface UdfSchemaField {
   status?: boolean;
   summaryKey?: boolean;
   includeInProfileView?: boolean;
+  showInMasterTable?: boolean;
   view_type?: "default" | "table";
   visibilityRules?: UdfVisibilityRule[];
 }

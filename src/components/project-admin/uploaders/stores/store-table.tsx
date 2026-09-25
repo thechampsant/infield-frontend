@@ -29,7 +29,15 @@ interface StoreTableProps {
   exportPreparing?: boolean;
 }
 
-const GRID = "1.5fr 130px 150px 80px 100px";
+const CORE_GRID = "1.5fr 130px 150px 80px 100px";
+const MASTER_TABLE_TYPES = new Set<UDFField["type"]>([
+  "alphanumeric",
+  "numeric",
+  "dropdown",
+  "boolean",
+  "date",
+]);
+const STATIC_MASTER_FIELD_KEYS = new Set(["storeCode", "storeName", "status", "actions"]);
 
 export function StoreTable({
   stores,
@@ -55,11 +63,29 @@ export function StoreTable({
   // The list API returns active stores only, so every row on every page is active.
   const total = pagination.totalCount;
   const activeCount = total;
+  const visibleUdfFields = udfFields.filter(
+    (field) =>
+      field.status !== false &&
+      field.showInMasterTable &&
+      !STATIC_MASTER_FIELD_KEYS.has(field.fieldKey) &&
+      MASTER_TABLE_TYPES.has(field.type),
+  );
+  const grid = visibleUdfFields.length > 0
+    ? `${CORE_GRID} ${visibleUdfFields.map(() => "140px").join(" ")}`
+    : CORE_GRID;
 
   const cellTruncate: React.CSSProperties = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  };
+
+  const renderUdfValue = (store: StoreRecord, field: UDFField) => {
+    const value = store.udfs[field.fieldKey];
+    if (value === undefined || value === null || value === "") return "—";
+    if (Array.isArray(value)) return value.join(", ");
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    return String(value);
   };
 
   const rows = filtered.map((s, index) => {
@@ -71,13 +97,13 @@ export function StoreTable({
         key={rowKey}
         style={{
           display: "grid",
-          gridTemplateColumns: GRID,
+          gridTemplateColumns: grid,
           gap: 12,
           padding: "16px 20px",
           borderBottom: "1px solid var(--border)",
           alignItems: "center",
           minHeight: 60,
-          minWidth: 680,
+          minWidth: visibleUdfFields.length > 0 ? 680 + visibleUdfFields.length * 140 : 680,
         }}
       >
         {/* Store Name + Code */}
@@ -142,7 +168,16 @@ export function StoreTable({
           <StatusPill status={status(s)} />
         </div>
 
-        {/* Actions */}
+        {visibleUdfFields.map((field) => (
+          <div
+            key={`${s.backendId}-${field.fieldKey}`}
+            style={{ fontSize: 12, color: "var(--text-mid)", minWidth: 0, ...cellTruncate }}
+          >
+            {renderUdfValue(s, field)}
+          </div>
+        ))}
+
+        {/* Actions always remain the final column. */}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <ActionButtons
             status={status(s)}
@@ -198,6 +233,11 @@ export function StoreTable({
           { key: "code", label: "Code", width: 130 },
           { key: "location", label: "Coordinates", width: 150 },
           { key: "status", label: "Status", width: 80 },
+          ...visibleUdfFields.map((field) => ({
+            key: `udf-${field.fieldKey}`,
+            label: field.name,
+            width: 140,
+          })),
           { key: "actions", label: "Actions", align: "right", width: 100 },
         ]}
         rows={rows}
