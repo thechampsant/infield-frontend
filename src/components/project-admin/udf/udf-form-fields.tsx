@@ -390,7 +390,7 @@ export function UDFFormFields({
                   )
                 ) : (
                   <input
-                    type={f.type === "numeric" ? "tel" : "text"}
+                    type={f.type === "numeric" ? "tel" : f.type === "date" ? "date" : "text"}
                     className={`form-input${hasErr ? " err" : ""}`}
                     value={stringValue(f.fieldKey)}
                     onChange={(e) => set(f.fieldKey, e.target.value)}

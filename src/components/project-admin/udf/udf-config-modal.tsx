@@ -778,6 +778,18 @@ export function UDFConfigModal({
                       Show in profile
                     </label>
                   )}
+                  {scope === "store" && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(field.showInMasterTable)}
+                        onChange={(e) =>
+                          updateField(index, { showInMasterTable: e.target.checked })
+                        }
+                      />
+                      Show in Stores Master table
+                    </label>
+                  )}
                 </div>
 
                 {(field.type === "SELECT" || field.type === "DROPDOWN") && (

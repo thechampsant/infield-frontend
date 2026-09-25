@@ -142,6 +142,7 @@ function normalizeUdfSchemaFields(payload: unknown): UdfSchemaField[] {
         ? (f.config as Record<string, unknown>)
         : {},
       summaryKey: typeof f.summaryKey === "boolean" ? f.summaryKey : false,
+      showInMasterTable: f.showInMasterTable === true,
       visibilityRules: Array.isArray(f.visibilityRules)
         ? (f.visibilityRules as UdfSchemaField["visibilityRules"])
         : undefined,
@@ -162,9 +163,10 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
       if (typeRaw === "DROPDOWN" || typeRaw === "SELECT" || typeRaw === "API_SELECT" || typeRaw === "CASCADING_SELECT") {
         type = "dropdown";
       }
-      if (typeRaw === "DATE" || typeRaw === "IMAGE" || typeRaw === "FILE") {
+      if (typeRaw === "IMAGE" || typeRaw === "FILE") {
         type = null;
       }
+      if (typeRaw === "DATE") type = "date" as UDFField["type"];
       if (typeRaw === "BOOLEAN") type = "boolean";
       if (!type) return null;
 
@@ -183,6 +185,8 @@ function schemaFieldsToRuntimeFields(payload: unknown): UDFField[] {
         type,
         values: options,
         mandatory: Boolean(f.required),
+        status: f.status !== false,
+        showInMasterTable: f.showInMasterTable === true,
       };
 
       if (Array.isArray(options) && options.length > 0) {
@@ -240,6 +244,9 @@ function normalizeStoreSchemaFieldForSave(
     order: field.order ?? index + 1,
     ...(field.status !== undefined ? { status: field.status } : {}),
     ...(field.summaryKey !== undefined ? { summaryKey: field.summaryKey } : {}),
+    ...(field.showInMasterTable !== undefined
+      ? { showInMasterTable: field.showInMasterTable }
+      : {}),
     ...(field.visibilityRules ? { visibilityRules: field.visibilityRules } : {}),
     ...(field.config && typeof field.config === "object" && !Array.isArray(field.config)
       ? { config: field.config }
