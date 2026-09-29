@@ -12,6 +12,7 @@ import { ActionButtons } from "@/components/project-admin/shared/action-buttons"
 import { EditUserModal } from "./edit-user-modal";
 import { AuditHistoryModal } from "@/components/project-admin/shared/audit-history-modal";
 import { projectUsersService, type UserListStatus } from "@/lib/api/project-users-service";
+import { reactivateProjectUser } from "@/lib/project-admin/user-reactivation";
 import type {
   ProjectUser,
   UDFField,
@@ -60,6 +61,7 @@ export function UserTable({
 }: UserTableProps) {
   const [editId, setEditId] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
+  const [reactivationError, setReactivationError] = useState<string | null>(null);
 
   const total = activeCount + inactiveCount;
 
@@ -173,7 +175,8 @@ export function UserTable({
               await projectUsersService.delete(u.backendId || u.id);
             }}
             onReactivate={async () => {
-              await projectUsersService.restore(u.backendId || u.id);
+              setReactivationError(null);
+              return reactivateProjectUser(u.backendId || u.id, setReactivationError);
             }}
           />
         </div>
@@ -213,6 +216,21 @@ export function UserTable({
           onClick={() => onStatusFilterChange("inactive")}
         />
       </div>
+
+      {reactivationError && (
+        <div
+          role="alert"
+          className="pa-info-banner"
+          style={{
+            color: "var(--red)",
+            background: "var(--red-light)",
+            borderColor: "var(--red-mid)",
+            marginBottom: 16,
+          }}
+        >
+          {reactivationError}
+        </div>
+      )}
 
       <DataTable
         columns={[

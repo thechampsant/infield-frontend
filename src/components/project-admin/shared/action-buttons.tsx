@@ -12,7 +12,8 @@ interface ActionButtonsProps {
   onAudit: () => void;
   onRefresh: () => void;
   onDeactivate?: () => Promise<void>;
-  onReactivate?: () => Promise<void>;
+  /** Return false when a failed reactivation has already been handled. */
+  onReactivate?: () => Promise<void | boolean>;
 }
 
 export function ActionButtons({
@@ -30,7 +31,7 @@ export function ActionButtons({
   };
 
   const handleReactivate = async () => {
-    if (onReactivate) await onReactivate();
+    if (onReactivate && (await onReactivate()) === false) return;
     onRefresh();
   };
 
