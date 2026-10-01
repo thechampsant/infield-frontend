@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   MapPin,
   Store,
+  Smile,
   Target,
   TrendingUp,
   Wallet,
@@ -21,6 +22,7 @@ import type { ProjectModuleState } from "@/lib/api/feature-config-service";
 const ICONS: Record<string, LucideIcon> = {
   "store-profile": Store,
   attendance: Clock,
+  "mood-checker": Smile,
   leave: CalendarDays,
   claims: Wallet,
   visits: MapPin,

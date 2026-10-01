@@ -179,6 +179,29 @@ export type {
   UpdateStockTypeInput,
 } from "./stock-config-service";
 export {
+  MOOD_CHECKER_MODULE_KEY,
+  MOOD_MAX_EVERY_N_DAYS,
+  MOOD_MAX_OPTIONS,
+  MOOD_MIN_OPTIONS,
+  MOOD_WEEKDAYS,
+  defaultMoodConfigForm,
+  moodCheckerConfigService,
+  moodConfigToForm,
+  moodFormToInput,
+  normalizeMoodConfiguration,
+  validateMoodConfigForm,
+} from "./mood-checker-config-service";
+export type {
+  MoodConfigForm,
+  MoodConfiguration,
+  MoodEnforcementMode,
+  MoodFrequencyType,
+  MoodOption,
+  MoodTriggerPoint,
+  MoodWeekday,
+  SaveMoodConfigurationInput,
+} from "./mood-checker-config-service";
+export {
   STORE_PROFILE_MODULE_KEY,
   buildStoreProfilePayload,
   normalizeStoreProfileConfiguration,
