@@ -179,6 +179,22 @@ export type {
   UpdateStockTypeInput,
 } from "./stock-config-service";
 export {
+  STORE_PROFILE_MODULE_KEY,
+  buildStoreProfilePayload,
+  normalizeStoreProfileConfiguration,
+  normalizeStoreProfileFieldOption,
+  normalizeStoreProfileFields,
+  storeProfileConfigModuleKey,
+  storeProfileConfigService,
+} from "./store-profile-config-service";
+export type {
+  SaveStoreProfileConfigurationInput,
+  StoreProfileConfiguration,
+  StoreProfileField,
+  StoreProfileFieldOption,
+  StoreProfileFieldSource,
+} from "./store-profile-config-service";
+export {
   TARGET_VS_ACHIEVEMENT_MODULE_KEY,
   normalizeTargetVsAchievementConfiguration,
   targetVsAchievementConfigModuleKey,

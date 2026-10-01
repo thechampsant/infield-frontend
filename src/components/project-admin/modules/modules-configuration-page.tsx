@@ -15,6 +15,10 @@ import {
 } from "@/lib/api/sales-config-service";
 import { stockConfigService } from "@/lib/api/stock-config-service";
 import {
+  storeProfileConfigModuleKey,
+  storeProfileConfigService,
+} from "@/lib/api/store-profile-config-service";
+import {
   targetVsAchievementConfigModuleKey,
   targetVsAchievementService,
 } from "@/lib/api/target-vs-achievement-service";
@@ -43,13 +47,15 @@ export function ModulesConfigurationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [list, rawConfig, salesConfigs, stockConfigs, targetConfigs] = await Promise.all([
-        featureConfigService.getByProject(projectId),
-        featureConfigService.getRawByProject(projectId),
-        salesConfigService.list(projectId).catch(() => []),
-        stockConfigService.list(projectId).catch(() => []),
-        targetVsAchievementService.list(projectId).catch(() => []),
-      ]);
+      const [list, rawConfig, salesConfigs, stockConfigs, targetConfigs, storeProfileConfigs] =
+        await Promise.all([
+          featureConfigService.getByProject(projectId),
+          featureConfigService.getRawByProject(projectId),
+          salesConfigService.list(projectId).catch(() => []),
+          stockConfigService.list(projectId).catch(() => []),
+          targetVsAchievementService.list(projectId).catch(() => []),
+          storeProfileConfigService.list(projectId).catch(() => []),
+        ]);
       const activeKeys = new Set(
         rawConfig.modules
           .filter((module) => module.isActive)
@@ -61,6 +67,9 @@ export function ModulesConfigurationPage() {
       const hasActiveStockConfig = stockConfigs.some((config) => config.isActive);
       const hasActiveTargetConfig = targetConfigs.some((config) =>
         activeKeys.has(targetVsAchievementConfigModuleKey(config.id)),
+      );
+      const hasActiveStoreProfileConfig = storeProfileConfigs.some((config) =>
+        activeKeys.has(storeProfileConfigModuleKey(config.id)),
       );
       const hasLiveFormBuilderModule = rawConfig.modules.some(
         (module) => module.isActive && module.key.startsWith("form_builder_"),
@@ -75,6 +84,9 @@ export function ModulesConfigurationPage() {
           }
           if (module.definition.id === "target-vs-achievement") {
             return { ...module, enabled: hasActiveTargetConfig };
+          }
+          if (module.definition.id === "store-profile") {
+            return { ...module, enabled: hasActiveStoreProfileConfig };
           }
           if (module.definition.id === "form-builder") {
             return { ...module, enabled: hasLiveFormBuilderModule };
@@ -110,6 +122,17 @@ export function ModulesConfigurationPage() {
         type: "success",
         message:
           "Enable or disable individual Sales configurations from Sales Configurations.",
+      });
+      return;
+    }
+
+    if (moduleId === "store-profile") {
+      // Like Sales/Stock/TvA, the real switch is per configuration — the AC ties
+      // the toggle to a designation, which is per-config by definition.
+      setToast({
+        type: "success",
+        message:
+          "Enable or disable individual Store Profile configurations from Store Profile.",
       });
       return;
     }

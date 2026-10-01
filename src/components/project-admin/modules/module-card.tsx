@@ -3,14 +3,15 @@
 import Link from "next/link";
 import {
   Bell,
+  Boxes,
   CalendarDays,
   Clock,
   FolderOpen,
   LayoutGrid,
   MapPin,
+  Store,
   Target,
   TrendingUp,
-  Boxes,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import type { ModuleAccent } from "@/lib/project-admin/module-catalog";
 import type { ProjectModuleState } from "@/lib/api/feature-config-service";
 
 const ICONS: Record<string, LucideIcon> = {
+  "store-profile": Store,
   attendance: Clock,
   leave: CalendarDays,
   claims: Wallet,
