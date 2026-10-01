@@ -41,6 +41,7 @@ export interface AttendanceTypeDto {
   isRandomAttendanceEnabled?: boolean;
   isBypassed?: boolean;
   bypassMessage?: string | null;
+  isApprovalRequired?: boolean;
 }
 
 export interface GeoFencingConfigDto {
@@ -213,6 +214,7 @@ export interface AttendanceTypeForm {
   colour: string;
   imageRecognitionEnabled: boolean;
   randomAttendanceEnabled: boolean;
+  approvalRequired: boolean;
   isBypassed: boolean;
   bypassMessage: string;
 }
@@ -317,13 +319,13 @@ function normalizeTypeColour(value: string | undefined): string {
 
 /** Seven default attendance types per AC4. */
 export const DEFAULT_ATTENDANCE_TYPES: AttendanceTypeForm[] = [
-  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
-  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: true, bypassMessage: "" },
-  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
-  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
-  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
-  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: true, bypassMessage: "" },
-  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, isBypassed: false, bypassMessage: "" },
+  { name: "Present", isCustom: false, active: true, geoTagged: true, geoFenced: true, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, approvalRequired: false, isBypassed: false, bypassMessage: "" },
+  { name: "Holiday", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, approvalRequired: false, isBypassed: true, bypassMessage: "" },
+  { name: "Leave", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, approvalRequired: false, isBypassed: false, bypassMessage: "" },
+  { name: "Training", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: true, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, approvalRequired: false, isBypassed: false, bypassMessage: "" },
+  { name: "Meeting", isCustom: false, active: true, geoTagged: true, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, approvalRequired: false, isBypassed: false, bypassMessage: "" },
+  { name: "Weekly Off", isCustom: false, active: true, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, approvalRequired: false, isBypassed: true, bypassMessage: "" },
+  { name: "Comp Off", isCustom: false, active: false, geoTagged: false, geoFenced: false, photoRequired: false, colour: DEFAULT_TYPE_COLOUR, imageRecognitionEnabled: false, randomAttendanceEnabled: false, approvalRequired: false, isBypassed: false, bypassMessage: "" },
 ];
 
 export const DEFAULT_REGULARIZATION_REASON_OPTIONS: RegularizationReasonOptionForm[] = [
@@ -464,6 +466,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
               rootRandomEnabled &&
               Boolean(t.isActive) &&
               Boolean(t.isRandomAttendanceEnabled),
+            approvalRequired: Boolean(t.isActive) && Boolean(t.isApprovalRequired),
             isBypassed,
             bypassMessage: typeof t.bypassMessage === "string" ? t.bypassMessage : "",
           };
@@ -614,6 +617,9 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
         t.imageRecognitionEnabled,
       isRandomAttendanceEnabled:
         !t.isBypassed && form.randomAttendanceEnabled && t.active && t.randomAttendanceEnabled,
+      // Gated on t.active only — the backend applies the same rule. Deliberately not
+      // gated on isBypassed: bypassed types are the main use case for approval.
+      isApprovalRequired: t.active && t.approvalRequired,
       isBypassed: t.isBypassed,
       bypassMessage:
         t.isBypassed && t.bypassMessage.trim() ? t.bypassMessage.trim() : null,

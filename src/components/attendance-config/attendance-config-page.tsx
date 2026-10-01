@@ -947,6 +947,18 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
       errors.approvalLevels = "All approval levels must have a designation selected.";
     }
 
+    // INF2-2569: attendance-type approval routes through the Regularization approval
+    // flow, so enabling it without a configured chain would strand entries as Pending
+    // with no approver — and a pending day does not count in reports or leave accrual.
+    if (
+      form.types.some((t) => t.active && t.approvalRequired) &&
+      (!form.regApprovalEnabled ||
+        form.approvalLevels.filter((level) => level.designationId.trim()).length === 0)
+    ) {
+      errors.approvalLevels =
+        "Approval is enabled for one or more attendance types. Turn on the Regularization approval flow and add at least one approval level.";
+    }
+
     if (
       form.autoApprovalEnabled &&
       (form.autoApprovalAfterDays < 0 || form.autoApprovalAfterDays > 90)
