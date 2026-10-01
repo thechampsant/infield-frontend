@@ -119,4 +119,14 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     comingSoon: false,
     configPath: "modules/target-vs-achievement",
   },
+  {
+    id: "store-profile",
+    name: "Store Profile",
+    description:
+      "Choose which Store Master fields appear on the in-app store profile, and in what order.",
+    accent: "purple",
+    defaultEnabled: false,
+    comingSoon: false,
+    configPath: "modules/store-profile",
+  },
 ];
