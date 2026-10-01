@@ -286,6 +286,7 @@ export function AttendanceConfigEdit({
                   <th>Geo-tagged</th>
                   <th>Geo-fenced</th>
                   <th>Photo</th>
+                  <th>Approval</th>
                   {form.imageRecognitionEnabled && <th>IR</th>}
                   {form.randomAttendanceEnabled && <th>Random</th>}
                   <th>Bypass</th>
@@ -337,6 +338,13 @@ export function AttendanceConfigEdit({
                         checked={!t.isBypassed && t.photoRequired}
                         disabled={t.isBypassed}
                         onChange={(v) => updateType(form, onChange, i, "photoRequired", v)}
+                      />
+                    </td>
+                    <td>
+                      <Toggle
+                        checked={t.active && t.approvalRequired}
+                        disabled={!t.active}
+                        onChange={(v) => updateType(form, onChange, i, "approvalRequired", v)}
                       />
                     </td>
                     {form.imageRecognitionEnabled && (
@@ -419,6 +427,15 @@ export function AttendanceConfigEdit({
               </tbody>
             </table>
           </div>
+          {form.types.some((t) => t.active && t.approvalRequired) &&
+            (!form.regApprovalEnabled ||
+              form.approvalLevels.filter((l) => l.designationId.trim()).length === 0) && (
+              <div className="flat-mode-note" style={{ color: "#b45309" }}>
+                Approval is enabled for one or more attendance types, but no approval levels
+                are configured. Those entries would stay pending with no approver — set the
+                levels up under Regularization &rarr; Approval flow.
+              </div>
+            )}
           <button className="btn btn-secondary btn-sm" onClick={() => setAddTypeModal(true)}>
             + Add custom type
           </button>
@@ -1033,6 +1050,7 @@ function updateType(
     | "photoRequired"
     | "imageRecognitionEnabled"
     | "randomAttendanceEnabled"
+    | "approvalRequired"
     | "isBypassed"
   >,
   value: boolean,
@@ -1053,6 +1071,7 @@ function updateType(
     if (field === "active" && !value) {
       updated.imageRecognitionEnabled = false;
       updated.randomAttendanceEnabled = false;
+      updated.approvalRequired = false;
     }
     return updated;
   });
@@ -1643,6 +1662,7 @@ function AddAttendanceTypeModal({
               colour: normalizeHexColour(colour),
               imageRecognitionEnabled: false,
               randomAttendanceEnabled: false,
+              approvalRequired: false,
               isBypassed: false,
               bypassMessage: "",
             })
