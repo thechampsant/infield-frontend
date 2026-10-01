@@ -11,6 +11,7 @@ import "@/styles/infield-visit.css";
 import "@/styles/infield-leave.css";
 import "@/styles/infield-sales.css";
 import "@/styles/infield-store-profile.css";
+import "@/styles/infield-mood-checker.css";
 import "@/styles/infield-documents.css";
 import "@/styles/infield-custom-view.css";
 import "@/styles/infield-project-admin.css";

@@ -29,6 +29,16 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     configPath: "modules/attendance",
   },
   {
+    id: "mood-checker",
+    name: "Mood Checker",
+    description:
+      "Quick mood check-ins with emoji options, configurable frequency, and enforcement.",
+    accent: "purple",
+    defaultEnabled: false,
+    comingSoon: false,
+    configPath: "modules/mood-checker",
+  },
+  {
     id: "leave",
     name: "Leave",
     description:

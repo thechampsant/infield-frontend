@@ -29,7 +29,7 @@ interface StoreTableProps {
   exportPreparing?: boolean;
 }
 
-const CORE_GRID = "1.5fr 130px 150px 80px 100px";
+const CORE_GRID = "1.5fr 130px 80px 100px";
 const MASTER_TABLE_TYPES = new Set<UDFField["type"]>([
   "alphanumeric",
   "numeric",
@@ -156,13 +156,6 @@ export function StoreTable({
           </span>
         </div>
 
-        {/* Coordinates */}
-        <div style={{ minWidth: 0, overflow: "hidden" }}>
-          <div style={{ fontSize: 11, color: "var(--text-mid)", ...cellTruncate }}>
-            {s.latitude.toFixed(4)}, {s.longitude.toFixed(4)}
-          </div>
-        </div>
-
         {/* Status */}
         <div>
           <StatusPill status={status(s)} />
@@ -231,7 +224,6 @@ export function StoreTable({
         columns={[
           { key: "store", label: "Store", width: "1.5fr" },
           { key: "code", label: "Code", width: 130 },
-          { key: "location", label: "Coordinates", width: 150 },
           { key: "status", label: "Status", width: 80 },
           ...visibleUdfFields.map((field) => ({
             key: `udf-${field.fieldKey}`,
