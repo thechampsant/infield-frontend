@@ -148,6 +148,11 @@ export interface ImageRecognitionConfigDto {
   isEnabled: boolean;
 }
 
+export interface MissedRandomAttendanceRegularizationDto {
+  isEnabled: boolean;
+  reasonOptions?: RegularizationReasonOptionDto[];
+}
+
 export interface RandomAttendanceConfigDto {
   isEnabled: boolean;
   fromTime: string | null;
@@ -155,6 +160,8 @@ export interface RandomAttendanceConfigDto {
   maxNotificationsPerDay: number;
   responseWindowMinutes: number;
   expiredWindowMessage: string;
+  /** Regularization for missed random checks. Approval, window and auto rules come from `regularization`. */
+  missedRegularization?: MissedRandomAttendanceRegularizationDto;
 }
 
 /** Body shared by create/update (create also carries `projectId`). */
@@ -280,6 +287,8 @@ export interface AttendanceConfigForm {
   randomAttendanceMaxNotificationsPerDay: number;
   randomAttendanceResponseWindowMinutes: number;
   randomAttendanceExpiredWindowMessage: string;
+  randomMissedRegEnabled: boolean;
+  randomMissedRegReasonOptions: RegularizationReasonOptionForm[];
 
   autoCheckoutEnabled: boolean;
   autoCheckoutTime: string;
@@ -339,6 +348,45 @@ export const DEFAULT_REGULARIZATION_REASON_OPTIONS: RegularizationReasonOptionFo
   { key: "other", label: "Other", isActive: true, displayOrder: 99, requiresRemarks: true },
 ];
 
+export const DEFAULT_MISSED_RANDOM_ATTENDANCE_REASON_OPTIONS: RegularizationReasonOptionForm[] = [
+  { key: "app_not_loaded", label: "Was at store, app didn't load", isActive: true, displayOrder: 1, requiresRemarks: false },
+  { key: "network_issue", label: "Network / connectivity issue", isActive: true, displayOrder: 2, requiresRemarks: false },
+  { key: "phone_silent", label: "Phone was on silent", isActive: true, displayOrder: 3, requiresRemarks: false },
+  { key: "client_meeting", label: "Was in meeting with client", isActive: true, displayOrder: 4, requiresRemarks: false },
+  { key: "battery_died", label: "Battery died / phone off", isActive: true, displayOrder: 5, requiresRemarks: false },
+  { key: "gps_error", label: "GPS location error", isActive: true, displayOrder: 6, requiresRemarks: false },
+  { key: "other", label: "Other", isActive: true, displayOrder: 99, requiresRemarks: true },
+];
+
+function mapReasonOptionsToForm(
+  options: RegularizationReasonOptionDto[] | undefined,
+): RegularizationReasonOptionForm[] {
+  return Array.isArray(options)
+    ? options.map((option) => ({
+        key: option.key ?? "",
+        label: option.label ?? "",
+        isActive: option.isActive ?? true,
+        displayOrder: option.displayOrder,
+        requiresRemarks: Boolean(option.requiresRemarks),
+        originalKey: option.key ?? "",
+      }))
+    : [];
+}
+
+function mapReasonOptionsToDto(
+  options: RegularizationReasonOptionForm[],
+): RegularizationReasonOptionDto[] {
+  return options.map((option) => ({
+    key: option.key.trim(),
+    label: option.label.trim(),
+    isActive: option.isActive ?? true,
+    displayOrder: Number.isFinite(Number(option.displayOrder))
+      ? Number(option.displayOrder)
+      : undefined,
+    requiresRemarks: Boolean(option.requiresRemarks),
+  }));
+}
+
 export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   id: undefined,
   name: "",
@@ -388,6 +436,8 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   randomAttendanceMaxNotificationsPerDay: 1,
   randomAttendanceResponseWindowMinutes: 15,
   randomAttendanceExpiredWindowMessage: DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE,
+  randomMissedRegEnabled: false,
+  randomMissedRegReasonOptions: [],
 
   autoCheckoutEnabled: false,
   autoCheckoutTime: "23:00",
@@ -536,6 +586,10 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     randomAttendanceExpiredWindowMessage:
       doc.randomAttendance?.expiredWindowMessage ??
       DEFAULT_CONFIG_FORM.randomAttendanceExpiredWindowMessage,
+    randomMissedRegEnabled: Boolean(doc.randomAttendance?.missedRegularization?.isEnabled),
+    randomMissedRegReasonOptions: mapReasonOptionsToForm(
+      doc.randomAttendance?.missedRegularization?.reasonOptions,
+    ),
 
     autoCheckoutEnabled: Boolean(doc.isAutoCheckOutEnabled),
     autoCheckoutTime: doc.autoCheckOutTime ?? DEFAULT_CONFIG_FORM.autoCheckoutTime,
@@ -555,16 +609,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
       Array.isArray(reg?.approvalHierarchy) && reg.approvalHierarchy.length
         ? reg.approvalHierarchy.map((id) => ({ designationId: id, designationName: '' }))
         : [],
-    regReasonOptions: Array.isArray(reg?.reasonOptions)
-      ? reg.reasonOptions.map((option) => ({
-          key: option.key ?? "",
-          label: option.label ?? "",
-          isActive: option.isActive ?? true,
-          displayOrder: option.displayOrder,
-          requiresRemarks: Boolean(option.requiresRemarks),
-          originalKey: option.key ?? "",
-        }))
-      : [],
+    regReasonOptions: mapReasonOptionsToForm(reg?.reasonOptions),
     autoApprovalEnabled: Boolean(reg?.autoApprovalRules?.isEnabled),
     autoApprovalAfterDays: reg?.autoApprovalRules?.afterDays ?? DEFAULT_CONFIG_FORM.autoApprovalAfterDays,
     autoApprovalAllLevels: Boolean(reg?.autoApprovalRules?.approveAllLevels),
@@ -665,15 +710,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       approvalHierarchy: form.approvalLevels
         .map((a) => a.designationId.trim())
         .filter(Boolean),
-      reasonOptions: form.regReasonOptions.map((option) => ({
-        key: option.key.trim(),
-        label: option.label.trim(),
-        isActive: option.isActive ?? true,
-        displayOrder: Number.isFinite(Number(option.displayOrder))
-          ? Number(option.displayOrder)
-          : undefined,
-        requiresRemarks: Boolean(option.requiresRemarks),
-      })),
+      reasonOptions: mapReasonOptionsToDto(form.regReasonOptions),
       autoApprovalRules: {
         isEnabled: form.autoApprovalEnabled,
         afterDays: form.autoApprovalAfterDays,
@@ -701,6 +738,10 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       maxNotificationsPerDay: form.randomAttendanceMaxNotificationsPerDay,
       responseWindowMinutes: form.randomAttendanceResponseWindowMinutes,
       expiredWindowMessage: form.randomAttendanceExpiredWindowMessage,
+      missedRegularization: {
+        isEnabled: form.randomMissedRegEnabled,
+        reasonOptions: mapReasonOptionsToDto(form.randomMissedRegReasonOptions),
+      },
     },
   };
 }

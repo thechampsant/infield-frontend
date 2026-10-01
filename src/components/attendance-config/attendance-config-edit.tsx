@@ -12,6 +12,7 @@ import type {
   ShiftAssignmentMode,
 } from "@/lib/api/attendance-config";
 import {
+  DEFAULT_MISSED_RANDOM_ATTENDANCE_REASON_OPTIONS,
   DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE,
   DEFAULT_REGULARIZATION_REASON_OPTIONS,
   attendanceConfigService,
@@ -22,6 +23,9 @@ type ChangeFn = <K extends keyof AttendanceConfigForm>(
   key: K,
   value: AttendanceConfigForm[K],
 ) => void;
+
+/** Form lists edited with the shared reason options table. */
+type ReasonListKey = "regReasonOptions" | "randomMissedRegReasonOptions";
 
 interface Props {
   projectId: string;
@@ -532,6 +536,11 @@ export function AttendanceConfigEdit({
                   ? summarizeNames(randomEnabledTypes.map((type) => type.name))
                   : "No active attendance types"}
               </div>
+              <MissedRandomRegularizationSettings
+                form={form}
+                errors={errors}
+                onChange={onChange}
+              />
             </>
           )}
         </div>
@@ -1225,114 +1234,7 @@ function RegularizationSettings({
             </div>
           ) : null}
           {form.regReasonOptions.length > 0 ? (
-            <div className="att-type-table-wrap">
-              <table className="att-type-table reg-reason-table">
-                <thead>
-                  <tr>
-                    <th>Label</th>
-                    <th>Key</th>
-                    <th>Active</th>
-                    <th>Requires remarks</th>
-                    <th>Order</th>
-                    <th>Reorder</th>
-                    <th>Delete</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.regReasonOptions.map((reason, i) => (
-                    <tr key={`${reason.originalKey || reason.key || "reason"}-${i}`}>
-                      <td>
-                        <input
-                          className="form-input reg-reason-label"
-                          value={reason.label}
-                          onChange={(e) =>
-                            updateReasonOption(form, onChange, i, "label", e.target.value)
-                          }
-                          placeholder="Forgot to Punch"
-                        />
-                      </td>
-                      <td>
-                        <div className="reg-reason-key-cell">
-                          <input
-                            className="form-input reg-reason-key"
-                            value={reason.key}
-                            onChange={(e) =>
-                              updateReasonOption(form, onChange, i, "key", e.target.value)
-                            }
-                            placeholder="forgot_to_punch"
-                          />
-                          {reason.originalKey ? (
-                            <span className="reg-reason-caution">
-                              Changing this saved key may affect old records/reporting. Prefer renaming the label.
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td>
-                        <Toggle
-                          checked={reason.isActive ?? true}
-                          onChange={(v) => updateReasonOption(form, onChange, i, "isActive", v)}
-                        />
-                      </td>
-                      <td>
-                        <Toggle
-                          checked={Boolean(reason.requiresRemarks)}
-                          onChange={(v) =>
-                            updateReasonOption(form, onChange, i, "requiresRemarks", v)
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          className="wh-input reg-reason-order"
-                          min={0}
-                          value={reason.displayOrder ?? i + 1}
-                          onChange={(e) =>
-                            updateReasonOption(
-                              form,
-                              onChange,
-                              i,
-                              "displayOrder",
-                              numberValue(e.target.value),
-                            )
-                          }
-                        />
-                      </td>
-                      <td>
-                        <div className="reg-reason-reorder">
-                          <button
-                            className="btn btn-sm btn-secondary"
-                            type="button"
-                            disabled={i === 0}
-                            onClick={() => moveReasonOption(form, onChange, i, -1)}
-                          >
-                            Up
-                          </button>
-                          <button
-                            className="btn btn-sm btn-secondary"
-                            type="button"
-                            disabled={i === form.regReasonOptions.length - 1}
-                            onClick={() => moveReasonOption(form, onChange, i, 1)}
-                          >
-                            Down
-                          </button>
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-sm btn-danger-ghost"
-                          type="button"
-                          onClick={() => removeReasonOption(form, onChange, i)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ReasonOptionsTable form={form} onChange={onChange} listKey="regReasonOptions" />
           ) : (
             <div className="flat-mode-note">
               Add reasons admins want mobile users to choose while raising regularization.
@@ -1549,20 +1451,25 @@ function updateReasonOption<K extends keyof RegularizationReasonOptionForm>(
   idx: number,
   field: K,
   value: RegularizationReasonOptionForm[K],
+  listKey: ReasonListKey = "regReasonOptions",
 ) {
   onChange(
-    "regReasonOptions",
-    form.regReasonOptions.map((reason, i) =>
+    listKey,
+    form[listKey].map((reason, i) =>
       i === idx ? { ...reason, [field]: value } : reason,
     ),
   );
 }
 
-function addReasonOption(form: AttendanceConfigForm, onChange: ChangeFn) {
+function addReasonOption(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  listKey: ReasonListKey = "regReasonOptions",
+) {
   const nextOrder =
-    Math.max(0, ...form.regReasonOptions.map((reason) => Number(reason.displayOrder) || 0)) + 1;
-  onChange("regReasonOptions", [
-    ...form.regReasonOptions,
+    Math.max(0, ...form[listKey].map((reason) => Number(reason.displayOrder) || 0)) + 1;
+  onChange(listKey, [
+    ...form[listKey],
     {
       key: `new_reason_${nextOrder}`,
       label: "New reason",
@@ -1573,10 +1480,15 @@ function addReasonOption(form: AttendanceConfigForm, onChange: ChangeFn) {
   ]);
 }
 
-function removeReasonOption(form: AttendanceConfigForm, onChange: ChangeFn, idx: number) {
+function removeReasonOption(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  idx: number,
+  listKey: ReasonListKey = "regReasonOptions",
+) {
   onChange(
-    "regReasonOptions",
-    form.regReasonOptions.filter((_, i) => i !== idx),
+    listKey,
+    form[listKey].filter((_, i) => i !== idx),
   );
 }
 
@@ -1585,15 +1497,245 @@ function moveReasonOption(
   onChange: ChangeFn,
   idx: number,
   direction: -1 | 1,
+  listKey: ReasonListKey = "regReasonOptions",
 ) {
   const target = idx + direction;
-  if (target < 0 || target >= form.regReasonOptions.length) return;
-  const next = [...form.regReasonOptions];
+  if (target < 0 || target >= form[listKey].length) return;
+  const next = [...form[listKey]];
   const [moved] = next.splice(idx, 1);
   next.splice(target, 0, moved);
   onChange(
-    "regReasonOptions",
+    listKey,
     next.map((reason, i) => ({ ...reason, displayOrder: i + 1 })),
+  );
+}
+
+// ─── Shared reason options table ────────────────────────────────────────────
+
+function ReasonOptionsTable({
+  form,
+  onChange,
+  listKey,
+  labelPlaceholder = "Forgot to Punch",
+  keyPlaceholder = "forgot_to_punch",
+}: {
+  form: AttendanceConfigForm;
+  onChange: ChangeFn;
+  listKey: ReasonListKey;
+  labelPlaceholder?: string;
+  keyPlaceholder?: string;
+}) {
+  const options = form[listKey];
+  return (
+    <div className="att-type-table-wrap">
+      <table className="att-type-table reg-reason-table">
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Key</th>
+            <th>Active</th>
+            <th>Requires remarks</th>
+            <th>Order</th>
+            <th>Reorder</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody>
+          {options.map((reason, i) => (
+            <tr key={`${reason.originalKey || reason.key || "reason"}-${i}`}>
+              <td>
+                <input
+                  className="form-input reg-reason-label"
+                  value={reason.label}
+                  onChange={(e) =>
+                    updateReasonOption(form, onChange, i, "label", e.target.value, listKey)
+                  }
+                  placeholder={labelPlaceholder}
+                />
+              </td>
+              <td>
+                <div className="reg-reason-key-cell">
+                  <input
+                    className="form-input reg-reason-key"
+                    value={reason.key}
+                    onChange={(e) =>
+                      updateReasonOption(form, onChange, i, "key", e.target.value, listKey)
+                    }
+                    placeholder={keyPlaceholder}
+                  />
+                  {reason.originalKey ? (
+                    <span className="reg-reason-caution">
+                      Changing this saved key may affect old records/reporting. Prefer renaming the label.
+                    </span>
+                  ) : null}
+                </div>
+              </td>
+              <td>
+                <Toggle
+                  checked={reason.isActive ?? true}
+                  onChange={(v) => updateReasonOption(form, onChange, i, "isActive", v, listKey)}
+                />
+              </td>
+              <td>
+                <Toggle
+                  checked={Boolean(reason.requiresRemarks)}
+                  onChange={(v) =>
+                    updateReasonOption(form, onChange, i, "requiresRemarks", v, listKey)
+                  }
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  className="wh-input reg-reason-order"
+                  min={0}
+                  value={reason.displayOrder ?? i + 1}
+                  onChange={(e) =>
+                    updateReasonOption(
+                      form,
+                      onChange,
+                      i,
+                      "displayOrder",
+                      numberValue(e.target.value),
+                      listKey,
+                    )
+                  }
+                />
+              </td>
+              <td>
+                <div className="reg-reason-reorder">
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    type="button"
+                    disabled={i === 0}
+                    onClick={() => moveReasonOption(form, onChange, i, -1, listKey)}
+                  >
+                    Up
+                  </button>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    type="button"
+                    disabled={i === options.length - 1}
+                    onClick={() => moveReasonOption(form, onChange, i, 1, listKey)}
+                  >
+                    Down
+                  </button>
+                </div>
+              </td>
+              <td>
+                <button
+                  className="btn btn-sm btn-danger-ghost"
+                  type="button"
+                  onClick={() => removeReasonOption(form, onChange, i, listKey)}
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Missed random attendance regularization ────────────────────────────────
+
+function MissedRandomRegularizationSettings({
+  form,
+  errors,
+  onChange,
+}: {
+  form: AttendanceConfigForm;
+  errors: Record<string, string>;
+  onChange: ChangeFn;
+}) {
+  const options = form.randomMissedRegReasonOptions;
+  const approvalReady =
+    form.regularizationEnabled && form.regApprovalEnabled && form.approvalLevels.length > 0;
+  return (
+    <>
+      <div className="section-divider">Missed Random Attendance — Regularization</div>
+      <SettingRow
+        label="Allow Regularization for Missed Random Attendance"
+        hint="Let users raise requests to justify missed random attendance checks."
+        checked={form.randomMissedRegEnabled}
+        onChange={(v) => setRandomMissedRegEnabled(form, onChange, v)}
+      />
+      <FieldError message={errors.randomMissedRegReasonOptions} />
+      {form.randomMissedRegEnabled ? (
+        <>
+          <div className="flat-mode-note">
+            The <strong>approval flow</strong>, <strong>time window</strong> and{" "}
+            <strong>auto-approve / auto-reject</strong> rules come from the Regularization section.
+            Max requests doesn&apos;t apply to these requests. Only the reasons are set here.
+          </div>
+          {!approvalReady ? (
+            <div className="flat-mode-note" style={{ color: "var(--amber-700, #b45309)" }}>
+              Users can&apos;t raise these requests until Regularization and its approval flow
+              (with at least one level) are turned on.
+            </div>
+          ) : null}
+          <div className="section-divider">Reason options</div>
+          {options.length > 0 ? (
+            <ReasonOptionsTable
+              form={form}
+              onChange={onChange}
+              listKey="randomMissedRegReasonOptions"
+              labelPlaceholder="Network / connectivity issue"
+              keyPlaceholder="network_issue"
+            />
+          ) : (
+            <div className="flat-mode-note">
+              Add the reasons users can pick when they regularize a missed random check.
+            </div>
+          )}
+          <div className="reg-reason-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={() => addReasonOption(form, onChange, "randomMissedRegReasonOptions")}
+            >
+              + Add reason
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={() => resetMissedRandomReasons(form, onChange)}
+            >
+              Use defaults
+            </button>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function setRandomMissedRegEnabled(
+  form: AttendanceConfigForm,
+  onChange: ChangeFn,
+  enabled: boolean,
+) {
+  onChange("randomMissedRegEnabled", enabled);
+  if (enabled && form.randomMissedRegReasonOptions.length === 0) {
+    onChange(
+      "randomMissedRegReasonOptions",
+      DEFAULT_MISSED_RANDOM_ATTENDANCE_REASON_OPTIONS.map((option) => ({ ...option })),
+    );
+  }
+}
+
+function resetMissedRandomReasons(form: AttendanceConfigForm, onChange: ChangeFn) {
+  if (
+    form.randomMissedRegReasonOptions.length > 0 &&
+    !window.confirm("Replace the current reasons with the default list?")
+  ) {
+    return;
+  }
+  onChange(
+    "randomMissedRegReasonOptions",
+    DEFAULT_MISSED_RANDOM_ATTENDANCE_REASON_OPTIONS.map((option) => ({ ...option })),
   );
 }
 
