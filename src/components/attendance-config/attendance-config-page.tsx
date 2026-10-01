@@ -973,33 +973,9 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
       errors.autoRejectAfterDays = "Auto reject days must be between 0 and 90.";
     }
 
-    const seenReasonKeys = new Set<string>();
-    const duplicateReasonKeys = new Set<string>();
-    for (const reason of form.regReasonOptions) {
-      const key = reason.key.trim();
-      const label = reason.label.trim();
-      if (!label) {
-        errors.regReasonOptions = "Regularization reason labels are required.";
-        break;
-      }
-      if (!key) {
-        errors.regReasonOptions = "Regularization reason keys are required.";
-        break;
-      }
-      if (!/^[a-z0-9_]+$/.test(key)) {
-        errors.regReasonOptions =
-          "Regularization reason keys can use only lowercase letters, numbers, and underscores.";
-        break;
-      }
-      if (seenReasonKeys.has(key)) {
-        duplicateReasonKeys.add(key);
-      }
-      seenReasonKeys.add(key);
-    }
-    if (duplicateReasonKeys.size > 0) {
-      errors.regReasonOptions = `Duplicate regularization reason key: ${Array.from(
-        duplicateReasonKeys,
-      ).join(", ")}`;
+    const regReasonError = validateReasonOptions(form.regReasonOptions, "Regularization");
+    if (regReasonError) {
+      errors.regReasonOptions = regReasonError;
     }
   }
 
@@ -1028,9 +1004,56 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
       errors.randomAttendanceResponseWindowMinutes =
         "Response window must be between 5 and 60 minutes.";
     }
+
+    const missedReasonError = validateReasonOptions(
+      form.randomMissedRegReasonOptions,
+      "Missed random check",
+    );
+    if (missedReasonError) {
+      errors.randomMissedRegReasonOptions = missedReasonError;
+    } else if (
+      form.randomMissedRegEnabled &&
+      !form.randomMissedRegReasonOptions.some((reason) => reason.isActive ?? true)
+    ) {
+      errors.randomMissedRegReasonOptions =
+        "Add at least one active reason to allow regularization for missed random checks.";
+    }
   }
 
   return errors;
+}
+
+function validateReasonOptions(
+  options: AttendanceConfigForm["regReasonOptions"],
+  subject: string,
+): string | null {
+  let error: string | null = null;
+  const seenReasonKeys = new Set<string>();
+  const duplicateReasonKeys = new Set<string>();
+  for (const reason of options) {
+    const key = reason.key.trim();
+    const label = reason.label.trim();
+    if (!label) {
+      error = `${subject} reason labels are required.`;
+      break;
+    }
+    if (!key) {
+      error = `${subject} reason keys are required.`;
+      break;
+    }
+    if (!/^[a-z0-9_]+$/.test(key)) {
+      error = `${subject} reason keys can use only lowercase letters, numbers, and underscores.`;
+      break;
+    }
+    if (seenReasonKeys.has(key)) {
+      duplicateReasonKeys.add(key);
+    }
+    seenReasonKeys.add(key);
+  }
+  if (duplicateReasonKeys.size > 0) {
+    error = `Duplicate ${subject.toLowerCase()} reason key: ${Array.from(duplicateReasonKeys).join(", ")}`;
+  }
+  return error;
 }
 
 function parseTimeToMinutes(value: string): number | null {
