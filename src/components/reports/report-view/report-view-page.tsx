@@ -29,6 +29,12 @@ import {
   isExportJobInProgress,
   type ReportExportJob,
 } from "@/lib/reports/report-export-job";
+import {
+  formatMultiValueText,
+  isSameFilterValue,
+  parseMultiValueText,
+  resolveReportFilterLabel,
+} from "@/lib/reports/report-filter-helpers";
 import { ReportDataTable } from "./report-data-table";
 import { ReportExportBanners } from "./report-export-banners";
 import {
@@ -395,6 +401,7 @@ export function ReportViewPage({
               <FilterControl
                 key={filter.fieldKey}
                 filter={filter}
+                label={resolveReportFilterLabel(filter, config.selectedColumns)}
                 value={filterValues[filter.fieldKey]}
                 onChange={(val) => handleFilterChange(filter.fieldKey, val)}
               />
@@ -465,10 +472,12 @@ export function ReportViewPage({
 
 function FilterControl({
   filter,
+  label,
   value,
   onChange,
 }: {
   filter: ReportFilter;
+  label: string;
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
@@ -477,7 +486,7 @@ function FilterControl({
       return (
         <div>
           <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
-            {filter.fieldKey}
+            {label}
           </label>
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -504,7 +513,7 @@ function FilterControl({
       return (
         <div>
           <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
-            {filter.fieldKey}
+            {label}
           </label>
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -539,7 +548,7 @@ function FilterControl({
       return (
         <div>
           <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
-            {filter.fieldKey}
+            {label}
           </label>
           <select
             value={value === undefined || value === null ? "all" : String(value)}
@@ -560,7 +569,7 @@ function FilterControl({
       return (
         <div>
           <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
-            {filter.fieldKey}
+            {label}
           </label>
           <input
             type="text"
@@ -574,26 +583,44 @@ function FilterControl({
 
     case "dropdown":
     default:
-      return (
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-[#3a5272]">
-            {filter.fieldKey}
-          </label>
-          <input
-            type="text"
-            placeholder="Enter values (comma-separated)"
-            value={Array.isArray(value) ? (value as string[]).join(", ") : (value as string) || ""}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (!val.trim()) {
-                onChange(undefined);
-              } else {
-                onChange(val.split(",").map((v) => v.trim()).filter(Boolean));
-              }
-            }}
-            className="w-full rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
-          />
-        </div>
-      );
+      return <MultiValueFilterInput label={label} value={value} onChange={onChange} />;
   }
+}
+
+// Keeps the text exactly as typed; rebuilding it from the parsed values would drop a
+// trailing space or comma on every keystroke ("Modern Retail" → "ModernRetail").
+function MultiValueFilterInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const [text, setText] = useState(() => formatMultiValueText(value));
+  const [syncedValue, setSyncedValue] = useState(value);
+
+  // Pick up a value changed from outside (e.g. a reset) without disturbing what is being typed.
+  if (value !== syncedValue) {
+    setSyncedValue(value);
+    if (!isSameFilterValue(text, value)) setText(formatMultiValueText(value));
+  }
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-semibold text-[#3a5272]">{label}</label>
+      <input
+        type="text"
+        placeholder="Type values, separate with commas"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          const values = parseMultiValueText(e.target.value);
+          onChange(values.length ? values : undefined);
+        }}
+        className="w-full rounded-md border border-[#c8d8eb] px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ddeeff]"
+      />
+    </div>
+  );
 }
