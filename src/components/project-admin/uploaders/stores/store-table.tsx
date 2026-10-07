@@ -4,6 +4,9 @@ import { useState } from "react";
 import { Store, CheckCircle, XCircle } from "lucide-react";
 import {
   DataTable,
+  gridMinWidthFor,
+  gridTemplateFor,
+  type Column,
   type ServerPagination,
 } from "@/components/project-admin/shared/data-table";
 import type { MasterTableControls } from "@/components/project-admin/shared/master-table/types";
@@ -37,8 +40,10 @@ interface StoreTableProps {
   exportPreparing?: boolean;
 }
 
-const CORE_GRID = "1.5fr 130px 100px 100px";
-const UDF_COLUMN_WIDTH = 140;
+/** UDF columns share spare width but never shrink below 120px. */
+const UDF_COLUMN_WIDTH = "minmax(120px, 1fr)";
+/** Three 32px action buttons plus gaps. */
+const ACTIONS_COLUMN_WIDTH = 112;
 const MASTER_TABLE_TYPES = new Set<UDFField["type"]>([
   "alphanumeric",
   "numeric",
@@ -84,10 +89,23 @@ export function StoreTable({
       !STATIC_MASTER_FIELD_KEYS.has(field.fieldKey) &&
       MASTER_TABLE_TYPES.has(field.type),
   );
-  const grid = visibleUdfFields.length > 0
-    ? `${CORE_GRID} ${visibleUdfFields.map(() => `${UDF_COLUMN_WIDTH}px`).join(" ")}`
-    : CORE_GRID;
-  const minWidth = 700 + visibleUdfFields.length * UDF_COLUMN_WIDTH;
+  // One column list drives both the header and every row, in the same order
+  // (Store, Code, Status, UDFs…, Actions), so their grids always match.
+  const columns: Column[] = [
+    { key: "storeName", label: "Store", width: "minmax(200px, 1.5fr)", sortable: true, filter: "text" },
+    { key: "storeCode", label: "Code", width: 130, sortable: true, filter: "text" },
+    { key: "status", label: "Status", width: 100, sortable: true, filter: "status" },
+    ...visibleUdfFields.map((field) => ({
+      key: field.fieldKey,
+      label: field.name,
+      width: UDF_COLUMN_WIDTH,
+      sortable: true,
+      filter: field.type === "alphanumeric" ? ("text" as const) : ("list" as const),
+    })),
+    { key: "actions", label: "Actions", align: "right", width: ACTIONS_COLUMN_WIDTH },
+  ];
+  const grid = gridTemplateFor(columns);
+  const minWidth = gridMinWidthFor(columns);
 
   const masterQuery: MasterTableControls = {
     sort: query.sort,
@@ -264,19 +282,7 @@ export function StoreTable({
       </div>
 
       <DataTable
-        columns={[
-          { key: "storeName", label: "Store", width: "1.5fr", sortable: true, filter: "text" },
-          { key: "storeCode", label: "Code", width: 130, sortable: true, filter: "text" },
-          { key: "status", label: "Status", width: 100, sortable: true, filter: "status" },
-          ...visibleUdfFields.map((field) => ({
-            key: field.fieldKey,
-            label: field.name,
-            width: UDF_COLUMN_WIDTH,
-            sortable: true,
-            filter: field.type === "alphanumeric" ? ("text" as const) : ("list" as const),
-          })),
-          { key: "actions", label: "Actions", align: "right", width: 100 },
-        ]}
+        columns={columns}
         rows={rows}
         total={total}
         filtered={stores.length}

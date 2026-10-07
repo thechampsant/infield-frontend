@@ -6,7 +6,7 @@ import { ColumnHeader } from "./master-table/column-header";
 import { InlineColumnFilter } from "./master-table/inline-column-filter";
 import type { MasterColumnFilterType, MasterTableControls } from "./master-table/types";
 
-interface Column {
+export interface Column {
   key: string;
   label: string;
   width?: string | number;
@@ -15,6 +15,38 @@ interface Column {
   sortable?: boolean;
   /** Only used when `masterQuery` is passed. */
   filter?: MasterColumnFilterType;
+}
+
+const GRID_GAP = 12;
+const GRID_PADDING_X = 20;
+
+/**
+ * Grid template for a column list. Screens that render their own rows should
+ * build the row grid with this from the same `columns` they pass to the table,
+ * so header and row cells can't drift apart.
+ */
+export function gridTemplateFor(columns: Column[]): string {
+  return columns
+    .map((c) => (typeof c.width === "number" ? `${c.width}px` : (c.width ?? "1fr")))
+    .join(" ");
+}
+
+/** Minimum pixels of one track: `140`, `"140px"`, `"minmax(120px, 1fr)"`, else `flexMin`. */
+function trackMinPx(width: Column["width"], flexMin: number): number {
+  if (typeof width === "number") return width;
+  const match = width?.match(/^(?:minmax\(\s*)?(\d+(?:\.\d+)?)px/);
+  return match ? Number(match[1]) : flexMin;
+}
+
+/**
+ * Smallest width at which every column keeps its minimum size: fixed widths,
+ * `minmax()` minimums, gaps and side padding, plus `flexMin` for each bare
+ * `fr` column. Pass the same value as the rows' `minWidth` and the table's
+ * `minWidth`; below it the table scrolls sideways.
+ */
+export function gridMinWidthFor(columns: Column[], flexMin = 200): number {
+  const tracks = columns.reduce((sum, c) => sum + trackMinPx(c.width, flexMin), 0);
+  return tracks + GRID_GAP * Math.max(columns.length - 1, 0) + GRID_PADDING_X * 2;
 }
 
 /**
@@ -109,11 +141,7 @@ export function DataTable({
 
   const displayedRows = scrollPageSize ? rows.slice(0, visibleCount) : rows;
   const hasMore = scrollPageSize ? visibleCount < rows.length : false;
-  const gridCols = columns
-    .map((c) =>
-      typeof c.width === "number" ? `${c.width}px` : (c.width ?? "1fr"),
-    )
-    .join(" ");
+  const gridCols = gridTemplateFor(columns);
 
   const rangeStart =
     serverPagination && serverPagination.totalCount > 0

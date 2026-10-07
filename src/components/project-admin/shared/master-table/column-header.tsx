@@ -22,6 +22,13 @@ const LABEL_STYLE: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+/** Long labels shorten with "…" so icons stay inside the column. */
+const LABEL_TEXT_STYLE: React.CSSProperties = {
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
 /**
  * Header cell with a sort toggle (ASC → DESC → none) and, for text and list
  * columns, a caret that opens the column's filter popover.
@@ -69,6 +76,8 @@ export function ColumnHeader({ columnKey, label, align, sortable, filter, contro
             display: "inline-flex",
             alignItems: "center",
             gap: 4,
+            minWidth: 0,
+            maxWidth: "100%",
             border: "none",
             background: "transparent",
             padding: 0,
@@ -76,11 +85,17 @@ export function ColumnHeader({ columnKey, label, align, sortable, filter, contro
             color: sortOrder ? "var(--blue)" : "var(--text-muted)",
           }}
         >
-          {label}
-          <SortIcon size={11} strokeWidth={2.5} style={{ opacity: sortOrder ? 1 : 0.5 }} />
+          <span style={LABEL_TEXT_STYLE}>{label}</span>
+          <SortIcon
+            size={11}
+            strokeWidth={2.5}
+            style={{ opacity: sortOrder ? 1 : 0.5, flexShrink: 0 }}
+          />
         </button>
       ) : (
-        <span style={{ ...LABEL_STYLE, color: "var(--text-muted)" }}>{label}</span>
+        <span title={label} style={{ ...LABEL_STYLE, ...LABEL_TEXT_STYLE, color: "var(--text-muted)" }}>
+          {label}
+        </span>
       )}
 
       {hasPopover && (
@@ -94,6 +109,7 @@ export function ColumnHeader({ columnKey, label, align, sortable, filter, contro
           title={`Filter ${label}`}
           style={{
             marginLeft: "auto",
+            flexShrink: 0,
             width: 22,
             height: 22,
             borderRadius: 6,
