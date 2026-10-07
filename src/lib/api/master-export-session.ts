@@ -10,6 +10,7 @@ import {
   shouldAutoDownload,
   triggerSignedUrlDownload,
 } from "@/lib/reports/report-export-job";
+import type { MasterExportQuery } from "@/lib/master-list-query";
 
 export interface MasterExportSnapshot {
   job: MasterExportJob | null;
@@ -209,6 +210,7 @@ export async function startMasterExport(
   projectId: string,
   kind: MasterExportKind,
   userStatus?: UserExportStatus,
+  query?: MasterExportQuery,
 ): Promise<void> {
   const key = masterExportSessionKey(projectId, kind);
   const session = getOrCreate(key);
@@ -217,7 +219,9 @@ export async function startMasterExport(
   notify(session);
 
   try {
-    const queued = await masterExportService.enqueueJob(projectId, kind, userStatus);
+    const queued = query
+      ? await masterExportService.enqueueJob(projectId, kind, userStatus, query)
+      : await masterExportService.enqueueJob(projectId, kind, userStatus);
     session.createdThisSession = true;
     session.alreadyDownloaded = false;
     session.job = {

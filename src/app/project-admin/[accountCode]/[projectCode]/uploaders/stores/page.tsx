@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import { DEFAULT_LIST_PAGE_SIZE, type ListMeta } from "@/lib/api/pagination";
+import type { MasterExportQuery } from "@/lib/master-list-query";
 import { storeService, type StoreRecord, type BulkStoreResult } from "@/lib/api/store-service";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { MasterExportBanners } from "@/components/project-admin/uploaders/master-export-banners";
@@ -12,11 +13,10 @@ import {
 } from "@/components/project-admin/uploaders/upload-audit-history";
 import { StoreTable } from "@/components/project-admin/uploaders/stores/store-table";
 import { useMasterExport } from "@/hooks/use-master-export";
+import { useMasterListQuery } from "@/hooks/use-master-list-query";
 import { AddStoreModal } from "@/components/project-admin/uploaders/stores/add-store-modal";
 import { UDFConfigModal } from "@/components/project-admin/udf/udf-config-modal";
 import type { UDFField } from "@/types/project-admin";
-
-const SEARCH_DEBOUNCE_MS = 300;
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -30,6 +30,11 @@ function downloadBlob(blob: Blob, filename: string) {
 export default function StoresMasterPage() {
   const { projectId } = useProjectContext();
   const masterExport = useMasterExport(projectId, "stores");
+  // Stores Master opens on all stores; the API's own default stays active-only.
+  const query = useMasterListQuery({ defaultStatus: "all" });
+  const { page, pageSize, setPage, listParams } = query;
+  /** Last export started from this page, so the banner's Retry repeats it. */
+  const lastExportQuery = useRef<MasterExportQuery | undefined>(undefined);
 
   const [addOpen, setAddOpen] = useState(false);
   const [udfOpen, setUdfOpen] = useState(false);
@@ -40,10 +45,6 @@ export default function StoresMasterPage() {
   const [uploading, setUploading] = useState(false);
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [uploadResult, setUploadResult] = useState<BulkStoreResult | null>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_LIST_PAGE_SIZE);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [meta, setMeta] = useState<ListMeta>({
     page: 1,
     pageSize: DEFAULT_LIST_PAGE_SIZE,
@@ -58,8 +59,9 @@ export default function StoresMasterPage() {
     setLoading(true);
     setError(null);
     try {
+      const { search, ...options } = listParams;
       const [storeList, fields] = await Promise.all([
-        storeService.listByProject(projectId, page, pageSize, debouncedSearch),
+        storeService.listByProject(projectId, page, pageSize, search, options),
         storeService.getFormFields(projectId),
       ]);
       setStores(storeList.data);
@@ -75,20 +77,22 @@ export default function StoresMasterPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, page, pageSize, debouncedSearch]);
+  }, [projectId, page, pageSize, listParams, setPage]);
 
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const next = search.trim();
-      setDebouncedSearch((prev) => {
-        if (prev !== next) {
-          setPage(1);
-        }
-        return next;
-      });
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(handle);
-  }, [search]);
+  // Column values for the filter popover: same status, search and filters,
+  // but not the sort, so changing the sort doesn't reload an open popover.
+  const facetStatus = listParams.status;
+  const facetSearch = listParams.search;
+  const facetFilters = listParams.filters;
+  const facetParams = useMemo(
+    () => ({ status: facetStatus, search: facetSearch, filters: facetFilters }),
+    [facetStatus, facetSearch, facetFilters],
+  );
+  const loadFilterValues = useCallback(
+    (column: string, valueSearch: string) =>
+      storeService.getFilterValues(projectId, column, { ...facetParams, valueSearch }),
+    [projectId, facetParams],
+  );
 
   useEffect(() => {
     load();
@@ -104,8 +108,20 @@ export default function StoresMasterPage() {
     }
   };
 
+  /** Page-header Export: the full stores export, unchanged. */
   const handleExport = () => {
+    lastExportQuery.current = undefined;
     void masterExport.startExport();
+  };
+
+  /** Table Export: only the rows the table shows, in its sort order. */
+  const handleFilteredExport = () => {
+    lastExportQuery.current = query.exportQuery;
+    void masterExport.startExport(undefined, query.exportQuery);
+  };
+
+  const retryExport = () => {
+    void masterExport.startExport(undefined, lastExportQuery.current);
   };
 
   const handleBulkUpload = async (file: File) => {
@@ -217,7 +233,7 @@ export default function StoresMasterPage() {
         job={masterExport.job}
         error={masterExport.error}
         onDownload={masterExport.downloadReady}
-        onRetry={handleExport}
+        onRetry={retryExport}
       />
 
       {/* ── Error Banner ── */}
@@ -292,22 +308,20 @@ export default function StoresMasterPage() {
         udfFields={udfFields}
         loading={loading}
         projectId={projectId}
-        searchValue={search}
-        onSearchChange={setSearch}
+        meta={meta}
+        query={query}
+        loadFilterValues={loadFilterValues}
         pagination={{
           page: meta.page,
           pageSize,
           totalCount: meta.totalCount,
           totalPages: meta.totalPages,
           onPageChange: setPage,
-          onPageSizeChange: (size) => {
-            setPageSize(size);
-            setPage(1);
-          },
+          onPageSizeChange: query.setPageSize,
         }}
         onOpenUDFConfig={() => setUdfOpen(true)}
         onRefresh={load}
-        onExport={handleExport}
+        onExportFiltered={handleFilteredExport}
         exportPreparing={masterExport.preparing}
       />
 
