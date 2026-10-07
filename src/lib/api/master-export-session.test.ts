@@ -113,4 +113,13 @@ describe("master export session", () => {
 
     expect(enqueueJob).toHaveBeenCalledWith(projectId, kind, "inactive");
   });
+
+  it("passes a filtered list query through to enqueueJob", async () => {
+    enqueueJob.mockResolvedValue({ jobId: "job-2", status: "queued" });
+    const query = { status: "all" as const, filters: { city: { in: ["Goa"] } } };
+
+    await startMasterExport(projectId, "stores", undefined, query);
+
+    expect(enqueueJob).toHaveBeenCalledWith(projectId, "stores", undefined, query);
+  });
 });

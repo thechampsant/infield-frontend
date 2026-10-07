@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { MasterExportKind, UserExportStatus } from "@/lib/api/master-export-service";
+import type { MasterExportQuery } from "@/lib/master-list-query";
 import {
   downloadMasterExport,
   getMasterExportSnapshot,
@@ -29,10 +30,13 @@ export function useMasterExport(projectId: string | undefined, kind: MasterExpor
     });
   }, [projectId, kind]);
 
-  const startExport = useCallback(async (userStatus?: UserExportStatus) => {
-    if (!projectId) return;
-    await startMasterExport(projectId, kind, userStatus);
-  }, [projectId, kind]);
+  const startExport = useCallback(
+    async (userStatus?: UserExportStatus, query?: MasterExportQuery) => {
+      if (!projectId) return;
+      await startMasterExport(projectId, kind, userStatus, query);
+    },
+    [projectId, kind],
+  );
 
   const downloadReady = useCallback(() => {
     if (!projectId) return;

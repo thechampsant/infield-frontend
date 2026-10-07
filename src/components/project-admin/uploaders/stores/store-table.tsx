@@ -6,12 +6,16 @@ import {
   DataTable,
   type ServerPagination,
 } from "@/components/project-admin/shared/data-table";
+import type { MasterTableControls } from "@/components/project-admin/shared/master-table/types";
 import { StatCard } from "@/components/project-admin/shared/stat-card";
 import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
 import { EditStoreModal } from "./edit-store-modal";
 import { AuditHistoryModal } from "@/components/project-admin/shared/audit-history-modal";
 import { storeService, type StoreRecord } from "@/lib/api/store-service";
+import type { ListMeta } from "@/lib/api/pagination";
+import type { MasterFilterValuesResult } from "@/lib/master-list-query";
+import type { MasterListQueryControls } from "@/hooks/use-master-list-query";
 import type { UDFField } from "@/types/project-admin";
 
 interface StoreTableProps {
@@ -21,15 +25,20 @@ interface StoreTableProps {
   projectId: string;
   /** `stores` holds only the current page; counts come from here. */
   pagination: ServerPagination;
-  searchValue: string;
-  onSearchChange: (value: string) => void;
+  /** List meta with filter-aware and project-wide counts. */
+  meta: ListMeta;
+  /** Search, status, column filters and sort. */
+  query: MasterListQueryControls;
+  loadFilterValues: (column: string, valueSearch: string) => Promise<MasterFilterValuesResult>;
   onOpenUDFConfig: () => void;
   onRefresh: () => void;
-  onExport: () => void;
+  /** Exports the rows the table currently shows (filters, status, sort). */
+  onExportFiltered: () => void;
   exportPreparing?: boolean;
 }
 
-const CORE_GRID = "1.5fr 130px 80px 100px";
+const CORE_GRID = "1.5fr 130px 100px 100px";
+const UDF_COLUMN_WIDTH = 140;
 const MASTER_TABLE_TYPES = new Set<UDFField["type"]>([
   "alphanumeric",
   "numeric",
@@ -45,24 +54,29 @@ export function StoreTable({
   loading,
   projectId,
   pagination,
-  searchValue,
-  onSearchChange,
+  meta,
+  query,
+  loadFilterValues,
   onOpenUDFConfig,
   onRefresh,
-  onExport,
+  onExportFiltered,
   exportPreparing,
 }: StoreTableProps) {
-  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [editId, setEditId] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
 
   const status = (s: StoreRecord) => (s.isActive ? "active" : "inactive") as "active" | "inactive";
 
-  const filtered = stores.filter((s) => filter === "all" || status(s) === filter);
+  // Cards count search + column filters across every page, whatever the status.
+  const activeCount = meta.activeCount ?? pagination.totalCount;
+  const inactiveCount = meta.inactiveCount ?? 0;
+  const total = activeCount + inactiveCount;
+  const projectActive = meta.projectActiveCount ?? activeCount;
+  const projectInactive = meta.projectInactiveCount ?? inactiveCount;
+  const projectTotal = meta.projectTotalCount ?? projectActive + projectInactive;
+  const unfilteredTotal =
+    query.status === "active" ? projectActive : query.status === "inactive" ? projectInactive : projectTotal;
 
-  // The list API returns active stores only, so every row on every page is active.
-  const total = pagination.totalCount;
-  const activeCount = total;
   const visibleUdfFields = udfFields.filter(
     (field) =>
       field.status !== false &&
@@ -71,8 +85,25 @@ export function StoreTable({
       MASTER_TABLE_TYPES.has(field.type),
   );
   const grid = visibleUdfFields.length > 0
-    ? `${CORE_GRID} ${visibleUdfFields.map(() => "140px").join(" ")}`
+    ? `${CORE_GRID} ${visibleUdfFields.map(() => `${UDF_COLUMN_WIDTH}px`).join(" ")}`
     : CORE_GRID;
+  const minWidth = 700 + visibleUdfFields.length * UDF_COLUMN_WIDTH;
+
+  const masterQuery: MasterTableControls = {
+    sort: query.sort,
+    onToggleSort: query.toggleSort,
+    onSetSort: query.setSort,
+    filters: query.filters,
+    onFilterChange: query.setColumnFilter,
+    loadFilterValues,
+    status: query.status,
+    defaultStatus: query.defaultStatus,
+    onStatusChange: query.setStatus,
+    filtersActive: query.filtersActive,
+    anyActive: query.anyActive,
+    onClearAll: query.clearAll,
+    unfilteredTotal,
+  };
 
   const cellTruncate: React.CSSProperties = {
     overflow: "hidden",
@@ -88,7 +119,7 @@ export function StoreTable({
     return String(value);
   };
 
-  const rows = filtered.map((s, index) => {
+  const rows = stores.map((s, index) => {
     const rowKey = `${s.backendId}-${index}`;
     const initials = s.storeName.slice(0, 2).toUpperCase();
 
@@ -103,7 +134,7 @@ export function StoreTable({
           borderBottom: "1px solid var(--border)",
           alignItems: "center",
           minHeight: 60,
-          minWidth: visibleUdfFields.length > 0 ? 680 + visibleUdfFields.length * 140 : 680,
+          minWidth,
         }}
       >
         {/* Store Name + Code */}
@@ -170,20 +201,26 @@ export function StoreTable({
           </div>
         ))}
 
-        {/* Actions always remain the final column. */}
+        {/* Actions always remain the final column. Inactive stores can't be edited or reactivated. */}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <ActionButtons
-            status={status(s)}
-            entityType="stores"
-            entityId={s.backendId}
-            projectId={projectId}
-            onEdit={() => setEditId(s.backendId)}
-            onAudit={() => setAuditId(s.backendId)}
-            onRefresh={onRefresh}
-            onDeactivate={async () => {
-              await storeService.delete(s.backendId);
-            }}
-          />
+          {s.isActive ? (
+            <ActionButtons
+              status={status(s)}
+              entityType="stores"
+              entityId={s.backendId}
+              projectId={projectId}
+              onEdit={() => setEditId(s.backendId)}
+              onAudit={() => setAuditId(s.backendId)}
+              onRefresh={onRefresh}
+              onDeactivate={async () => {
+                await storeService.delete(s.backendId);
+              }}
+            />
+          ) : (
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }} title="Inactive stores are read-only">
+              —
+            </span>
+          )}
         </div>
       </div>
     );
@@ -196,50 +233,60 @@ export function StoreTable({
       <div className="stat-grid">
         <StatCard
           value={total}
+          ofTotal={projectTotal}
+          filtered={query.filtersActive}
           label="Total Stores"
           color="blue"
           icon={<Store size={20} />}
-          selected={filter === "all"}
-          onClick={() => setFilter("all")}
+          selected={query.status === "all"}
+          onClick={() => query.setStatus("all")}
         />
         <StatCard
           value={activeCount}
+          ofTotal={projectActive}
+          filtered={query.filtersActive}
           label="Active Stores"
           color="teal"
           icon={<CheckCircle size={20} />}
-          selected={filter === "active"}
-          onClick={() => setFilter("active")}
+          selected={query.status === "active"}
+          onClick={() => query.setStatus("active")}
         />
         <StatCard
-          value={total - activeCount}
+          value={inactiveCount}
+          ofTotal={projectInactive}
+          filtered={query.filtersActive}
           label="Inactive Stores"
           color="red"
           icon={<XCircle size={20} />}
-          selected={filter === "inactive"}
-          onClick={() => setFilter("inactive")}
+          selected={query.status === "inactive"}
+          onClick={() => query.setStatus("inactive")}
         />
       </div>
 
       <DataTable
         columns={[
-          { key: "store", label: "Store", width: "1.5fr" },
-          { key: "code", label: "Code", width: 130 },
-          { key: "status", label: "Status", width: 80 },
+          { key: "storeName", label: "Store", width: "1.5fr", sortable: true, filter: "text" },
+          { key: "storeCode", label: "Code", width: 130, sortable: true, filter: "text" },
+          { key: "status", label: "Status", width: 100, sortable: true, filter: "status" },
           ...visibleUdfFields.map((field) => ({
-            key: `udf-${field.fieldKey}`,
+            key: field.fieldKey,
             label: field.name,
-            width: 140,
+            width: UDF_COLUMN_WIDTH,
+            sortable: true,
+            filter: field.type === "alphanumeric" ? ("text" as const) : ("list" as const),
           })),
           { key: "actions", label: "Actions", align: "right", width: 100 },
         ]}
         rows={rows}
         total={total}
-        filtered={filtered.length}
+        filtered={stores.length}
         entityLabel="stores"
-        searchValue={searchValue}
-        onSearchChange={onSearchChange}
+        searchValue={query.searchInput}
+        onSearchChange={query.setSearchInput}
         loading={loading}
         serverPagination={pagination}
+        masterQuery={masterQuery}
+        minWidth={minWidth}
         toolbarRight={
           <>
             <button
@@ -252,10 +299,11 @@ export function StoreTable({
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              onClick={onExport}
+              onClick={onExportFiltered}
               disabled={exportPreparing}
+              title="Download the stores shown in the table, with the current filters and sort"
             >
-              {exportPreparing ? "Preparing Excel…" : "↓ Export"}
+              {exportPreparing ? "Preparing Excel…" : "↓ Export (filtered)"}
             </button>
           </>
         }

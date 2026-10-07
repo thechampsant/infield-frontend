@@ -17,6 +17,10 @@ export interface ListMeta {
   totalPages: number;
   activeCount?: number;
   inactiveCount?: number;
+  /** Master lists with column filters: counts with no filters applied. */
+  projectTotalCount?: number;
+  projectActiveCount?: number;
+  projectInactiveCount?: number;
 }
 
 export interface RawListMeta {
@@ -27,7 +31,18 @@ export interface RawListMeta {
   totalPages?: number;
   activeCount?: number;
   inactiveCount?: number;
+  projectTotalCount?: number;
+  projectActiveCount?: number;
+  projectInactiveCount?: number;
 }
+
+const OPTIONAL_COUNT_KEYS = [
+  "activeCount",
+  "inactiveCount",
+  "projectTotalCount",
+  "projectActiveCount",
+  "projectInactiveCount",
+] as const;
 
 export function normalizeListMeta(
   raw: RawListMeta | undefined,
@@ -36,6 +51,10 @@ export function normalizeListMeta(
   const page = raw?.page ?? 1;
   const pageSize = raw?.pageSize ?? rowCount;
   const totalCount = raw?.totalCount ?? raw?.total ?? rowCount;
+  const counts: Partial<Pick<ListMeta, (typeof OPTIONAL_COUNT_KEYS)[number]>> = {};
+  for (const key of OPTIONAL_COUNT_KEYS) {
+    if (typeof raw?.[key] === "number") counts[key] = raw[key];
+  }
   return {
     page,
     pageSize,
@@ -43,10 +62,7 @@ export function normalizeListMeta(
     totalPages:
       raw?.totalPages ??
       Math.max(1, Math.ceil(totalCount / Math.max(pageSize, 1))),
-    ...(typeof raw?.activeCount === "number" ? { activeCount: raw.activeCount } : {}),
-    ...(typeof raw?.inactiveCount === "number"
-      ? { inactiveCount: raw.inactiveCount }
-      : {}),
+    ...counts,
   };
 }
 

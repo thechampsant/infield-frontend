@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import type { MasterExportQuery } from "@/lib/master-list-query";
 
 export const MASTER_EXPORT_KINDS = [
   "users",
@@ -43,11 +44,14 @@ export const masterExportService = {
     projectId: string,
     kind: MasterExportKind,
     userStatus?: UserExportStatus,
+    /** Stores only: export just the rows the filtered list shows, in its order. */
+    query?: MasterExportQuery,
   ): Promise<EnqueueMasterExportResponse> {
     return apiClient.post<EnqueueMasterExportResponse>(`${BASE}/export-jobs`, {
       projectId,
       kind,
       ...(kind === "users" && userStatus ? { userStatus } : {}),
+      ...(kind === "stores" && query ? { query } : {}),
     });
   },
 

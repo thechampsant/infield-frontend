@@ -13,6 +13,11 @@ import {
   type RawListMeta,
 } from "./pagination";
 import { udfConfigService } from "./udf-config-service";
+import {
+  appendListParams,
+  type MasterFilterValuesResult,
+  type MasterListParams,
+} from "@/lib/master-list-query";
 import type { UDFField } from "@/types/project-admin";
 import type { UdfSchemaField } from "./udf-config-service";
 
@@ -257,12 +262,16 @@ function normalizeStoreSchemaFieldForSave(
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export const storeService = {
-  /** List one page of active stores for a project. */
+  /**
+   * List one page of stores for a project. Without `options` this is active
+   * stores, newest first; `options` adds status, column filters and sort.
+   */
   async listByProject(
     projectId: string,
     page = 1,
     pageSize = DEFAULT_LIST_PAGE_SIZE,
     search?: string,
+    options?: Omit<MasterListParams, "search">,
   ): Promise<StoreListResult> {
     const params = new URLSearchParams({
       projectId,
@@ -271,10 +280,31 @@ export const storeService = {
     });
     const term = search?.trim();
     if (term) params.set("search", term);
+    if (options) appendListParams(params, options);
     const res = await apiClient.get<PaginatedStores | RawStore[]>(
       `${BASE}?${params.toString()}`,
     );
     return normalizeStoresResponse(res);
+  },
+
+  /**
+   * Distinct values of one Stores Master column with store counts, for the
+   * column filter popover. The column's own filter is ignored by the API.
+   */
+  async getFilterValues(
+    projectId: string,
+    column: string,
+    options: MasterListParams & { valueSearch?: string; limit?: number } = {},
+  ): Promise<MasterFilterValuesResult> {
+    const { valueSearch, limit, ...list } = options;
+    const params = new URLSearchParams({ projectId, column });
+    appendListParams(params, list);
+    if (valueSearch?.trim()) params.set("valueSearch", valueSearch.trim());
+    if (limit) params.set("limit", String(limit));
+    const res = await apiClient.get<Partial<MasterFilterValuesResult>>(
+      `${BASE}/filter-values?${params.toString()}`,
+    );
+    return { values: res?.values ?? [], truncated: Boolean(res?.truncated) };
   },
 
   /** Page through every active store. For pickers and mapping screens only. */

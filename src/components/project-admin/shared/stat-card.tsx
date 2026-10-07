@@ -7,6 +7,10 @@ interface StatCardProps {
   icon: React.ReactNode;
   selected?: boolean;
   onClick?: () => void;
+  /** Unfiltered total, shown as "642 of 1049" when `filtered`. */
+  ofTotal?: number;
+  /** Show the FILTERED tag and the "of" total. */
+  filtered?: boolean;
 }
 
 const COLOR_MAP = {
@@ -22,6 +26,8 @@ export function StatCard({
   icon,
   selected,
   onClick,
+  ofTotal,
+  filtered,
 }: StatCardProps) {
   const c = COLOR_MAP[color];
   return (
@@ -76,6 +82,19 @@ export function StatCard({
           }}
         >
           {value}
+          {filtered && ofTotal !== undefined && (
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-muted)",
+                letterSpacing: 0,
+                marginLeft: 6,
+              }}
+            >
+              of {ofTotal}
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -83,9 +102,29 @@ export function StatCard({
             fontWeight: 600,
             color: "var(--text-muted)",
             marginTop: 4,
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 6,
           }}
         >
           {label}
+          {filtered && (
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "1px",
+                color: "var(--blue)",
+                background: "var(--blue-pale)",
+                border: "1px solid var(--blue-light)",
+                borderRadius: 999,
+                padding: "1px 7px",
+              }}
+            >
+              FILTERED
+            </span>
+          )}
         </div>
       </div>
     </div>

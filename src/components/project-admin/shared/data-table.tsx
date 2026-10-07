@@ -1,12 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ActiveFilterChips } from "./master-table/active-filter-chips";
+import { ColumnHeader } from "./master-table/column-header";
+import { InlineColumnFilter } from "./master-table/inline-column-filter";
+import type { MasterColumnFilterType, MasterTableControls } from "./master-table/types";
 
 interface Column {
   key: string;
   label: string;
   width?: string | number;
   align?: "left" | "right" | "center";
+  /** Only used when `masterQuery` is passed. */
+  sortable?: boolean;
+  /** Only used when `masterQuery` is passed. */
+  filter?: MasterColumnFilterType;
 }
 
 /**
@@ -39,6 +47,13 @@ interface DataTableProps {
   pageSize?: number;
   /** Page through the API instead of slicing an already-loaded array. */
   serverPagination?: ServerPagination;
+  /**
+   * Turns on sortable headers, column filters, filter chips and the
+   * "no records match" state. Leave out for the plain table.
+   */
+  masterQuery?: MasterTableControls;
+  /** Minimum width of the header rows; match the rows' own minWidth. */
+  minWidth?: number;
 }
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
@@ -57,6 +72,8 @@ export function DataTable({
   emptyMessage,
   pageSize,
   serverPagination,
+  masterQuery,
+  minWidth = 720,
 }: DataTableProps) {
   // Scroll paging only makes sense when the whole dataset is already loaded.
   const scrollPageSize = serverPagination ? undefined : pageSize;
@@ -108,6 +125,10 @@ export function DataTable({
         serverPagination.totalCount,
       )
     : 0;
+  const shownCount = serverPagination ? serverPagination.totalCount : filtered;
+  const filteredView = Boolean(masterQuery?.filtersActive);
+  const showFilterRow = Boolean(masterQuery && columns.some((c) => c.filter));
+  const columnLabels = Object.fromEntries(columns.map((c) => [c.key, c.label]));
 
   return (
     <div
@@ -190,7 +211,9 @@ export function DataTable({
               borderRadius: 999,
             }}
           >
-            {serverPagination ? serverPagination.totalCount : filtered} {entityLabel}
+            {filteredView && masterQuery?.unfilteredTotal !== undefined
+              ? `${shownCount} of ${masterQuery.unfilteredTotal} ${entityLabel}`
+              : `${shownCount} ${entityLabel}`}
           </span>
 
           {toolbarLeft}
@@ -201,6 +224,8 @@ export function DataTable({
         </div>
       </div>
 
+      {masterQuery && <ActiveFilterChips controls={masterQuery} labels={columnLabels} />}
+
       <div ref={scrollContainerRef} style={{ overflowX: "auto", overflowY: scrollPageSize ? "auto" : undefined, maxHeight: scrollPageSize ? 640 : undefined }}>
         <div
           style={{
@@ -209,36 +234,94 @@ export function DataTable({
             gap: 12,
             padding: "12px 20px",
             background: "var(--surface2)",
-            borderBottom: "1px solid var(--border)",
+            borderBottom: showFilterRow ? "none" : "1px solid var(--border)",
             alignItems: "center",
-            minWidth: 720,
+            minWidth,
           }}
         >
-          {columns.map((col) => (
-            <span
-              key={col.key}
-              style={{
-                display: "block",
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "1.5px",
-                textTransform: "uppercase",
-                color: "var(--text-muted)",
-                textAlign: col.align ?? "left",
-                whiteSpace: "nowrap",
-                wordBreak: "normal",
-                overflowWrap: "normal",
-                writingMode: "horizontal-tb",
-                textOrientation: "mixed",
-              }}
-            >
-              {col.label}
-            </span>
-          ))}
+          {columns.map((col) =>
+            masterQuery ? (
+              <ColumnHeader
+                key={col.key}
+                columnKey={col.key}
+                label={col.label}
+                align={col.align}
+                sortable={col.sortable}
+                filter={col.filter}
+                controls={masterQuery}
+              />
+            ) : (
+              <span
+                key={col.key}
+                style={{
+                  display: "block",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "1.5px",
+                  textTransform: "uppercase",
+                  color: "var(--text-muted)",
+                  textAlign: col.align ?? "left",
+                  whiteSpace: "nowrap",
+                  wordBreak: "normal",
+                  overflowWrap: "normal",
+                  writingMode: "horizontal-tb",
+                  textOrientation: "mixed",
+                }}
+              >
+                {col.label}
+              </span>
+            ),
+          )}
         </div>
+
+        {showFilterRow && masterQuery && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: gridCols,
+              gap: 12,
+              padding: "0 20px 12px",
+              background: "var(--surface2)",
+              borderBottom: "1px solid var(--border)",
+              alignItems: "center",
+              minWidth,
+            }}
+          >
+            {columns.map((col) => (
+              <InlineColumnFilter
+                key={col.key}
+                columnKey={col.key}
+                label={col.label}
+                filter={col.filter}
+                sortable={col.sortable}
+                controls={masterQuery}
+              />
+            ))}
+          </div>
+        )}
 
         {loading ? (
           <div className="pa-loading">Loading…</div>
+        ) : displayedRows.length === 0 && masterQuery?.anyActive ? (
+          <div style={{ padding: "48px 24px", textAlign: "center" }}>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                marginBottom: 12,
+              }}
+            >
+              No records match your filters
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={masterQuery.onClearAll}
+            >
+              Clear filters
+            </button>
+          </div>
         ) : displayedRows.length === 0 ? (
           <div style={{ padding: "48px 24px", textAlign: "center" }}>
             <div
@@ -330,7 +413,7 @@ export function DataTable({
             <span
               style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}
             >
-              {`Showing ${rangeStart}–${rangeEnd} of ${serverPagination.totalCount} ${entityLabel}`}
+              {`Showing ${rangeStart}–${rangeEnd} of ${serverPagination.totalCount} ${filteredView ? "filtered " : ""}${entityLabel}`}
             </span>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
