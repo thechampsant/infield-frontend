@@ -1,0 +1,258 @@
+/* ============================================================
+   InField 2.0 - Manager rejection reasons (config section)
+   Used on the Attendance, Claims, Leave, Visit and Sales config
+   pages, so everything is scoped under .rr-section and uses only
+   the global --if2-* tokens.
+   ============================================================ */
+
+.rr-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Lets the reason table scroll inside grid/flex parents instead of widening them. */
+  min-width: 0;
+  max-width: 100%;
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--if2-border);
+  font-family: var(--font-sora), "Sora", system-ui, -apple-system, sans-serif;
+  color: var(--if2-text);
+}
+.rr-section *,
+.rr-section *::before,
+.rr-section *::after {
+  box-sizing: border-box;
+}
+
+.rr-heading,
+.rr-subheading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--if2-text-muted);
+}
+.rr-subheading {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--if2-border);
+}
+.rr-new {
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 2px 7px;
+  border-radius: var(--if2-r-pill);
+  color: var(--if2-teal-dark);
+  background: var(--if2-teal-light);
+}
+
+/* ── Setting rows ─────────────────────────────────────────────────────────── */
+
+.rr-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-md);
+  background: var(--if2-surface);
+  transition: border-color 0.15s, background 0.15s;
+}
+.rr-setting:hover {
+  border-color: var(--if2-border2);
+  background: var(--if2-blue-pale);
+}
+.rr-setting-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--if2-text);
+  cursor: pointer;
+}
+.rr-setting-hint {
+  margin: 1px 0 0;
+  font-size: 10px;
+  color: var(--if2-text-muted);
+}
+
+/* ── Switch ───────────────────────────────────────────────────────────────── */
+
+.rr-switch {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
+  vertical-align: middle;
+}
+.rr-switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.rr-switch input:disabled {
+  cursor: not-allowed;
+}
+.rr-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--if2-r-pill);
+  background: var(--if2-border2);
+  transition: background 0.2s;
+}
+.rr-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s;
+}
+.rr-switch input:checked ~ .rr-switch-track {
+  background: var(--if2-teal);
+}
+.rr-switch input:checked ~ .rr-switch-thumb {
+  transform: translateX(20px);
+}
+.rr-switch input:focus-visible ~ .rr-switch-track {
+  outline: 2px solid var(--if2-blue);
+  outline-offset: 2px;
+}
+.rr-switch:has(input:disabled) {
+  opacity: 0.5;
+}
+
+/* ── Reason table ─────────────────────────────────────────────────────────── */
+
+.rr-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-md);
+  background: var(--if2-surface);
+}
+.rr-table {
+  width: 100%;
+  min-width: 700px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.rr-table th {
+  padding: 10px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--if2-text-muted);
+  background: var(--if2-surface2);
+  border-bottom: 1px solid var(--if2-border);
+}
+.rr-table th:first-child,
+.rr-table td:first-child {
+  text-align: left;
+}
+/* Label and key share the free width; the other columns stay compact. */
+.rr-table th:first-child {
+  width: 24%;
+}
+.rr-table th:nth-child(2) {
+  width: 24%;
+}
+.rr-table td {
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--if2-border);
+}
+.rr-table tr:last-child td {
+  border-bottom: none;
+}
+.rr-input.form-input {
+  padding: 8px 12px;
+  background: var(--if2-surface);
+}
+.rr-input.form-input {
+  width: 100%;
+}
+.rr-table td:first-child .rr-input {
+  min-width: 120px;
+}
+.rr-key-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.rr-input--key.form-input {
+  min-width: 130px;
+  font-family: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+.rr-key-warning {
+  max-width: 180px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  color: #b45309;
+}
+.rr-key-warning.is-changed {
+  font-weight: 700;
+}
+.rr-order.form-input {
+  width: 56px;
+  min-width: 56px;
+  text-align: center;
+}
+.rr-reorder,
+.rr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rr-reorder {
+  justify-content: center;
+  gap: 6px;
+}
+.rr-reorder .btn.btn-sm,
+.rr-table td:last-child .btn.btn-sm {
+  min-height: 30px;
+  padding: 5px 8px;
+}
+
+.rr-empty {
+  padding: 10px 14px;
+  font-size: 11px;
+  color: var(--if2-text-mid);
+  background: var(--if2-surface2);
+  border: 1px solid var(--if2-border);
+  border-radius: var(--if2-r-md);
+}
+.rr-error {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--if2-red);
+}
+
+/* Page-level `button` resets (e.g. .att-config-page button) outrank the global .btn-danger. */
+.rr-section .btn.btn-danger {
+  background: var(--if2-red-light);
+  color: var(--if2-red);
+  border: 1px solid var(--if2-red-mid);
+}
+.rr-section .btn.btn-danger:hover:not(:disabled) {
+  background: var(--if2-red-mid);
+}

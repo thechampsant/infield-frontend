@@ -1,5 +1,6 @@
 import { ApiError, apiClient } from "./api-client";
 import { unwrapApiData } from "./api-response";
+import { normalizeRejectionReasonsDto, type RejectionReasonsConfig } from "@/lib/approval/rejection-reasons";
 import type {
   UdfFieldConfig,
   UdfFieldType,
@@ -44,6 +45,8 @@ export interface ClaimApprovalWorkflow {
   isEnabled: boolean;
   notifyApproverOnRoute?: boolean;
   levels: ClaimApprovalLevel[];
+  /** Manager rejection reasons for this claim type. */
+  rejectionReasons?: RejectionReasonsConfig;
 }
 
 export interface ClaimPerKmRateConfig {
@@ -308,6 +311,7 @@ function normalizeApprovalWorkflow(value: unknown): ClaimApprovalWorkflow | unde
     isEnabled: booleanValue(raw.isEnabled, levels.length > 0),
     notifyApproverOnRoute: booleanValue(raw.notifyApproverOnRoute, false),
     levels,
+    rejectionReasons: normalizeRejectionReasonsDto(raw.rejectionReasons),
   };
 }
 

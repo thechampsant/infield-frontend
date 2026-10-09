@@ -29,6 +29,14 @@ import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { ClaimsFormBuilderV2 } from "./claims-form-builder-v2";
+import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
+import {
+  markRejectionReasonsSaved,
+  rejectionReasonsToDto,
+  rejectionReasonsToForm,
+  validateRejectionReasons,
+  type RejectionReasonsForm,
+} from "@/lib/approval/rejection-reasons";
 
 type ViewMode = "list" | "editor" | "builder";
 type ConfigType = "template" | "direct";
@@ -68,6 +76,8 @@ type EditorClaimType = {
     levels: EditorApprovalLevel[];
     notifyApproverOnRoute?: boolean;
   };
+  /** Kept outside approvalWorkflow so turning approval off and on keeps the list. Undefined = untouched draft. */
+  rejectionReasons?: RejectionReasonsForm;
   perKmRateEnabled: boolean;
   perKmRatePerKm: string;
   perKmFieldKey: string;
@@ -203,6 +213,7 @@ function toEditorTemplate(template: ClaimsTemplateDocument | null): EditorTempla
                   })),
                 }
               : undefined,
+            rejectionReasons: rejectionReasonsToForm(claimType.approvalWorkflow?.rejectionReasons),
             perKmRateEnabled: claimType.perKmRateConfig?.isEnabled ?? false,
             perKmRatePerKm: typeof claimType.perKmRateConfig?.ratePerKm === "number"
               ? String(claimType.perKmRateConfig.ratePerKm)
@@ -253,6 +264,12 @@ function patchApprovalAutoAction(
   };
 }
 
+function withSavedRejectionReasons(claimType: EditorClaimType): EditorClaimType {
+  return claimType.rejectionReasons
+    ? { ...claimType, rejectionReasons: markRejectionReasonsSaved(claimType.rejectionReasons) }
+    : claimType;
+}
+
 function buildApprovalWorkflow(claimType: EditorClaimType): ClaimApprovalWorkflow | undefined {
   if (!claimType.approvalWorkflow?.levels.length) return undefined;
   return {
@@ -265,6 +282,8 @@ function buildApprovalWorkflow(claimType: EditorClaimType): ClaimApprovalWorkflo
       autoAction: level.autoAction ?? "None",
       autoActionDays: (level.autoAction ?? "None") === "None" ? 0 : Number(level.autoActionDays) || 0,
     })),
+    // Omitted for drafts that never loaded the list, so the stored setting is kept.
+    ...(claimType.rejectionReasons ? { rejectionReasons: rejectionReasonsToDto(claimType.rejectionReasons) } : {}),
   };
 }
 
@@ -386,6 +405,12 @@ function validateClaimTypes(claimTypes: EditorClaimType[]): string[] {
         errors.push(`${label} auto action days must be between 1 and 30.`);
       }
     });
+
+    if (claimType.approvalWorkflow?.levels.length) {
+      for (const message of validateRejectionReasons(claimType.rejectionReasons)) {
+        errors.push(`${name || `Claim type ${index + 1}`}: ${message}`);
+      }
+    }
   });
   return errors;
 }
@@ -739,7 +764,7 @@ export function ClaimsConfigPage({
               templateId: nextTemplate.id,
               ...claimTypePayload,
             });
-            updatedClaimTypes.push(claimType);
+            updatedClaimTypes.push(withSavedRejectionReasons(claimType));
           } else {
             // Create: include projectId and templateId in payload
             const response = await claimsConfigService.createClaimType({
@@ -748,7 +773,7 @@ export function ClaimsConfigPage({
               ...claimTypePayload,
             });
             updatedClaimTypes.push({
-              ...claimType,
+              ...withSavedRejectionReasons(claimType),
               serverClaimTypeId: response.claimTypeId,
               udfSchemaKey: response.udfSchemaKey,
             });
@@ -841,7 +866,7 @@ export function ClaimsConfigPage({
               designationId: activeTemplate.designationId!,
               ...claimTypePayload,
             });
-            updatedClaimTypes.push(claimType);
+            updatedClaimTypes.push(withSavedRejectionReasons(claimType));
           } else {
             // Create: include projectId and designationId in payload
             const response = await claimsConfigService.createClaimType({
@@ -850,7 +875,7 @@ export function ClaimsConfigPage({
               ...claimTypePayload,
             });
             updatedClaimTypes.push({
-              ...claimType,
+              ...withSavedRejectionReasons(claimType),
               serverClaimTypeId: response.claimTypeId,
               udfSchemaKey: response.udfSchemaKey,
             });
@@ -1036,10 +1061,10 @@ export function ClaimsConfigPage({
                   >
                     <div className="claims-configCard__index">{index + 1}</div>
                     <div className="claims-configCard__body">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <div className="claims-configCard__titleRow">
                         <strong>{getConfigDisplayName(template)}</strong>
-                        <span className={`claims-statusPill ${template.isTemplate ? '' : 'active'}`} style={{ fontSize: '9px' }}>
-                          {template.isTemplate ? 'TEMPLATE' : 'DIRECT'}
+                        <span className={`claims-statusPill ${template.isTemplate ? '' : 'active'}`}>
+                          {template.isTemplate ? 'Template' : 'Direct'}
                         </span>
                       </div>
                       <p>
@@ -1157,7 +1182,7 @@ export function ClaimsConfigPage({
                 <section className="claims-sectionCard">
                   <div className="claims-sectionCard__head">
                     <div>
-                      <p className="claims-sectionEyebrow">S1-A</p>
+                      <p className="claims-sectionEyebrow">Basics</p>
                       <h2>Configuration Details</h2>
                     </div>
                   </div>
@@ -1194,14 +1219,14 @@ export function ClaimsConfigPage({
                 <section className="claims-sectionCard">
                   <div className="claims-sectionCard__head">
                     <div>
-                      <p className="claims-sectionEyebrow">S1-B</p>
+                      <p className="claims-sectionEyebrow">Submission rules</p>
                       <h2>Backdate Rules</h2>
                     </div>
                   </div>
                   <div className="claims-toggleSurface">
                     <div>
                       <strong>Allow Backdated Claims</strong>
-                      <p>Version 1 follows the T-N days model from the design notes.</p>
+                      <p>Let employees submit claims for past dates, up to the number of days below.</p>
                     </div>
                     <label className="toggle">
                       <input
@@ -1231,7 +1256,7 @@ export function ClaimsConfigPage({
                 <section className="claims-sectionCard">
                   <div className="claims-sectionCard__head">
                     <div>
-                      <p className="claims-sectionEyebrow">S1-C</p>
+                      <p className="claims-sectionEyebrow">Access</p>
                       <h2>{configType === 'template' ? 'Applicable Designations' : 'Target Designation'}</h2>
                     </div>
                   </div>
@@ -1261,7 +1286,7 @@ export function ClaimsConfigPage({
                   ) : (
                     <div className="claims-field">
                       <label>
-                        <span>Select Designation <span style={{ color: '#ef4444' }}>*</span></span>
+                        <span>Select Designation <span className="claims-req">*</span></span>
                         <select
                           className="form-input"
                           value={activeTemplate.designationId || ''}
@@ -1275,8 +1300,8 @@ export function ClaimsConfigPage({
                           ))}
                         </select>
                       </label>
-                      <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px' }}>
-                        This config applies to this designation only and takes priority over templates
+                      <p className="claims-fieldHint">
+                        This config applies to this designation only and takes priority over templates.
                       </p>
                     </div>
                   )}
@@ -1285,7 +1310,7 @@ export function ClaimsConfigPage({
                 <section className="claims-sectionCard">
                   <div className="claims-sectionCard__head">
                     <div>
-                      <p className="claims-sectionEyebrow">S1-D</p>
+                      <p className="claims-sectionEyebrow">Claim setup</p>
                       <h2>Claim Types</h2>
                     </div>
                     <button
@@ -1360,37 +1385,43 @@ export function ClaimsConfigPage({
                               </div>
 
                               <div className="claims-inlineControls">
-                                <div className="radio-pill-group">
-                                  {["fixed", "conditional", "no-cap"].map((capType) => (
-                                    <label
-                                      key={capType}
-                                      className={`radio-pill${claimType.capType === capType ? " selected" : ""}`}
-                                    >
-                                      <input
-                                        type="radio"
-                                        checked={claimType.capType === capType}
-                                        onChange={() =>
-                                          updateClaimType(claimType.id, {
-                                            capType: capType as EditorClaimType["capType"],
-                                          })
-                                        }
-                                      />
-                                      {capType === "no-cap"
-                                        ? "No Cap"
-                                        : capType.charAt(0).toUpperCase() + capType.slice(1)}
-                                    </label>
-                                  ))}
+                                <div className="claims-inlineGroup">
+                                  <span className="claims-inlineLabel">Cap type</span>
+                                  <div className="radio-pill-group">
+                                    {["fixed", "conditional", "no-cap"].map((capType) => (
+                                      <label
+                                        key={capType}
+                                        className={`radio-pill${claimType.capType === capType ? " selected" : ""}`}
+                                      >
+                                        <input
+                                          type="radio"
+                                          checked={claimType.capType === capType}
+                                          onChange={() =>
+                                            updateClaimType(claimType.id, {
+                                              capType: capType as EditorClaimType["capType"],
+                                            })
+                                          }
+                                        />
+                                        {capType === "no-cap"
+                                          ? "No Cap"
+                                          : capType.charAt(0).toUpperCase() + capType.slice(1)}
+                                      </label>
+                                    ))}
+                                  </div>
                                 </div>
-                                <label className="toggle">
-                                  <input
-                                    type="checkbox"
-                                    checked={claimType.active}
-                                    onChange={(e) =>
-                                      updateClaimType(claimType.id, { active: e.target.checked })
-                                    }
-                                  />
-                                  <span className="toggle-track" />
-                                  <span className="toggle-thumb" />
+                                <label className="claims-activeToggle">
+                                  <span className="claims-inlineLabel">Active</span>
+                                  <span className="toggle">
+                                    <input
+                                      type="checkbox"
+                                      checked={claimType.active}
+                                      onChange={(e) =>
+                                        updateClaimType(claimType.id, { active: e.target.checked })
+                                      }
+                                    />
+                                    <span className="toggle-track" />
+                                    <span className="toggle-thumb" />
+                                  </span>
                                 </label>
                               </div>
 
@@ -1511,8 +1542,8 @@ export function ClaimsConfigPage({
                               ) : null}
 
                               {/* Approval Workflow Section - Per Claim Type */}
-                              <div className="claims-approvalSection" style={{ marginTop: "1.5rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
-                                <div className="claims-toggleSurface">
+                              <div className="claims-subPanel">
+                                <div className="claims-subPanel__head">
                                   <div>
                                     <strong>Approval Workflow for {claimType.name || "this type"}</strong>
                                     <p>Configure approval levels specific to this claim type.</p>
@@ -1541,8 +1572,8 @@ export function ClaimsConfigPage({
                                 </div>
 
                                 {claimType.approvalWorkflow?.levels.length ? (
-                                  <div className="claims-approvalList" style={{ marginTop: "1rem" }}>
-                                    <div className="claims-toggleSurface" style={{ marginBottom: "1rem" }}>
+                                  <div className="claims-approvalList">
+                                    <div className="claims-toggleSurface">
                                       <div>
                                         <strong>Email manager when request reaches Inbox</strong>
                                         <p>Sends email to the current approver when the request is assigned to them.</p>
@@ -1563,6 +1594,14 @@ export function ClaimsConfigPage({
                                         <span className="toggle-track" />
                                         <span className="toggle-thumb" />
                                       </label>
+                                    </div>
+                                    <div className="claims-approvalHeader" aria-hidden="true">
+                                      <span>Order</span>
+                                      <span>Approver designation</span>
+                                      <span>Mode</span>
+                                      <span>Auto action</span>
+                                      <span>After days</span>
+                                      <span />
                                     </div>
                                     {claimType.approvalWorkflow.levels.map((level) => (
                                       <div key={level.id} className="claims-approvalRow">
@@ -1700,13 +1739,20 @@ export function ClaimsConfigPage({
                                     >
                                       <Plus size={12} /> Add Approval Level
                                     </button>
+
+                                    <RejectionReasonsSection
+                                      value={claimType.rejectionReasons}
+                                      onChange={(next) => updateClaimType(claimType.id, { rejectionReasons: next })}
+                                      error={formErrors.length ? validateRejectionReasons(claimType.rejectionReasons)[0] : undefined}
+                                      requestNoun="claim"
+                                    />
                                   </div>
                                 ) : null}
                               </div>
 
                               {/* Per-KM Rate Section */}
-                              <div className="claims-approvalSection" style={{ marginTop: "1.5rem", padding: "1rem", background: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
-                                <div className="claims-toggleSurface">
+                              <div className="claims-subPanel">
+                                <div className="claims-subPanel__head">
                                   <div>
                                     <strong>Per-KM Rate Calculation</strong>
                                     <p>Auto-calculate claim amount based on distance (km × rate).</p>
@@ -1727,7 +1773,7 @@ export function ClaimsConfigPage({
                                 </div>
 
                                 {claimType.perKmRateEnabled ? (
-                                  <div className="claims-fieldGrid two" style={{ marginTop: "1rem" }}>
+                                  <div className="claims-fieldGrid two">
                                     <label className="claims-field">
                                       <span>Rate Per KM (₹)</span>
                                       <input
@@ -1756,7 +1802,7 @@ export function ClaimsConfigPage({
                                         }
                                         placeholder="distance_km"
                                       />
-                                      <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                                      <p className="claims-fieldHint">
                                         Enter the exact field key you will create in the Form Builder (Step 2) as a NUMBER type field. The claim amount will be calculated as: this field value x rate per km.
                                       </p>
                                     </label>
@@ -1853,10 +1899,10 @@ export function ClaimsConfigPage({
                     );
                     if (!kmFieldExists) {
                       return (
-                        <div style={{ padding: "12px 16px", marginBottom: "12px", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "8px", fontSize: "13px", color: "#92400e" }}>
+                        <div className="claims-alert claims-alert--warning">
                           <strong>Per-KM Rate requires a NUMBER field</strong>
-                          <p style={{ margin: "4px 0 0" }}>
-                            This claim type has per-km calculation enabled with field key <code style={{ background: "#fde68a", padding: "1px 4px", borderRadius: "3px" }}>{selectedClaimType.perKmFieldKey}</code>. 
+                          <p>
+                            This claim type has per-km calculation enabled with field key <code>{selectedClaimType.perKmFieldKey}</code>. 
                             Please add a field with this exact key and type <strong>NUMBER</strong> in the form below.
                           </p>
                         </div>
@@ -1864,10 +1910,10 @@ export function ClaimsConfigPage({
                     }
                     if (!kmFieldIsNumber) {
                       return (
-                        <div style={{ padding: "12px 16px", marginBottom: "12px", background: "#fee2e2", border: "1px solid #ef4444", borderRadius: "8px", fontSize: "13px", color: "#991b1b" }}>
+                        <div className="claims-alert claims-alert--danger">
                           <strong>Field type mismatch</strong>
-                          <p style={{ margin: "4px 0 0" }}>
-                            Field <code style={{ background: "#fecaca", padding: "1px 4px", borderRadius: "3px" }}>{selectedClaimType.perKmFieldKey}</code> exists but is not a NUMBER type. Per-km rate calculation requires a NUMBER field to work correctly.
+                          <p>
+                            Field <code>{selectedClaimType.perKmFieldKey}</code> exists but is not a NUMBER type. Per-km rate calculation requires a NUMBER field to work correctly.
                           </p>
                         </div>
                       );

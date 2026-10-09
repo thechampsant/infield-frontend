@@ -29,6 +29,7 @@ import { AttendanceConfigEdit } from "./attendance-config-edit";
 import { AttendanceFormBuilder } from "./attendance-form-builder";
 import { useAuth } from "@/lib/auth/auth-context";
 import { canManageModules } from "@/lib/auth/permissions";
+import { validateRejectionReasons } from "@/lib/approval/rejection-reasons";
 
 interface Props {
   projectId: string;
@@ -976,6 +977,11 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
     const regReasonError = validateReasonOptions(form.regReasonOptions, "Regularization");
     if (regReasonError) {
       errors.regReasonOptions = regReasonError;
+    }
+
+    const [rejectionReasonError] = validateRejectionReasons(form.rejectionReasons);
+    if (rejectionReasonError) {
+      errors.rejectionReasons = rejectionReasonError;
     }
   }
 

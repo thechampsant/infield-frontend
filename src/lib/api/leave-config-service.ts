@@ -1,4 +1,10 @@
 import { ApiError, apiClient } from "./api-client";
+import {
+  emptyRejectionReasons,
+  rejectionReasonsToDto,
+  rejectionReasonsToForm,
+  type RejectionReasonsForm,
+} from "@/lib/approval/rejection-reasons";
 
 const BASE = "/api/v1/leave-config";
 const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
@@ -98,6 +104,8 @@ export interface LeaveTypeConfig {
     isApprovalRequired: boolean;
     notifyApproverOnRoute?: boolean;
     levels: LeaveApprovalLevel[];
+    /** Manager rejection reasons; also used for this leave type's cancellation rejects. */
+    rejectionReasons?: RejectionReasonsForm;
   };
   genderEligibility?: {
     fieldKey: "gender" | string;
@@ -331,6 +339,7 @@ function createDefaultLeaveType(
           autoActionDays: 0,
         },
       ],
+      rejectionReasons: emptyRejectionReasons(),
     },
   };
 
@@ -580,6 +589,7 @@ function normalizeLeaveType(value: unknown): LeaveTypeConfig {
     approvalWorkflow: {
       isApprovalRequired: bool(approvalWorkflow.isApprovalRequired, true),
       notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
+      rejectionReasons: rejectionReasonsToForm(approvalWorkflow.rejectionReasons),
       levels: levels.map((item, index) => {
         const level = record(item);
         return {
@@ -724,6 +734,10 @@ function leaveTypeForSave(leaveType: LeaveTypeConfig): LeaveTypeConfig {
   return {
     ...leaveType,
     _id: validMongoId(leaveType._id),
+    approvalWorkflow: {
+      ...leaveType.approvalWorkflow,
+      rejectionReasons: rejectionReasonsToDto(leaveType.approvalWorkflow.rejectionReasons),
+    },
     ...(
       leaveType.leaveTypeMode === "Maternity" || leaveType.leaveTypeMode === "Paternity"
         ? {

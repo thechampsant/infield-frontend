@@ -293,10 +293,11 @@ export const inboxItemsService = {
     inboxItemId: string,
     remarks: string,
     attachment: ActionAttachment,
+    rejectionReasonKey?: string,
   ): Promise<InboxActionResult> {
     return apiClient.patch<InboxActionResult>(
       `${BASE}/${encodeURIComponent(inboxItemId)}/reject`,
-      { remarks, attachment }
+      { remarks, attachment, ...(rejectionReasonKey ? { rejectionReasonKey } : {}) }
     );
   },
 
@@ -332,11 +333,13 @@ export const inboxItemsService = {
     inboxItemIds: string[],
     remarks: string,
     attachment: ActionAttachment,
+    rejectionReasonKey?: string,
   ): Promise<InboxBulkResult> {
     return apiClient.post<InboxBulkResult>(`${BASE}/bulk-reject`, {
       inboxItemIds,
       remarks,
       attachment,
+      ...(rejectionReasonKey ? { rejectionReasonKey } : {}),
     });
   },
 

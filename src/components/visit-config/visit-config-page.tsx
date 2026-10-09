@@ -21,6 +21,14 @@ import { projectAdminBase } from "@/lib/nav/nav";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ClaimsFormBuilderV2 } from "@/components/claims-config/claims-form-builder-v2";
+import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
+import {
+  emptyRejectionReasons,
+  rejectionReasonsToDto,
+  rejectionReasonsToForm,
+  validateRejectionReasons,
+  type RejectionReasonsForm,
+} from "@/lib/approval/rejection-reasons";
 
 type View = "list" | "config" | "builder" | "review";
 type ScopeMode = "single" | "multiple";
@@ -62,6 +70,7 @@ interface EditorState {
   approvalWorkflowEnabled: boolean;
   notifyApproverOnRoute: boolean;
   approvalLevels: VisitApprovalLevel[];
+  rejectionReasons: RejectionReasonsForm;
   claimDistanceCappingEnabled: boolean;
   claimMaxDistanceKm: string;
   status: "draft" | "published";
@@ -88,6 +97,7 @@ const EMPTY_EDITOR: EditorState = {
   approvalWorkflowEnabled: false,
   notifyApproverOnRoute: false,
   approvalLevels: [],
+  rejectionReasons: emptyRejectionReasons(),
   claimDistanceCappingEnabled: false,
   claimMaxDistanceKm: "0",
   status: "draft",
@@ -130,6 +140,7 @@ function toEditor(config: VisitConfigDocument): EditorState {
       autoAction: level.autoAction ?? "None",
       autoActionDays: level.autoAction === "None" ? 0 : level.autoActionDays || 1,
     })),
+    rejectionReasons: rejectionReasonsToForm(config.approvalWorkflow.rejectionReasons),
     claimDistanceCappingEnabled: config.claimDistanceCapping.isEnabled,
     claimMaxDistanceKm: String(config.claimDistanceCapping.maxDistanceKm),
     status: config.status,
@@ -204,6 +215,7 @@ function validate(editor: EditorState): string[] {
         errors.push(`Approval level ${levelNumber} auto action days must be between 1 and 30.`);
       }
     });
+    errors.push(...validateRejectionReasons(editor.rejectionReasons));
   }
   if (editor.reimbursementEnabled && editor.claimDistanceCappingEnabled) {
     if (Number(editor.claimMaxDistanceKm) <= 0) {
@@ -550,6 +562,8 @@ export function VisitConfigPage({
               autoActionDays: autoActionDaysForSave(level),
             }))
           : [],
+        // Always sent so the list survives switching approval off and on.
+        rejectionReasons: rejectionReasonsToDto(editor.rejectionReasons),
       },
       claimDistanceCapping: {
         isEnabled: editor.reimbursementEnabled && editor.claimDistanceCappingEnabled,
@@ -1211,6 +1225,12 @@ export function VisitConfigPage({
                             <Plus size={14} /> Add approval level
                           </button>
                         </div>
+                        <RejectionReasonsSection
+                          value={editor.rejectionReasons}
+                          onChange={(next) => setEditor((current) => ({ ...current, rejectionReasons: next }))}
+                          error={errors.length ? validateRejectionReasons(editor.rejectionReasons)[0] : undefined}
+                          requestNoun="visit claim"
+                        />
                       </>
                     )}
                   </details>

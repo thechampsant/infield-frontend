@@ -21,6 +21,15 @@ import {
 } from "lucide-react";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
+import {
+  emptyRejectionReasons,
+  markRejectionReasonsSaved,
+  rejectionReasonsToDto,
+  rejectionReasonsToForm,
+  validateRejectionReasons,
+  type RejectionReasonsForm,
+} from "@/lib/approval/rejection-reasons";
 import {
   designationService,
   featureConfigService,
@@ -54,6 +63,7 @@ interface EditorState {
   approvalEnabled: boolean;
   notifyApproverOnRoute: boolean;
   levels: EditorLevel[];
+  rejectionReasons: RejectionReasonsForm;
 }
 
 function makeId(prefix: string): string {
@@ -80,6 +90,7 @@ function emptyEditor(): EditorState {
     approvalEnabled: false,
     notifyApproverOnRoute: false,
     levels: [emptyLevel(0)],
+    rejectionReasons: emptyRejectionReasons(),
   };
 }
 
@@ -105,6 +116,7 @@ function toEditor(config: SalesConfiguration): EditorState {
     approvalEnabled: config.approvalWorkflow.isEnabled,
     notifyApproverOnRoute: Boolean(config.approvalWorkflow.notifyApproverOnRoute),
     levels,
+    rejectionReasons: rejectionReasonsToForm(config.approvalWorkflow.rejectionReasons),
   };
 }
 
@@ -136,6 +148,7 @@ function validate(editor: EditorState): string[] {
         errors.push(`Approval level ${index + 1}: select an approver designation.`);
       }
     });
+    errors.push(...validateRejectionReasons(editor.rejectionReasons));
   }
   return errors;
 }
@@ -252,6 +265,7 @@ export function SalesConfigPage({
               autoRejectDays: Number(level.autoRejectDays),
             }))
           : [],
+        rejectionReasons: rejectionReasonsToDto(editor.rejectionReasons),
       },
     };
   }
@@ -268,8 +282,12 @@ export function SalesConfigPage({
         saved = await salesConfigService.update(editor.id, projectId, buildSaveInput());
       } else {
         saved = await salesConfigService.create({ ...buildSaveInput(), projectId });
-        setEditor((current) => ({ ...current, id: saved.id }));
       }
+      setEditor((current) => ({
+        ...current,
+        id: saved.id,
+        rejectionReasons: markRejectionReasonsSaved(current.rejectionReasons),
+      }));
       await load();
       setToast({ type: "success", message: "Sales configuration saved." });
       return saved;
@@ -675,6 +693,12 @@ export function SalesConfigPage({
                 >
                   <Plus size={14} /> Add approval level
                 </button>
+                <RejectionReasonsSection
+                  value={editor.rejectionReasons}
+                  onChange={(next) => setEditor((current) => ({ ...current, rejectionReasons: next }))}
+                  error={errors.length ? validateRejectionReasons(editor.rejectionReasons)[0] : undefined}
+                  requestNoun="sales"
+                />
               </div>
             )}
           </EditorAccordion>

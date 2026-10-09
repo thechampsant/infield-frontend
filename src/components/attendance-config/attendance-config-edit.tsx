@@ -18,6 +18,7 @@ import {
   attendanceConfigService,
 } from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
+import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
 
 type ChangeFn = <K extends keyof AttendanceConfigForm>(
   key: K,
@@ -1425,6 +1426,13 @@ function RegularizationSettings({
             </>
           )}
           <FieldError message={errors.autoRejectAfterDays} />
+
+          <RejectionReasonsSection
+            value={form.rejectionReasons}
+            onChange={(next) => onChange("rejectionReasons", next)}
+            error={errors.rejectionReasons}
+            requestNoun="regularization"
+          />
         </>
       )}
     </div>

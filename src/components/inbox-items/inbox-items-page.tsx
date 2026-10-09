@@ -26,6 +26,8 @@ import {
   type ResolvedField,
 } from "./inbox-format";
 import { AuthedImage } from "./authed-image";
+import { useRejectionReasonLookup } from "@/hooks/use-rejection-reason-lookup";
+import { resolveRejectRules } from "@/lib/approval/rejection-reasons";
 
 interface InboxItemsPageProps {
   projectId: string;
@@ -151,6 +153,18 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
   const [remarkFile, setRemarkFile] = useState<File | null>(null);
   const [remarkFileTypeError, setRemarkFileTypeError] = useState(false);
   const [remarkSubmitting, setRemarkSubmitting] = useState(false);
+  const [rejectReasonKey, setRejectReasonKey] = useState("");
+
+  // Reject: the selected flows decide whether a reason is shown and what is required.
+  const isRejectDialog = remarkDialogOpen && remarkAction === "reject";
+  const rejectLookup = useRejectionReasonLookup(isRejectDialog ? remarkTargetIds : null);
+  const rejectRules = resolveRejectRules(rejectLookup.lookup, rejectReasonKey, remarkTargetIds);
+  const effectiveRemarkRequired = remarkAction === "reject" ? rejectRules.remarksRequired : remarkRequired;
+  const rejectNotReady =
+    remarkAction === "reject" &&
+    (rejectLookup.status !== "ready" ||
+      Boolean(rejectRules.blockedMessage) ||
+      (rejectRules.showDropdown && rejectRules.reasonRequired && !rejectReasonKey));
 
   // Fetch items
   const loadItems = useCallback(async () => {
@@ -273,6 +287,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     setRemarkText("");
     setRemarkFile(null);
     setRemarkFileTypeError(false);
+    setRejectReasonKey("");
     setRemarkDialogOpen(true);
   };
 
@@ -284,11 +299,13 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
     setRemarkText("");
     setRemarkFile(null);
     setRemarkFileTypeError(false);
+    setRejectReasonKey("");
     setRemarkDialogOpen(true);
   };
 
   const handleRemarkSubmit = async () => {
-    if (remarkRequired && !remarkText.trim()) return;
+    if (effectiveRemarkRequired && !remarkText.trim()) return;
+    if (rejectNotReady) return;
     const needsFile = remarkAction === "approve" || remarkAction === "reject";
     if (needsFile && !remarkFile) return;
     const remarks = remarkText.trim() || (remarkAction === "approve" ? "Approved" : "");
@@ -306,8 +323,25 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
         else await inboxItemsService.bulkApprove(ids, remarks, attachment);
       } else if (remarkAction === "reject") {
         if (!attachment) return;
-        if (single) await inboxItemsService.reject(ids[0], remarks, attachment);
-        else await inboxItemsService.bulkReject(ids, remarks, attachment);
+        const reasonKey = rejectRules.showDropdown && rejectReasonKey ? rejectReasonKey : undefined;
+        const rejectIds = rejectRules.rejectIds;
+        if (single) {
+          await inboxItemsService.reject(rejectIds[0], remarks, attachment, reasonKey);
+        } else {
+          const result = await inboxItemsService.bulkReject(rejectIds, remarks, attachment, reasonKey);
+          const notDone = (result.failed?.length ?? 0) + rejectRules.skippedIds.length;
+          if (notDone > 0) {
+            setRemarkDialogOpen(false);
+            setDetailItem(null);
+            setToast({
+              type: "error",
+              message: `${result.succeeded?.length ?? 0} rejected, ${notDone} not rejected.`,
+            });
+            setSelectedIds(new Set());
+            await loadItems();
+            return;
+          }
+        }
       } else {
         if (single) await inboxItemsService.sendBack(ids[0], remarks);
         else await inboxItemsService.bulkSendBack(ids, remarks);
@@ -758,8 +792,9 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
               className="btn btn-primary"
               onClick={handleRemarkSubmit}
               disabled={
-                (remarkRequired && !remarkText.trim()) ||
+                (effectiveRemarkRequired && !remarkText.trim()) ||
                 ((remarkAction === "approve" || remarkAction === "reject") && !remarkFile) ||
+                rejectNotReady ||
                 remarkSubmitting
               }
             >
@@ -769,14 +804,64 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
         }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {isRejectDialog && rejectLookup.status === "loading" ? (
+            <span style={{ fontSize: 12, color: "#64748b" }}>Loading rejection reasons…</span>
+          ) : null}
+          {isRejectDialog && rejectLookup.status === "error" ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "#dc2626" }}>{rejectLookup.error}</span>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={rejectLookup.retry}>
+                Retry
+              </button>
+            </div>
+          ) : null}
+          {isRejectDialog && rejectLookup.status === "ready" && rejectRules.blockedMessage ? (
+            <span style={{ fontSize: 12, color: "#dc2626" }}>{rejectRules.blockedMessage}</span>
+          ) : null}
+          {isRejectDialog && rejectLookup.status === "ready" && !rejectRules.blockedMessage && rejectRules.blockedNote ? (
+            <span style={{ fontSize: 12, color: "#92400e", background: "#fef3c7", padding: "8px 10px", borderRadius: 6 }}>
+              {rejectRules.blockedNote}
+            </span>
+          ) : null}
+          {isRejectDialog && rejectLookup.status === "ready" && !rejectRules.blockedMessage && rejectRules.showDropdown ? (
+            <>
+              <label className="form-label" htmlFor="paRejectReason">
+                Reason {rejectRules.reasonRequired ? <span className="req">*</span> : <span style={{ textTransform: "none", letterSpacing: 0, color: "#1e5fa8" }}>Optional</span>}
+              </label>
+              <select
+                id="paRejectReason"
+                className="form-input"
+                value={rejectReasonKey}
+                onChange={(e) => setRejectReasonKey(e.target.value)}
+              >
+                <option value="">Select a reason</option>
+                {rejectRules.options.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.requiresRemarks ? `${option.label} (Needs remarks)` : option.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
           <label className="form-label">
-            Remarks {remarkRequired && <span className="req">*</span>}
+            Remarks{" "}
+            {effectiveRemarkRequired ? (
+              <span className="req">*</span>
+            ) : isRejectDialog && rejectRules.showDropdown ? (
+              <span style={{ textTransform: "none", letterSpacing: 0, color: "#1e5fa8" }}>Optional</span>
+            ) : null}
           </label>
           <textarea
             className="form-input"
             value={remarkText}
             onChange={(e) => setRemarkText(e.target.value)}
-            placeholder={remarkRequired ? "Enter remarks…" : "Optional remarks…"}
+            placeholder={
+              isRejectDialog && rejectRules.showDropdown
+                ? "Add a note for the employee…"
+                : effectiveRemarkRequired
+                  ? "Enter remarks…"
+                  : "Optional remarks…"
+            }
             rows={4}
             style={{ resize: "vertical" }}
           />

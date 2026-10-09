@@ -1,5 +1,6 @@
 import { ApiError, apiClient } from "./api-client";
 import type { UdfSchemaField } from "./udf-config-service";
+import { normalizeRejectionReasonsDto, type RejectionReasonsConfig } from "@/lib/approval/rejection-reasons";
 
 const BASE = "/api/v1/visit-config";
 
@@ -56,6 +57,8 @@ export interface VisitApprovalWorkflowConfig {
   isEnabled: boolean;
   notifyApproverOnRoute?: boolean;
   levels: VisitApprovalLevel[];
+  /** Manager rejection reasons for visit day claims. */
+  rejectionReasons?: RejectionReasonsConfig;
 }
 
 export interface VisitClaimDistanceCappingConfig {
@@ -250,6 +253,7 @@ export function normalizeVisitConfig(
     approvalWorkflow: {
       isEnabled: bool(approvalWorkflow.isEnabled),
       notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
+      rejectionReasons: normalizeRejectionReasonsDto(approvalWorkflow.rejectionReasons),
       levels: (Array.isArray(approvalWorkflow.levels) ? approvalWorkflow.levels : []).map(
         (item, index) => {
           const level = record(item);
