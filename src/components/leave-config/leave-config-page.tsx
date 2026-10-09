@@ -52,6 +52,8 @@ import {
 } from "@/lib/api";
 import { projectUsersService } from "@/lib/api/project-users-service";
 import { projectAdminBase } from "@/lib/nav/nav";
+import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
+import { validateRejectionReasons } from "@/lib/approval/rejection-reasons";
 
 interface LeaveConfigPageProps {
   projectId: string;
@@ -296,6 +298,11 @@ function validateConfig(config: LeaveConfigDocument): string[] {
         errors.push(`${policyLabel}: ${leaveType.shortCode} is used by more than one leave type.`);
       }
       shortCodes.add(leaveType.shortCode);
+      if (leaveType.approvalWorkflow.isApprovalRequired) {
+        for (const message of validateRejectionReasons(leaveType.approvalWorkflow.rejectionReasons)) {
+          errors.push(`${typeLabel}: ${message}`);
+        }
+      }
       if (leaveType.totalLeavesPerYear < 0 || leaveType.totalLeavesPerYear > 365) {
         errors.push(`${typeLabel}: total leaves must be between 0 and 365.`);
       }
@@ -1041,6 +1048,7 @@ export function LeaveConfigPage({
           typeIndex={view.typeIndex}
           designations={designations}
           genderUdfState={genderUdfState}
+          showValidation={validationErrors.length > 0}
           onBack={() => setView({ mode: "policy", policyIndex: view.policyIndex })}
           onChange={(nextType) =>
             updateConfig((current) => ({
@@ -1895,6 +1903,7 @@ function LeaveTypeEditor({
   typeIndex,
   designations,
   genderUdfState,
+  showValidation = false,
   onBack,
   onChange,
 }: {
@@ -1903,6 +1912,8 @@ function LeaveTypeEditor({
   typeIndex: number;
   designations: Designation[];
   genderUdfState: GenderUdfState;
+  /** True after a failed save, so inline errors show. */
+  showValidation?: boolean;
   onBack: () => void;
   onChange: (leaveType: LeaveTypeConfig) => void;
 }) {
@@ -2842,6 +2853,25 @@ function LeaveTypeEditor({
                 </div>
               ))}
             </div>
+          )}
+          {leaveType.approvalWorkflow.isApprovalRequired && (
+            <RejectionReasonsSection
+              value={leaveType.approvalWorkflow.rejectionReasons}
+              onChange={(next) =>
+                patch({
+                  approvalWorkflow: {
+                    ...leaveType.approvalWorkflow,
+                    rejectionReasons: next,
+                  },
+                })
+              }
+              error={
+                showValidation
+                  ? validateRejectionReasons(leaveType.approvalWorkflow.rejectionReasons)[0]
+                  : undefined
+              }
+              requestNoun="leave"
+            />
           )}
         </div>
       </section>

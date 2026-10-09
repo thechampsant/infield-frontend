@@ -15,6 +15,13 @@
  */
 
 import { ApiError, apiClient } from "./api-client";
+import {
+  emptyRejectionReasons,
+  rejectionReasonsToDto,
+  rejectionReasonsToForm,
+  type RejectionReasonsConfig,
+  type RejectionReasonsForm,
+} from "@/lib/approval/rejection-reasons";
 
 const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 const BASE = "/api/v1/attendance-config";
@@ -129,6 +136,7 @@ export interface RegularizationConfigDto {
   reasonOptions?: RegularizationReasonOptionDto[];
   autoRejectRules?: string | AutoRejectRulesDto;
   autoApprovalRules?: AutoApprovalRulesDto;
+  rejectionReasons?: RejectionReasonsConfig;
 }
 
 export interface LeaveModuleConfigDto {
@@ -311,6 +319,8 @@ export interface AttendanceConfigForm {
   autoApprovalAllLevels: boolean;
   autoRejectEnabled: boolean;
   autoRejectAfterDays: number;
+  /** Manager rejection reasons; one list for regularization and attendance approval. */
+  rejectionReasons: RejectionReasonsForm;
 
   autoWeekOffEnabled: boolean;
 }
@@ -460,6 +470,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   autoApprovalAllLevels: false,
   autoRejectEnabled: false,
   autoRejectAfterDays: 3,
+  rejectionReasons: emptyRejectionReasons(),
 
   autoWeekOffEnabled: false,
 };
@@ -615,6 +626,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     autoApprovalAllLevels: Boolean(reg?.autoApprovalRules?.approveAllLevels),
     autoRejectEnabled: isStructuredRuleEnabled(reg?.autoRejectRules),
     autoRejectAfterDays: parseLegacyRuleDays(reg?.autoRejectRules, DEFAULT_CONFIG_FORM.autoRejectAfterDays),
+    rejectionReasons: rejectionReasonsToForm(reg?.rejectionReasons),
 
     autoWeekOffEnabled: Boolean(doc.leaveModule?.autoWeekOff),
   };
@@ -720,6 +732,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
         isEnabled: form.autoRejectEnabled,
         afterDays: form.autoRejectAfterDays,
       },
+      rejectionReasons: rejectionReasonsToDto(form.rejectionReasons),
     },
     leaveModule: { autoWeekOff: form.autoWeekOffEnabled },
     shiftManagement: {

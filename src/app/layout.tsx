@@ -10,6 +10,7 @@ import "@/styles/infield-claims.css";
 import "@/styles/infield-visit.css";
 import "@/styles/infield-leave.css";
 import "@/styles/infield-sales.css";
+import "@/styles/infield-rejection-reasons.css";
 import "@/styles/infield-store-profile.css";
 import "@/styles/infield-mood-checker.css";
 import "@/styles/infield-documents.css";

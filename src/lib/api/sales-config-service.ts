@@ -1,5 +1,6 @@
 import { apiClient } from "./api-client";
 import type { UdfSchemaField } from "./udf-config-service";
+import { normalizeRejectionReasonsDto, type RejectionReasonsConfig } from "@/lib/approval/rejection-reasons";
 
 const BASE = "/api/v1/sales";
 
@@ -31,6 +32,8 @@ export interface SalesApprovalWorkflow {
   isEnabled: boolean;
   notifyApproverOnRoute?: boolean;
   levels: SalesApprovalLevel[];
+  /** Manager rejection reasons for sales entries of this configuration. */
+  rejectionReasons?: RejectionReasonsConfig;
 }
 
 export interface SalesConfiguration {
@@ -218,6 +221,7 @@ export function normalizeSalesConfiguration(value: unknown): SalesConfiguration 
       isEnabled: bool(workflow.isEnabled),
       notifyApproverOnRoute: bool(workflow.notifyApproverOnRoute),
       levels: levels.map(normalizeApprovalLevel),
+      rejectionReasons: normalizeRejectionReasonsDto(workflow.rejectionReasons),
     },
     isActive: bool(raw.isActive, true),
     createdAt: text(raw.createdAt) || undefined,
@@ -247,6 +251,9 @@ function payload(input: SaveSalesConfigurationInput): Record<string, unknown> {
             autoRejectDays: level.autoRejectDays,
           }))
         : [],
+      ...(input.approvalWorkflow.rejectionReasons
+        ? { rejectionReasons: input.approvalWorkflow.rejectionReasons }
+        : {}),
     },
   };
 }

@@ -19,7 +19,13 @@
  */
 
 import { ACTION_FILE_TYPE_ERROR, isAllowedActionFile } from "@/lib/inbox-action-file";
-import { apiClient } from "./api-client";
+import { ApiError, apiClient } from "./api-client";
+import {
+  DEFAULT_REJECTION_REASON_OPTIONS,
+  LEGACY_REJECTION_LOOKUP,
+  normalizeRejectionReasonLookup,
+  type RejectionReasonLookup,
+} from "@/lib/approval/rejection-reasons";
 
 const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 const BASE = "/api/v1/inbox";
@@ -708,10 +714,40 @@ export const inboxService = {
     });
   },
 
+  /** Reject-dialog rules for the selected items (POST /inbox/rejection-reasons). */
+  async getRejectionReasons(inboxItemIds: string[]): Promise<RejectionReasonLookup> {
+    if (USE_MOCK_API) {
+      await delay(150);
+      const claims = inboxItemIds.filter((id) => findAssigned(id)?.module === "claims");
+      if (!claims.length) return LEGACY_REJECTION_LOOKUP;
+      const options = DEFAULT_REJECTION_REASON_OPTIONS.map(({ key, label, requiresRemarks }) => ({
+        key,
+        label,
+        requiresRemarks,
+      }));
+      return {
+        ...LEGACY_REJECTION_LOOKUP,
+        showReasonDropdown: true,
+        reasonRequired: true,
+        remarksAlwaysRequired: claims.length < inboxItemIds.length,
+        reasonOptions: options,
+      };
+    }
+    try {
+      const data = await apiClient.post<unknown>(`${BASE}/rejection-reasons`, { inboxItemIds });
+      return normalizeRejectionReasonLookup(data);
+    } catch (error) {
+      // Backend without this endpoint yet: keep today's dialog.
+      if (error instanceof ApiError && error.status === 404) return LEGACY_REJECTION_LOOKUP;
+      throw error;
+    }
+  },
+
   async reject(
     inboxItemId: string,
     remarks: string,
     attachment: ActionAttachment,
+    rejectionReasonKey?: string,
   ): Promise<void> {
     if (USE_MOCK_API) {
       await delay(250);
@@ -724,7 +760,7 @@ export const inboxService = {
     }
     await apiClient.request<void>(`${BASE}/${inboxItemId}/reject`, {
       method: "PATCH",
-      body: JSON.stringify({ remarks, attachment }),
+      body: JSON.stringify({ remarks, attachment, ...(rejectionReasonKey ? { rejectionReasonKey } : {}) }),
     });
   },
 
@@ -760,6 +796,7 @@ export const inboxService = {
     inboxItemIds: string[],
     remarks: string,
     attachment: ActionAttachment,
+    rejectionReasonKey?: string,
   ): Promise<BulkActionResponse> {
     if (USE_MOCK_API) {
       await delay(400);
@@ -781,6 +818,7 @@ export const inboxService = {
       inboxItemIds,
       remarks,
       attachment,
+      ...(rejectionReasonKey ? { rejectionReasonKey } : {}),
     });
   },
 };

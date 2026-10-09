@@ -20,7 +20,9 @@ import { BulkActionBar } from "./bulk-action-bar";
 import { AssignedRow } from "./assigned-row";
 import { RaisedRow } from "./raised-row";
 import { ApproveModal } from "./approve-modal";
-import { RejectModal } from "./reject-modal";
+import { RejectModal, type RejectConfirmation } from "./reject-modal";
+import { formatDate } from "./inbox-format";
+import { formatApiError } from "@/lib/api/get-api-error-message";
 import { AttachmentLightbox } from "./attachment-lightbox";
 import { InboxEmpty } from "./inbox-empty";
 import { TriCheckbox, type CheckState } from "./tri-checkbox";
@@ -30,7 +32,7 @@ type Tab = "assigned" | "raised";
 
 /** Pending action target: a single item id, or the whole bulk selection. */
 type ActionTarget =
-  | { mode: "single"; id: string; employeeName?: string }
+  | { mode: "single"; id: string; employeeName?: string; subtitle?: string }
   | { mode: "bulk"; ids: string[] };
 
 /** Notify the workspace shell so the sidebar badge stays in sync. */
@@ -189,6 +191,13 @@ export function InboxView() {
       mode: "single",
       id: item.inboxItemId,
       employeeName: item.submittedBy.displayName,
+      subtitle: [
+        item.submittedBy.displayName,
+        item.displayMetadata?.typeLabel ?? item.requestType,
+        formatDate(item.submittedDate),
+      ]
+        .filter(Boolean)
+        .join(" · "),
     });
   }
 
@@ -238,30 +247,31 @@ export function InboxView() {
     }
   }
 
-  async function confirmReject(reason: string, file: File) {
-    if (!rejectTarget) return;
+  async function confirmReject({ remarks, rejectionReasonKey, file, rejectIds, skippedIds }: RejectConfirmation) {
+    if (!rejectTarget || rejectIds.length === 0) return;
     setSubmitting(true);
     try {
       const attachment = await inboxService.uploadActionFile(file);
       if (rejectTarget.mode === "single") {
-        await inboxService.reject(rejectTarget.id, reason, attachment);
+        await inboxService.reject(rejectTarget.id, remarks, attachment, rejectionReasonKey);
         setToast({ message: "Rejected", type: "success" });
       } else {
-        const res = await inboxService.bulkReject(rejectTarget.ids, reason, attachment);
+        const res = await inboxService.bulkReject(rejectIds, remarks, attachment, rejectionReasonKey);
+        const notDone = res.failed.length + skippedIds.length;
         setToast({
           message:
-            res.failed.length > 0
-              ? `${res.succeeded.length} rejected, ${res.failed.length} failed`
+            notDone > 0
+              ? `${res.succeeded.length} rejected, ${notDone} not rejected`
               : `${res.succeeded.length} requests rejected`,
-          type: res.failed.length > 0 ? "error" : "success",
+          type: notDone > 0 ? "error" : "success",
         });
       }
       setRejectTarget(null);
       setSelected(new Set());
       await load();
       await refreshPending();
-    } catch {
-      setToast({ message: "Could not reject. Please try again.", type: "error" });
+    } catch (error) {
+      setToast({ message: formatApiError(error, "Could not reject. Please try again."), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -274,8 +284,6 @@ export function InboxView() {
 
   const approveModalCount =
     approveTarget?.mode === "bulk" ? approveTarget.ids.length : 1;
-  const rejectModalCount =
-    rejectTarget?.mode === "bulk" ? rejectTarget.ids.length : 1;
 
   return (
     <div className="inbox">
@@ -437,10 +445,11 @@ export function InboxView() {
       {rejectTarget && (
         <RejectModal
           open
-          count={rejectModalCount}
+          inboxItemIds={rejectTarget.mode === "single" ? [rejectTarget.id] : rejectTarget.ids}
           employeeName={
             rejectTarget.mode === "single" ? rejectTarget.employeeName : undefined
           }
+          subtitle={rejectTarget.mode === "single" ? rejectTarget.subtitle : undefined}
           submitting={submitting}
           onConfirm={confirmReject}
           onCancel={() => !submitting && setRejectTarget(null)}
