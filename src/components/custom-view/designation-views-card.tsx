@@ -16,6 +16,7 @@ interface Props {
   onRemoveView: (view: DraftView) => void;
   onSaved: (saved: CustomViewConfiguration, localId: string) => void;
   onError: (message: string) => void;
+  coloredTextEnabled?: boolean;
 }
 
 export function DesignationViewsCard({
@@ -29,6 +30,7 @@ export function DesignationViewsCard({
   onRemoveView,
   onSaved,
   onError,
+  coloredTextEnabled = false,
 }: Props) {
   const [open, setOpen] = useState(true);
   const code = designation.externalCode || designation.name.slice(0, 3).toUpperCase();
@@ -95,6 +97,7 @@ export function DesignationViewsCard({
                     onChange={(next) => onChangeView(view.localId, next)}
                     onSaved={onSaved}
                     onError={onError}
+                    coloredTextEnabled={coloredTextEnabled}
                   />
                 )}
               </div>
