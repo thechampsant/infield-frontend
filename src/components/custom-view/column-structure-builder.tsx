@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Lock, Plus, Trash2 } from "lucide-react";
 import type { CustomViewColumnNode, CustomViewColumnValueType } from "@/lib/api";
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   onChange: (next: CustomViewColumnNode[]) => void;
   onReorder?: (next: CustomViewColumnNode[]) => void;
   busy?: boolean;
+  /** Shows the per-column "Colored text" switch. */
+  coloredTextEnabled?: boolean;
 }
 
 function newKey(prefix: string): string {
@@ -22,7 +24,13 @@ function moveItem<T>(list: T[], from: number, to: number): T[] {
   return next;
 }
 
-export function ColumnStructureBuilder({ structure, onChange, onReorder, busy = false }: Props) {
+export function ColumnStructureBuilder({
+  structure,
+  onChange,
+  onReorder,
+  busy = false,
+  coloredTextEnabled = false,
+}: Props) {
   const locked = structure.find((node) => node.locked);
   const rest = structure.filter((node) => !node.locked);
 
@@ -62,12 +70,23 @@ export function ColumnStructureBuilder({ structure, onChange, onReorder, busy = 
   return (
     <div>
       <div className="cv-label">Locked identity column</div>
-      <div className="cv-locked">{locked?.label || "loginid"} (required, not editable)</div>
+      <div className="cv-locked">
+        {locked?.label || "loginid"} (required, not editable{coloredTextEnabled ? " · cannot be colored" : ""})
+      </div>
+
+      {coloredTextEnabled && (
+        <div className="cv-color-heading">
+          <span className="cv-label">Columns</span>
+          <span className="cv-muted">
+            Turn on <strong>Colored text</strong> to let the uploaded sheet set a text color per cell.
+          </span>
+        </div>
+      )}
 
       {rest.map((node, index) =>
         node.type === "group" ? (
           <div key={node.key} className="cv-group">
-            <div className="cv-col-row">
+            <div className={coloredTextEnabled ? "cv-col-row cv-col-row--color" : "cv-col-row"}>
               <span className="cv-muted">Group</span>
               <input
                 className="cv-input"
@@ -79,6 +98,7 @@ export function ColumnStructureBuilder({ structure, onChange, onReorder, busy = 
                 }}
               />
               <span />
+              {coloredTextEnabled && <span />}
               <MoveButtons
                 busy={busy}
                 canMoveUp={index > 0}
@@ -99,6 +119,7 @@ export function ColumnStructureBuilder({ structure, onChange, onReorder, busy = 
                   key={child.key}
                   node={child}
                   busy={busy}
+                  coloredTextEnabled={coloredTextEnabled}
                   canMoveUp={childIndex > 0}
                   canMoveDown={childIndex < children.length - 1}
                   onChange={(updated) => {
@@ -150,6 +171,7 @@ export function ColumnStructureBuilder({ structure, onChange, onReorder, busy = 
             key={node.key}
             node={node}
             busy={busy}
+            coloredTextEnabled={coloredTextEnabled}
             canMoveUp={index > 0}
             canMoveDown={index < rest.length - 1}
             onChange={(updated) => {
@@ -228,6 +250,7 @@ function ColumnRow({
   canMoveUp,
   canMoveDown,
   busy,
+  coloredTextEnabled,
 }: {
   node: CustomViewColumnNode;
   onChange: (node: CustomViewColumnNode) => void;
@@ -237,9 +260,11 @@ function ColumnRow({
   canMoveUp: boolean;
   canMoveDown: boolean;
   busy: boolean;
+  coloredTextEnabled: boolean;
 }) {
-  return (
-    <div className="cv-col-row">
+  const colored = coloredTextEnabled && node.coloredText === true;
+  const row = (
+    <div className={coloredTextEnabled ? "cv-col-row cv-col-row--color" : "cv-col-row"}>
       <span className="cv-muted">Column</span>
       <input
         className="cv-input"
@@ -255,6 +280,22 @@ function ColumnRow({
         <option value="number">Number</option>
         <option value="date">Date</option>
       </select>
+      {coloredTextEnabled && (
+        <label className={colored ? "cv-color-toggle cv-color-toggle--on" : "cv-color-toggle"}>
+          <input
+            type="checkbox"
+            checked={colored}
+            onChange={(e) => {
+              const next: CustomViewColumnNode = { ...node };
+              if (e.target.checked) next.coloredText = true;
+              else delete next.coloredText;
+              onChange(next);
+            }}
+          />
+          <span className="cv-color-toggle-track" aria-hidden="true" />
+          <span>Colored text</span>
+        </label>
+      )}
       <MoveButtons
         busy={busy}
         canMoveUp={canMoveUp}
@@ -267,6 +308,20 @@ function ColumnRow({
       <button type="button" className="cv-icon-btn" onClick={onRemove} aria-label="Remove column">
         <Trash2 size={14} />
       </button>
+    </div>
+  );
+
+  if (!colored) return row;
+  return (
+    <div className="cv-color-wrap">
+      {row}
+      <div className="cv-color-note">
+        <span className="cv-color-chip">
+          <Lock size={12} />
+          {(node.label || "Column").trim()} · Color
+        </span>
+        <span>Added to the template right after this column. Each cell&apos;s text takes the color uploaded against it.</span>
+      </div>
     </div>
   );
 }

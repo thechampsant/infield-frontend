@@ -62,6 +62,7 @@ interface Props {
   onChange: (view: DraftView) => void;
   onSaved: (saved: CustomViewConfiguration, localId: string) => void;
   onError: (message: string) => void;
+  coloredTextEnabled?: boolean;
 }
 
 function identityColumn(tagging: CustomViewTaggingLogic): CustomViewColumnNode {
@@ -119,6 +120,7 @@ export function ViewEditor({
   onChange,
   onSaved,
   onError,
+  coloredTextEnabled = false,
 }: Props) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -316,6 +318,7 @@ export function ViewEditor({
         busy={saving || uploading}
         onChange={(columnStructure) => onChange({ ...view, columnStructure })}
         onReorder={persistColumnStructure}
+        coloredTextEnabled={coloredTextEnabled}
       />
 
       <div className="cv-excel-period">
