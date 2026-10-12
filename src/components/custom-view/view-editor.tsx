@@ -53,6 +53,8 @@ export interface DraftView {
   latestFileName?: string | null;
   latestFileSize?: number | null;
   latestRowCount?: number;
+  showToReportingManagers?: boolean;
+  summaryColumnKey?: string | null;
 }
 
 interface Props {
@@ -96,7 +98,21 @@ export function configToDraft(cfg: CustomViewConfiguration): DraftView {
     latestFileName: cfg.latestFileName,
     latestFileSize: cfg.latestFileSize,
     latestRowCount: cfg.latestRowCount,
+    showToReportingManagers: cfg.showToReportingManagers,
+    summaryColumnKey: cfg.summaryColumnKey,
   };
+}
+
+/** Number columns (incl. group sub-columns) that can be the team-view summary column. */
+function numberColumns(structure: CustomViewColumnNode[]): Array<{ key: string; label: string }> {
+  return structure.flatMap((node) => {
+    if (node.type === "group") {
+      return (node.children || [])
+        .filter((child) => !child.locked && child.valueType === "number")
+        .map((child) => ({ key: child.key, label: `${node.label} | ${child.label}` }));
+    }
+    return !node.locked && node.valueType === "number" ? [{ key: node.key, label: node.label }] : [];
+  });
 }
 
 export function createEmptyDraft(
@@ -148,10 +164,15 @@ export function ViewEditor({
   }, [view.id]);
 
   async function persistView(next: DraftView): Promise<CustomViewConfiguration> {
+    const summaryValid = numberColumns(next.columnStructure).some(
+      (column) => column.key === next.summaryColumnKey,
+    );
     const payload = {
       name: next.name.trim(),
       taggingLogic: next.taggingLogic,
       columnStructure: next.columnStructure,
+      showToReportingManagers: next.showToReportingManagers === true,
+      summaryColumnKey: summaryValid ? next.summaryColumnKey : null,
     };
     const id = viewIdRef.current ?? next.id;
     const saved = id
@@ -276,6 +297,10 @@ export function ViewEditor({
     }
   }
 
+  const summaryOptions = numberColumns(view.columnStructure);
+  const summaryValue = summaryOptions.some((column) => column.key === view.summaryColumnKey)
+    ? (view.summaryColumnKey as string)
+    : "";
   const fileLabel = view.latestFileName;
   const fileSize = view.latestFileSize ?? 0;
   const rowCount = view.latestRowCount ?? 0;
@@ -320,6 +345,26 @@ export function ViewEditor({
         onReorder={persistColumnStructure}
         coloredTextEnabled={coloredTextEnabled}
       />
+
+      <div className="cv-type-help">
+        <div className="cv-type-help-title">The column type also sets how the team view sorts</div>
+        <div className="cv-type-help-row">
+          <b>Number</b>
+          <span>High → Low, Low → High, A–Z. Can be the summary column.</span>
+        </div>
+        <div className="cv-type-help-row">
+          <b>Date</b>
+          <span>Newest first, Oldest first, A–Z.</span>
+        </div>
+        <div className="cv-type-help-row">
+          <b>Text</b>
+          <span>Listed by name, value shown under the name.</span>
+        </div>
+        <span className="cv-muted">
+          Display keeps the Excel format (e.g. 118%). The template gets no new column; the team comes from the
+          reporting hierarchy.
+        </span>
+      </div>
 
       <div className="cv-excel-period">
         <div>
@@ -400,6 +445,58 @@ export function ViewEditor({
             </div>
           )}
         </div>
+      </div>
+
+      <div className="cv-team-card">
+        <span className="cv-team-badge">New · Team view</span>
+        <label className={view.showToReportingManagers ? "cv-team-toggle cv-team-toggle--on" : "cv-team-toggle"}>
+          <input
+            type="checkbox"
+            checked={view.showToReportingManagers === true}
+            onChange={(e) => onChange({ ...view, showToReportingManagers: e.target.checked })}
+          />
+          <span className="cv-color-toggle-track" aria-hidden="true" />
+          <span>
+            <span className="cv-team-toggle-title">Show to reporting managers</span>
+            <span className="cv-muted cv-team-toggle-sub">Off by default</span>
+          </span>
+        </label>
+        <p className="cv-muted">
+          Managers above this designation get this view for their team in the app. Views with the same name under
+          other designations (e.g. IPRO and SENIORIPRO) show as one entry.
+        </p>
+        <p className="cv-team-live" role="status">
+          {view.showToReportingManagers
+            ? "On: reporting managers see this view under My Team, with each team member's data from this view."
+            : "Off: this view is hidden from reporting managers."}
+        </p>
+        <div className="cv-field">
+          <label className="cv-label" htmlFor={`cv-summary-${view.localId}`}>
+            Summary column <span className="cv-muted">optional</span>
+          </label>
+          <select
+            id={`cv-summary-${view.localId}`}
+            className="cv-select"
+            value={summaryValue}
+            onChange={(e) => onChange({ ...view, summaryColumnKey: e.target.value || null })}
+          >
+            <option value="">None</option>
+            {summaryOptions.map((column) => (
+              <option key={column.key} value={column.key}>
+                {column.label}
+              </option>
+            ))}
+          </select>
+          <span className="cv-muted">
+            Number columns only. Managers see this metric first; leave it empty when the file has no single headline
+            number.
+          </span>
+        </div>
+        <p className="cv-team-live" role="status">
+          {summaryValue
+            ? `The app opens on ${summaryOptions.find((column) => column.key === summaryValue)?.label} until the manager picks another metric.`
+            : "Empty: the app asks the manager to pick a metric."}
+        </p>
       </div>
 
       <div className="cv-actions">

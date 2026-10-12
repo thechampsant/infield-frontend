@@ -47,6 +47,8 @@ function draftToPendingConfig(
     taggingLogic: view.taggingLogic,
     columnStructure: view.columnStructure,
     columnCount: view.columnStructure.length,
+    showToReportingManagers: view.showToReportingManagers === true,
+    summaryColumnKey: view.summaryColumnKey ?? null,
     status: view.status || "draft",
     latestPeriodMonth: view.periodMonth,
     latestPeriodYear: view.periodYear,
