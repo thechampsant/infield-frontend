@@ -32,6 +32,8 @@ export interface CustomViewConfiguration {
   taggingLogic: CustomViewTaggingLogic;
   columnStructure: CustomViewColumnNode[];
   columnCount: number;
+  showToReportingManagers: boolean;
+  summaryColumnKey: string | null;
   status: CustomViewStatus;
   latestPeriodMonth: number | null;
   latestPeriodYear: number | null;
@@ -67,12 +69,20 @@ export interface CreateCustomViewInput {
   name: string;
   taggingLogic: CustomViewTaggingLogic;
   columnStructure?: CustomViewColumnNode[];
+  /** Team view: reporting managers see this view (off by default). */
+  showToReportingManagers?: boolean;
+  /** Team view: Number column used as the managers' default metric. */
+  summaryColumnKey?: string | null;
 }
 
 export interface UpdateCustomViewInput {
   name?: string;
   taggingLogic?: CustomViewTaggingLogic;
   columnStructure?: CustomViewColumnNode[];
+  /** Team view: reporting managers see this view (off by default). */
+  showToReportingManagers?: boolean;
+  /** Team view: Number column used as the managers' default metric. */
+  summaryColumnKey?: string | null;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -117,6 +127,9 @@ function normalizeConfig(raw: unknown): CustomViewConfiguration {
       ? item.columnStructure.map(normalizeColumn)
       : [],
     columnCount: asNumber(item.columnCount),
+    showToReportingManagers: item.showToReportingManagers === true,
+    summaryColumnKey:
+      typeof item.summaryColumnKey === "string" && item.summaryColumnKey ? item.summaryColumnKey : null,
     status:
       item.status === "paused" || item.status === "active" || item.status === "draft"
         ? item.status
