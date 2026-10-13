@@ -806,6 +806,19 @@
 .att-config-page .approval-info {
   flex: 1;
 }
+.att-config-page .approval-auto-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.att-config-page .approval-auto-action .wh-label {
+  flex: 0 0 auto;
+}
+.att-config-page .approval-auto-action .wh-input:disabled {
+  opacity: 0.5;
+}
 
 /* ── Misc ─────────────────────────────────────────────────────────────────── */
 

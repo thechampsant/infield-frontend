@@ -114,6 +114,17 @@ export interface AutoApprovalRulesDto {
   approveAllLevels?: boolean;
 }
 
+export type RegularizationAutoAction = "None" | "AutoApprove" | "AutoReject";
+
+export const REGULARIZATION_AUTO_ACTION_MAX_DAYS = 90;
+
+export interface RegularizationLevelAutoActionDto {
+  /** 1-based; level N is approvalHierarchy[N - 1]. */
+  level: number;
+  autoAction: RegularizationAutoAction;
+  autoActionDays: number;
+}
+
 export interface RegularizationReasonOptionDto {
   key: string;
   label: string;
@@ -134,8 +145,12 @@ export interface RegularizationConfigDto {
   notifyApproverOnRoute?: boolean;
   approvalHierarchy: string[];
   reasonOptions?: RegularizationReasonOptionDto[];
+  /** Legacy project-wide rule; ignored once approvalLevelAutoActions is present. */
   autoRejectRules?: string | AutoRejectRulesDto;
+  /** Legacy project-wide rule; ignored once approvalLevelAutoActions is present. */
   autoApprovalRules?: AutoApprovalRulesDto;
+  /** Per-level auto actions; also drive missed random attendance regularization and attendance approval. */
+  approvalLevelAutoActions?: RegularizationLevelAutoActionDto[];
   rejectionReasons?: RejectionReasonsConfig;
 }
 
@@ -239,6 +254,9 @@ export interface ApprovalLevelForm {
   designationId: string;
   /** Human-readable designation name — display only */
   designationName: string;
+  /** What happens when this level takes no action for autoActionDays. */
+  autoAction: RegularizationAutoAction;
+  autoActionDays: number;
 }
 
 export interface RegularizationReasonOptionForm extends RegularizationReasonOptionDto {
@@ -314,11 +332,8 @@ export interface AttendanceConfigForm {
   regNotifyApproverOnRoute: boolean;
   approvalLevels: ApprovalLevelForm[];
   regReasonOptions: RegularizationReasonOptionForm[];
-  autoApprovalEnabled: boolean;
-  autoApprovalAfterDays: number;
-  autoApprovalAllLevels: boolean;
-  autoRejectEnabled: boolean;
-  autoRejectAfterDays: number;
+  /** True when the per-level auto actions were pre-filled from the old project-wide rules (display only). */
+  regAutoActionsFromLegacy: boolean;
   /** Manager rejection reasons; one list for regularization and attendance approval. */
   rejectionReasons: RejectionReasonsForm;
 
@@ -465,35 +480,90 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   regNotifyApproverOnRoute: false,
   approvalLevels: [],
   regReasonOptions: [],
-  autoApprovalEnabled: false,
-  autoApprovalAfterDays: 3,
-  autoApprovalAllLevels: false,
-  autoRejectEnabled: false,
-  autoRejectAfterDays: 3,
+  regAutoActionsFromLegacy: false,
   rejectionReasons: emptyRejectionReasons(),
 
   autoWeekOffEnabled: false,
 };
 
-function parseLegacyRuleDays(rule: unknown, fallback: number): number {
-  if (rule && typeof rule === "object" && "afterDays" in rule) {
-    const days = Number((rule as { afterDays?: unknown }).afterDays);
-    return Number.isFinite(days) ? days : fallback;
-  }
-
-  if (typeof rule === "string") {
-    const match = rule.match(/\d+/);
-    if (match) {
-      const days = Number(match[0]);
-      return Number.isFinite(days) ? days : fallback;
-    }
-  }
-
-  return fallback;
-}
-
 function isStructuredRuleEnabled(rule: unknown): boolean {
   return Boolean(rule && typeof rule === "object" && (rule as { isEnabled?: unknown }).isEnabled === true);
+}
+
+/** Days of a legacy rule the backend actually ran: { isEnabled: true, afterDays >= 0 }. */
+function executableLegacyRuleDays(rule: unknown): number | null {
+  if (!isStructuredRuleEnabled(rule)) return null;
+  const days = (rule as { afterDays?: unknown }).afterDays;
+  return typeof days === "number" && days >= 0 ? days : null;
+}
+
+function approvalLevel(
+  designationId: string,
+  autoAction: RegularizationAutoAction,
+  autoActionDays: number,
+): ApprovalLevelForm {
+  return {
+    designationId,
+    designationName: "",
+    autoAction,
+    autoActionDays: autoAction === "None" ? 0 : autoActionDays,
+  };
+}
+
+/**
+ * Approval levels with their auto actions. Configs saved before per-level actions carry one
+ * project-wide rule pair, mapped onto the levels the way the backend ran it: the rule with
+ * fewer days fires first (approve on a tie). "Approve all remaining levels" still gives every
+ * level the full days: 0-day levels would leave the Project Admin 0 days too, auto-rejecting
+ * the request at once. A free-text reject rule never ran.
+ */
+function approvalLevelsToForm(
+  reg: RegularizationConfigDto | undefined,
+): { levels: ApprovalLevelForm[]; fromLegacy: boolean } {
+  const hierarchy = Array.isArray(reg?.approvalHierarchy) ? reg.approvalHierarchy : [];
+
+  if (Array.isArray(reg?.approvalLevelAutoActions)) {
+    const entries = reg.approvalLevelAutoActions;
+    return {
+      levels: hierarchy.map((id, index) => {
+        const entry = entries.find((candidate) => candidate.level === index + 1);
+        return approvalLevel(id, entry?.autoAction ?? "None", Number(entry?.autoActionDays) || 0);
+      }),
+      fromLegacy: false,
+    };
+  }
+
+  const approveDays = executableLegacyRuleDays(reg?.autoApprovalRules);
+  const rejectDays = executableLegacyRuleDays(reg?.autoRejectRules);
+  const levels = hierarchy.map((id) => {
+    if (rejectDays !== null && (approveDays === null || rejectDays < approveDays)) {
+      return approvalLevel(id, "AutoReject", rejectDays);
+    }
+    if (approveDays !== null) {
+      return approvalLevel(id, "AutoApprove", approveDays);
+    }
+    return approvalLevel(id, "None", 0);
+  });
+  return { levels, fromLegacy: hierarchy.length > 0 && (approveDays !== null || rejectDays !== null) };
+}
+
+function approvalLevelsToDto(levels: ApprovalLevelForm[]): Pick<
+  RegularizationConfigDto,
+  "approvalHierarchy" | "approvalLevelAutoActions" | "autoApprovalRules" | "autoRejectRules"
+> {
+  // Levels without a designation are dropped, so number the rest after filtering.
+  const kept = levels.filter((level) => level.designationId.trim());
+  return {
+    approvalHierarchy: kept.map((level) => level.designationId.trim()),
+    approvalLevelAutoActions: kept.map((level, index) => ({
+      level: index + 1,
+      autoAction: level.autoAction,
+      autoActionDays: level.autoAction === "None" ? 0 : Number(level.autoActionDays) || 0,
+    })),
+    // Per-level actions replace the old project-wide rules.
+    autoApprovalRules: { isEnabled: false, afterDays: 0, approveAllLevels: false },
+    autoRejectRules: { isEnabled: false, afterDays: 0 },
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -505,6 +575,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
 
   const wh = doc.workingHours;
   const reg = doc.regularization;
+  const approvalLevels = approvalLevelsToForm(reg);
   const rootIrEnabled = Boolean(doc.imageRecognition?.isEnabled);
   const rootRandomEnabled = Boolean(doc.randomAttendance?.isEnabled);
 
@@ -616,16 +687,9 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     regMaxRequestCount: reg?.maxRequestsLimit ?? DEFAULT_CONFIG_FORM.regMaxRequestCount,
     regApprovalEnabled: reg?.isApprovalFlowEnabled ?? DEFAULT_CONFIG_FORM.regApprovalEnabled,
     regNotifyApproverOnRoute: Boolean(reg?.notifyApproverOnRoute),
-    approvalLevels:
-      Array.isArray(reg?.approvalHierarchy) && reg.approvalHierarchy.length
-        ? reg.approvalHierarchy.map((id) => ({ designationId: id, designationName: '' }))
-        : [],
+    approvalLevels: approvalLevels.levels,
     regReasonOptions: mapReasonOptionsToForm(reg?.reasonOptions),
-    autoApprovalEnabled: Boolean(reg?.autoApprovalRules?.isEnabled),
-    autoApprovalAfterDays: reg?.autoApprovalRules?.afterDays ?? DEFAULT_CONFIG_FORM.autoApprovalAfterDays,
-    autoApprovalAllLevels: Boolean(reg?.autoApprovalRules?.approveAllLevels),
-    autoRejectEnabled: isStructuredRuleEnabled(reg?.autoRejectRules),
-    autoRejectAfterDays: parseLegacyRuleDays(reg?.autoRejectRules, DEFAULT_CONFIG_FORM.autoRejectAfterDays),
+    regAutoActionsFromLegacy: approvalLevels.fromLegacy,
     rejectionReasons: rejectionReasonsToForm(reg?.rejectionReasons),
 
     autoWeekOffEnabled: Boolean(doc.leaveModule?.autoWeekOff),
@@ -719,19 +783,8 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
       maxRequestsLimit: form.regMaxRequestCount,
       isApprovalFlowEnabled: form.regApprovalEnabled,
       notifyApproverOnRoute: form.regNotifyApproverOnRoute,
-      approvalHierarchy: form.approvalLevels
-        .map((a) => a.designationId.trim())
-        .filter(Boolean),
+      ...approvalLevelsToDto(form.approvalLevels),
       reasonOptions: mapReasonOptionsToDto(form.regReasonOptions),
-      autoApprovalRules: {
-        isEnabled: form.autoApprovalEnabled,
-        afterDays: form.autoApprovalAfterDays,
-        approveAllLevels: form.autoApprovalAllLevels,
-      },
-      autoRejectRules: {
-        isEnabled: form.autoRejectEnabled,
-        afterDays: form.autoRejectAfterDays,
-      },
       rejectionReasons: rejectionReasonsToDto(form.rejectionReasons),
     },
     leaveModule: { autoWeekOff: form.autoWeekOffEnabled },
