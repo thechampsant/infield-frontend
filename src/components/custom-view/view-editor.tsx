@@ -64,7 +64,6 @@ interface Props {
   onChange: (view: DraftView) => void;
   onSaved: (saved: CustomViewConfiguration, localId: string) => void;
   onError: (message: string) => void;
-  coloredTextEnabled?: boolean;
 }
 
 function identityColumn(tagging: CustomViewTaggingLogic): CustomViewColumnNode {
@@ -136,7 +135,6 @@ export function ViewEditor({
   onChange,
   onSaved,
   onError,
-  coloredTextEnabled = false,
 }: Props) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -285,6 +283,10 @@ export function ViewEditor({
     }
     setUploading(true);
     try {
+      // Save unsaved edits first (e.g. a Colored text switch): the upload reads the saved columns,
+      // and the view is reloaded from the server afterwards.
+      if (persistPromiseRef.current) await persistPromiseRef.current;
+      if (isViewConfigured(view)) await persistView(view);
       const uploaded = await customViewService.upload(projectId, view.id, month, year, file);
       setLastAudit({ auditId: uploaded.auditId, hasErrorLog: uploaded.hasErrorLog });
       const saved = await customViewService.get(projectId, view.id);
@@ -343,7 +345,6 @@ export function ViewEditor({
         busy={saving || uploading}
         onChange={(columnStructure) => onChange({ ...view, columnStructure })}
         onReorder={persistColumnStructure}
-        coloredTextEnabled={coloredTextEnabled}
       />
 
       <div className="cv-type-help">
@@ -444,6 +445,9 @@ export function ViewEditor({
               />
             </div>
           )}
+          <span className="cv-muted">
+            Colors: turn on Colored text for a column, then fill its cells in Excel (.xlsx). The app shows each value in its cell&apos;s fill color.
+          </span>
         </div>
       </div>
 

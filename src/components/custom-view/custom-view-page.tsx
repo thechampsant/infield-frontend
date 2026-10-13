@@ -92,7 +92,6 @@ export function CustomViewPage({
   const [pendingRemove, setPendingRemove] = useState<CustomViewConfiguration | null>(
     null,
   );
-  const [coloredTextEnabled, setColoredTextEnabled] = useState(false);
   const didAutoSelect = useRef(false);
 
   const yearOptions = useMemo(() => {
@@ -180,17 +179,6 @@ export function CustomViewPage({
   useEffect(() => {
     void loadTable();
   }, [loadTable]);
-
-  useEffect(() => {
-    if (!projectId) return;
-    let cancelled = false;
-    void customViewService.getFeatures(projectId).then((features) => {
-      if (!cancelled) setColoredTextEnabled(features.coloredText);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setSelectedIds(ids);
@@ -463,7 +451,6 @@ export function CustomViewPage({
               onRemoveView={(view) => handleRemoveFromCard(designation.id, view)}
               onSaved={handleSaved}
               onError={(message) => setToast({ message, type: "error" })}
-              coloredTextEnabled={coloredTextEnabled}
             />
           ))
         )}
