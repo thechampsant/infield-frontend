@@ -13,14 +13,11 @@ export interface CustomViewColumnNode {
   label: string;
   locked?: boolean;
   valueType?: CustomViewColumnValueType;
-  /** Adds a "<label> · Color" column to the template. */
+  /** Colored text: the app shows this column's Excel cell fill as the value color. */
   coloredText?: boolean;
   children?: CustomViewColumnNode[];
 }
 
-export interface CustomViewFeatures {
-  coloredText: boolean;
-}
 
 export interface CustomViewConfiguration {
   id: string;
@@ -156,16 +153,6 @@ function qs(projectId: string, extra?: Record<string, string | number>): string 
 }
 
 export const customViewService = {
-  /** Feature flags for this project; any failure means "off" so the page behaves as before. */
-  async getFeatures(projectId: string): Promise<CustomViewFeatures> {
-    try {
-      const result = record(await apiClient.get<unknown>(`${BASE}/features?${qs(projectId)}`));
-      return { coloredText: result.coloredText === true };
-    } catch {
-      return { coloredText: false };
-    }
-  },
-
   async list(projectId: string, designationId?: string): Promise<CustomViewConfiguration[]> {
     const query = qs(projectId, designationId ? { designationId } : undefined);
     const result = await apiClient.get<unknown>(`${BASE}?${query}`);

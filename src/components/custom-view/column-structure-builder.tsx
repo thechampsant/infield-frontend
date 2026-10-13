@@ -8,7 +8,7 @@ interface Props {
   onChange: (next: CustomViewColumnNode[]) => void;
   onReorder?: (next: CustomViewColumnNode[]) => void;
   busy?: boolean;
-  /** Shows the per-column "Colored text" switch. */
+  /** Shows the per-column "Colored text" switch (on by default). */
   coloredTextEnabled?: boolean;
 }
 
@@ -29,7 +29,7 @@ export function ColumnStructureBuilder({
   onChange,
   onReorder,
   busy = false,
-  coloredTextEnabled = false,
+  coloredTextEnabled = true,
 }: Props) {
   const locked = structure.find((node) => node.locked);
   const rest = structure.filter((node) => !node.locked);
@@ -78,7 +78,7 @@ export function ColumnStructureBuilder({
         <div className="cv-color-heading">
           <span className="cv-label">Columns</span>
           <span className="cv-muted">
-            Turn on <strong>Colored text</strong> to let the uploaded sheet set a text color per cell.
+            Turn on <strong>Colored text</strong> for a column to show its Excel cell fill as the value color in the app.
           </span>
         </div>
       )}
@@ -318,9 +318,9 @@ function ColumnRow({
       <div className="cv-color-note">
         <span className="cv-color-chip">
           <Lock size={12} />
-          {(node.label || "Column").trim()} · Color
+          Colors from cell fill
         </span>
-        <span>Added to the template right after this column. Each cell&apos;s text takes the color uploaded against it.</span>
+        <span>Fill these cells in Excel (.xlsx) before uploading. Each value shows in its cell&apos;s fill color; unfilled cells stay default.</span>
       </div>
     </div>
   );
