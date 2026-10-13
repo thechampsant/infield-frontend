@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type {
+  ApprovalLevelForm,
   AttendanceConfigForm,
   AttendanceConfigDoc,
   AttendanceTypeForm,
   PhotoDirection,
   PhotoSource,
   RegWindowType,
+  RegularizationAutoAction,
   RegularizationReasonOptionForm,
   ShiftAssignmentMode,
 } from "@/lib/api/attendance-config";
@@ -15,6 +17,7 @@ import {
   DEFAULT_MISSED_RANDOM_ATTENDANCE_REASON_OPTIONS,
   DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE,
   DEFAULT_REGULARIZATION_REASON_OPTIONS,
+  REGULARIZATION_AUTO_ACTION_MAX_DAYS,
   attendanceConfigService,
 } from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
@@ -1306,11 +1309,22 @@ function RegularizationSettings({
                   No designations found for this project. Create designations first before configuring approval levels.
                 </div>
               )}
+              {form.regAutoActionsFromLegacy && (
+                <div className="flat-mode-note" style={{ color: "var(--amber-700, #b45309)" }}>
+                  Converted from your previous auto approval / auto reject setting. Review each level and save to
+                  apply per level.
+                </div>
+              )}
               {form.approvalLevels.map((level, i) => {
                 const resolvedName =
                   level.designationName ||
                   designations.find((d) => d.id === level.designationId)?.name ||
                   level.designationId;
+                const patchLevel = (patch: Partial<ApprovalLevelForm>) =>
+                  onChange(
+                    "approvalLevels",
+                    form.approvalLevels.map((lvl, x) => (x === i ? { ...lvl, ...patch } : lvl)),
+                  );
 
                 return (
                   <div key={i} className="approval-step">
@@ -1321,15 +1335,10 @@ function RegularizationSettings({
                         value={level.designationId}
                         onChange={(e) => {
                           const selected = designations.find((d) => d.id === e.target.value);
-                          const next = form.approvalLevels.map((lvl, x) =>
-                            x === i
-                              ? {
-                                  designationId: selected?.id ?? '',
-                                  designationName: selected?.name ?? '',
-                                }
-                              : lvl,
-                          );
-                          onChange("approvalLevels", next);
+                          patchLevel({
+                            designationId: selected?.id ?? '',
+                            designationName: selected?.name ?? '',
+                          });
                         }}
                       >
                         <option value="">— Select designation —</option>
@@ -1343,6 +1352,39 @@ function RegularizationSettings({
                           <option value={level.designationId}>{resolvedName}</option>
                         )}
                       </select>
+                      <div className="approval-auto-action">
+                        <span className="wh-label">If no action</span>
+                        <select
+                          className="form-input form-input-inline"
+                          aria-label={`Level ${i + 1} auto action`}
+                          value={level.autoAction}
+                          onChange={(e) => {
+                            const autoAction = e.target.value as RegularizationAutoAction;
+                            patchLevel({
+                              autoAction,
+                              autoActionDays: autoAction === "None" ? 0 : level.autoActionDays || 1,
+                            });
+                          }}
+                        >
+                          <option value="None">No auto action</option>
+                          <option value="AutoApprove">Auto approve</option>
+                          <option value="AutoReject">Auto reject</option>
+                        </select>
+                        <span className="wh-unit">after</span>
+                        <input
+                          type="number"
+                          className="wh-input"
+                          aria-label={`Level ${i + 1} auto action days`}
+                          min={0}
+                          max={REGULARIZATION_AUTO_ACTION_MAX_DAYS}
+                          step={1}
+                          disabled={level.autoAction === "None"}
+                          value={level.autoAction === "None" ? 0 : level.autoActionDays}
+                          onChange={(e) => patchLevel({ autoActionDays: numberValue(e.target.value) })}
+                        />
+                        <span className="wh-unit">days</span>
+                      </div>
+                      <FieldError message={errors[`approvalLevels.${i}.autoActionDays`]} />
                     </div>
                     <button
                       className="btn btn-sm btn-danger-ghost"
@@ -1359,13 +1401,19 @@ function RegularizationSettings({
                 );
               })}
               <FieldError message={errors.approvalLevels} />
+              {lastLevelAutoApprovesSameDay(form.approvalLevels) && (
+                <div className="flat-mode-note" style={{ color: "var(--amber-700, #b45309)" }}>
+                  The last level auto-approves after 0 days, so the Project Admin also gets 0 days: an
+                  unanswered request is auto-rejected in the same run.
+                </div>
+              )}
               <button
                 className="btn btn-secondary btn-sm"
                 disabled={designations.length === 0}
                 onClick={() =>
                   onChange("approvalLevels", [
                     ...form.approvalLevels,
-                    { designationId: '', designationName: '' },
+                    { designationId: '', designationName: '', autoAction: "None", autoActionDays: 0 },
                   ])
                 }
               >
@@ -1373,59 +1421,6 @@ function RegularizationSettings({
               </button>
             </>
           )}
-
-          <div className="section-divider">Auto approval</div>
-          <SettingRow
-            label="Enable auto approval"
-            checked={form.autoApprovalEnabled}
-            onChange={(v) => onChange("autoApprovalEnabled", v)}
-          />
-          {form.autoApprovalEnabled && (
-            <>
-              <div className="wh-row">
-                <span className="wh-label">Approve after</span>
-                <input
-                  type="number"
-                  className="wh-input"
-                  min={0}
-                  max={90}
-                  value={form.autoApprovalAfterDays}
-                  onChange={(e) => onChange("autoApprovalAfterDays", numberValue(e.target.value))}
-                />
-                <span className="wh-unit">days</span>
-              </div>
-              <FieldError message={errors.autoApprovalAfterDays} />
-              <SettingRow
-                label="Approve all remaining levels"
-                checked={form.autoApprovalAllLevels}
-                onChange={(v) => onChange("autoApprovalAllLevels", v)}
-              />
-            </>
-          )}
-
-          <div className="section-divider">Auto reject</div>
-          <SettingRow
-            label="Enable auto reject"
-            checked={form.autoRejectEnabled}
-            onChange={(v) => onChange("autoRejectEnabled", v)}
-          />
-          {form.autoRejectEnabled && (
-            <>
-              <div className="wh-row">
-                <span className="wh-label">Reject after</span>
-                <input
-                  type="number"
-                  className="wh-input"
-                  min={0}
-                  max={90}
-                  value={form.autoRejectAfterDays}
-                  onChange={(e) => onChange("autoRejectAfterDays", numberValue(e.target.value))}
-                />
-                <span className="wh-unit">days</span>
-              </div>
-            </>
-          )}
-          <FieldError message={errors.autoRejectAfterDays} />
 
           <RejectionReasonsSection
             value={form.rejectionReasons}
@@ -1437,6 +1432,11 @@ function RegularizationSettings({
       )}
     </div>
   );
+}
+
+function lastLevelAutoApprovesSameDay(levels: ApprovalLevelForm[]): boolean {
+  const last = levels[levels.length - 1];
+  return last?.autoAction === "AutoApprove" && Number(last.autoActionDays) === 0;
 }
 
 function setRegularizationEnabled(

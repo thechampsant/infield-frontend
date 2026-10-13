@@ -89,3 +89,105 @@ describe("attendance type Approval mapping", () => {
     return { _id: "c1", attendanceTypes } as unknown as AttendanceConfigDoc;
   }
 });
+
+describe("regularization per-level auto actions", () => {
+  const doc = (regularization: Record<string, unknown>) =>
+    ({ _id: "c1", attendanceTypes: [], regularization } as unknown as AttendanceConfigDoc);
+  const actions = (form: AttendanceConfigForm) =>
+    form.approvalLevels.map((level) => [level.autoAction, level.autoActionDays]);
+
+  describe("docToForm", () => {
+    it("reads per-level actions, defaulting a level without an entry to no action", () => {
+      const form = docToForm(doc({
+        approvalHierarchy: ["d1", "d2", "d3"],
+        approvalLevelAutoActions: [
+          { level: 1, autoAction: "AutoApprove", autoActionDays: 3 },
+          { level: 2, autoAction: "AutoReject", autoActionDays: 4 },
+        ],
+      }));
+
+      expect(actions(form)).toEqual([["AutoApprove", 3], ["AutoReject", 4], ["None", 0]]);
+      expect(form.regAutoActionsFromLegacy).toBe(false);
+    });
+
+    it("maps a legacy auto-approval rule onto every level", () => {
+      const form = docToForm(doc({
+        approvalHierarchy: ["d1", "d2"],
+        autoApprovalRules: { isEnabled: true, afterDays: 3, approveAllLevels: false },
+      }));
+
+      expect(actions(form)).toEqual([["AutoApprove", 3], ["AutoApprove", 3]]);
+      expect(form.regAutoActionsFromLegacy).toBe(true);
+    });
+
+    it("gives every level the full days for approve-all-levels, so the Project Admin keeps them too", () => {
+      const form = docToForm(doc({
+        approvalHierarchy: ["d1", "d2", "d3"],
+        autoApprovalRules: { isEnabled: true, afterDays: 3, approveAllLevels: true },
+      }));
+
+      expect(actions(form)).toEqual([["AutoApprove", 3], ["AutoApprove", 3], ["AutoApprove", 3]]);
+      expect(form.regAutoActionsFromLegacy).toBe(true);
+    });
+
+    it("uses the legacy rule that fired first: reject when it has fewer days, approve on a tie", () => {
+      const rejectFirst = docToForm(doc({
+        approvalHierarchy: ["d1", "d2"],
+        autoApprovalRules: { isEnabled: true, afterDays: 5 },
+        autoRejectRules: { isEnabled: true, afterDays: 2 },
+      }));
+      const tie = docToForm(doc({
+        approvalHierarchy: ["d1"],
+        autoApprovalRules: { isEnabled: true, afterDays: 3 },
+        autoRejectRules: { isEnabled: true, afterDays: 3 },
+      }));
+
+      expect(actions(rejectFirst)).toEqual([["AutoReject", 2], ["AutoReject", 2]]);
+      expect(actions(tie)).toEqual([["AutoApprove", 3]]);
+    });
+
+    it("treats disabled or free-text legacy rules as no action", () => {
+      const form = docToForm(doc({
+        approvalHierarchy: ["d1"],
+        autoApprovalRules: { isEnabled: false, afterDays: 3 },
+        autoRejectRules: "Reject after 3 days",
+      }));
+
+      expect(actions(form)).toEqual([["None", 0]]);
+      expect(form.regAutoActionsFromLegacy).toBe(false);
+    });
+  });
+
+  describe("formToDto", () => {
+    it("sends per-level actions numbered after dropping empty levels, with the legacy rules disabled", () => {
+      const dto = formToDto({
+        ...DEFAULT_CONFIG_FORM,
+        approvalLevels: [
+          { designationId: "d1", designationName: "", autoAction: "AutoApprove", autoActionDays: 3 },
+          { designationId: " ", designationName: "", autoAction: "AutoReject", autoActionDays: 9 },
+          { designationId: "d2", designationName: "", autoAction: "AutoReject", autoActionDays: 4 },
+          { designationId: "d3", designationName: "", autoAction: "None", autoActionDays: 7 },
+        ],
+      });
+
+      expect(dto.regularization.approvalHierarchy).toEqual(["d1", "d2", "d3"]);
+      expect(dto.regularization.approvalLevelAutoActions).toEqual([
+        { level: 1, autoAction: "AutoApprove", autoActionDays: 3 },
+        { level: 2, autoAction: "AutoReject", autoActionDays: 4 },
+        { level: 3, autoAction: "None", autoActionDays: 0 },
+      ]);
+      expect(dto.regularization.autoApprovalRules).toEqual({ isEnabled: false, afterDays: 0, approveAllLevels: false });
+      expect(dto.regularization.autoRejectRules).toEqual({ isEnabled: false, afterDays: 0 });
+    });
+
+    it("round-trips per-level actions through docToForm -> formToDto", () => {
+      const levels = [
+        { level: 1, autoAction: "AutoApprove", autoActionDays: 3 },
+        { level: 2, autoAction: "AutoReject", autoActionDays: 4 },
+      ];
+      const dto = formToDto(docToForm(doc({ approvalHierarchy: ["d1", "d2"], approvalLevelAutoActions: levels })));
+
+      expect(dto.regularization.approvalLevelAutoActions).toEqual(levels);
+    });
+  });
+});

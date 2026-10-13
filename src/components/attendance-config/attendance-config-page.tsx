@@ -18,6 +18,7 @@ import {
   type UdfSchemaField,
 } from "@/lib/api";
 import {
+  REGULARIZATION_AUTO_ACTION_MAX_DAYS,
   attendanceConfigService,
   docToForm,
   type AttendanceConfigDoc,
@@ -960,18 +961,17 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
         "Approval is enabled for one or more attendance types. Turn on the Regularization approval flow and add at least one approval level.";
     }
 
-    if (
-      form.autoApprovalEnabled &&
-      (form.autoApprovalAfterDays < 0 || form.autoApprovalAfterDays > 90)
-    ) {
-      errors.autoApprovalAfterDays = "Auto approval days must be between 0 and 90.";
-    }
-
-    if (
-      form.autoRejectEnabled &&
-      (form.autoRejectAfterDays < 0 || form.autoRejectAfterDays > 90)
-    ) {
-      errors.autoRejectAfterDays = "Auto reject days must be between 0 and 90.";
+    if (form.regApprovalEnabled) {
+      form.approvalLevels.forEach((level, index) => {
+        const days = Number(level.autoActionDays);
+        if (
+          level.autoAction !== "None" &&
+          (!Number.isInteger(days) || days < 0 || days > REGULARIZATION_AUTO_ACTION_MAX_DAYS)
+        ) {
+          errors[`approvalLevels.${index}.autoActionDays`] =
+            `Level ${index + 1}: days must be a whole number between 0 and ${REGULARIZATION_AUTO_ACTION_MAX_DAYS}.`;
+        }
+      });
     }
 
     const regReasonError = validateReasonOptions(form.regReasonOptions, "Regularization");
