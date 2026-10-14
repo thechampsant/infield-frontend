@@ -141,6 +141,20 @@ export interface LeaveApprovalLevel {
   approverRole: string;
   autoAction: LeaveAutoAction;
   autoActionDays: number;
+  /** Level 2+: take the request over when the previous None level's days pass. Kept only when true. */
+  takeOverFromPreviousLevel?: boolean;
+}
+
+/**
+ * A level from 2 up may take over from the level before it, only when that level has no auto
+ * action. The flag is kept only where it is valid.
+ */
+export function normalizeLeaveTakeOver(levels: LeaveApprovalLevel[]): LeaveApprovalLevel[] {
+  return levels.map((level, index) => {
+    const { takeOverFromPreviousLevel, ...rest } = level;
+    const valid = index > 0 && takeOverFromPreviousLevel === true && levels[index - 1].autoAction === "None";
+    return valid ? { ...rest, takeOverFromPreviousLevel: true } : rest;
+  });
 }
 
 export interface LeavePolicy {
@@ -488,7 +502,7 @@ function normalizeHolidayGroupingField(value: unknown): HolidayGroupingField {
   };
 }
 
-function normalizeLeaveType(value: unknown): LeaveTypeConfig {
+export function normalizeLeaveType(value: unknown): LeaveTypeConfig {
   const raw = record(value);
   const cycle = record(raw.attendanceCycle);
   const creditRule = record(raw.creditRule);
@@ -590,7 +604,7 @@ function normalizeLeaveType(value: unknown): LeaveTypeConfig {
       isApprovalRequired: bool(approvalWorkflow.isApprovalRequired, true),
       notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
       rejectionReasons: rejectionReasonsToForm(approvalWorkflow.rejectionReasons),
-      levels: levels.map((item, index) => {
+      levels: normalizeLeaveTakeOver(levels.map((item, index) => {
         const level = record(item);
         return {
           level: num(level.level, index + 1),
@@ -601,8 +615,9 @@ function normalizeLeaveType(value: unknown): LeaveTypeConfig {
             "None",
           ),
           autoActionDays: num(level.autoActionDays, 0),
+          takeOverFromPreviousLevel: level.takeOverFromPreviousLevel === true,
         };
-      }),
+      })),
     },
     ...(raw.genderEligibility && typeof raw.genderEligibility === "object" && !Array.isArray(raw.genderEligibility)
       ? {
@@ -736,6 +751,7 @@ function leaveTypeForSave(leaveType: LeaveTypeConfig): LeaveTypeConfig {
     _id: validMongoId(leaveType._id),
     approvalWorkflow: {
       ...leaveType.approvalWorkflow,
+      levels: normalizeLeaveTakeOver(leaveType.approvalWorkflow.levels),
       rejectionReasons: rejectionReasonsToDto(leaveType.approvalWorkflow.rejectionReasons),
     },
     ...(
