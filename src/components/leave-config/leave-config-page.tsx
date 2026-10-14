@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -32,6 +32,7 @@ import {
   featureConfigService,
   formatApiError,
   leaveConfigService,
+  normalizeLeaveTakeOver,
   udfConfigService,
   type Designation,
   type HolidayGroupingField,
@@ -328,6 +329,14 @@ function validateConfig(config: LeaveConfigDocument): string[] {
       if (leaveType.approvalWorkflow.levels.length > 10) {
         errors.push(`${typeLabel}: approval workflow can have at most 10 levels.`);
       }
+      leaveType.approvalWorkflow.levels.forEach((level, index) => {
+        if (level.takeOverFromPreviousLevel !== true) return;
+        if (index === 0) {
+          errors.push(`${typeLabel}: approval level 1 can't take over: it has no previous level.`);
+        } else if (leaveType.approvalWorkflow.levels[index - 1].autoAction !== "None") {
+          errors.push(`${typeLabel}: approval level ${index + 1} can take over only when level ${index} is set to No auto action.`);
+        }
+      });
       if (getLeaveTypeMode(leaveType) === "Maternity") {
         const childLimits = leaveType.maternityRules?.childLimits ?? [];
         if (!childLimits.some((limit) => limit.category === "FirstOrSecondChild" && limit.maxDays >= 0)) {
@@ -1951,8 +1960,10 @@ function LeaveTypeEditor({
     patch({
       approvalWorkflow: {
         ...leaveType.approvalWorkflow,
-        levels: leaveType.approvalWorkflow.levels.map((level, levelIndex) =>
-          levelIndex === index ? { ...level, ...patchValue } : level,
+        levels: normalizeLeaveTakeOver(
+          leaveType.approvalWorkflow.levels.map((level, levelIndex) =>
+            levelIndex === index ? { ...level, ...patchValue } : level,
+          ),
         ),
       },
     });
@@ -2795,63 +2806,112 @@ function LeaveTypeEditor({
           )}
           {leaveType.approvalWorkflow.isApprovalRequired && (
             <div className="leave-approval-list">
-              {leaveType.approvalWorkflow.levels.map((level, index) => (
-                <div className="leave-approval-row" key={index}>
-                  <div className="leave-approval-num">{index + 1}</div>
-                  <select
-                    value={
-                      designations.some((designation) => designation.id === level.approverRole)
-                        ? level.approverRole
-                        : ""
-                    }
-                    onChange={(event) => updateApprovalLevel(index, { approverRole: event.target.value })}
-                    disabled={!designations.length}
-                  >
-                    <option value="" disabled>
-                      {designations.length ? "Select designation" : "No designations available"}
-                    </option>
-                    {designations.map((designation) => (
-                      <option value={designation.id} key={designation.id}>
-                        {designation.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={level.autoAction}
-                    onChange={(event) =>
-                      updateApprovalLevel(index, { autoAction: event.target.value as LeaveAutoAction })
-                    }
-                  >
-                    {AUTO_ACTIONS.map((action) => (
-                      <option value={action} key={action}>
-                        {autoActionLabel(action)}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min={0}
-                    value={level.autoActionDays}
-                    onChange={(event) => updateApprovalLevel(index, { autoActionDays: Number(event.target.value) })}
-                    aria-label="Auto action days"
-                  />
-                  <button
-                    type="button"
-                    className="leave-table-remove"
-                    onClick={() =>
-                      patch({
-                        approvalWorkflow: {
-                          ...leaveType.approvalWorkflow,
-                          levels: leaveType.approvalWorkflow.levels.filter((_, levelIndex) => levelIndex !== index),
-                        },
-                      })
-                    }
-                    aria-label="Remove approval level"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
+              {leaveType.approvalWorkflow.levels.map((level, index) => {
+                const levels = leaveType.approvalWorkflow.levels;
+                const previous = levels[index - 1];
+                // A level's own days only apply to an auto action; a hand-off's wait is set below it.
+                const hasAutoAction = level.autoAction !== "None";
+                return (
+                  <Fragment key={index}>
+                    {previous && (
+                      <ApprovalHandoff
+                        fromLevel={index}
+                        toLevel={index + 1}
+                        days={previous.autoActionDays}
+                        checked={level.takeOverFromPreviousLevel === true}
+                        disabled={previous.autoAction !== "None"}
+                        onToggle={(checked) =>
+                          patch({
+                            approvalWorkflow: {
+                              ...leaveType.approvalWorkflow,
+                              levels: normalizeLeaveTakeOver(
+                                levels.map((item, levelIndex) => {
+                                  if (levelIndex === index) return { ...item, takeOverFromPreviousLevel: checked };
+                                  // 0 days has no due time without a closing date, so start the wait at 1.
+                                  if (levelIndex === index - 1 && checked) {
+                                    return { ...item, autoActionDays: item.autoActionDays || 1 };
+                                  }
+                                  return item;
+                                }),
+                              ),
+                            },
+                          })
+                        }
+                        onDaysChange={(days) => updateApprovalLevel(index - 1, { autoActionDays: days })}
+                      />
+                    )}
+                    <div className="leave-approval-row">
+                      <div className="leave-approval-num">{index + 1}</div>
+                      <label className="leave-approval-field">
+                        <span>Approver</span>
+                        <select
+                          value={
+                            designations.some((designation) => designation.id === level.approverRole)
+                              ? level.approverRole
+                              : ""
+                          }
+                          onChange={(event) => updateApprovalLevel(index, { approverRole: event.target.value })}
+                          disabled={!designations.length}
+                        >
+                          <option value="" disabled>
+                            {designations.length ? "Select designation" : "No designations available"}
+                          </option>
+                          {designations.map((designation) => (
+                            <option value={designation.id} key={designation.id}>
+                              {designation.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="leave-approval-field">
+                        <span>If no action</span>
+                        <select
+                          value={level.autoAction}
+                          onChange={(event) =>
+                            updateApprovalLevel(index, { autoAction: event.target.value as LeaveAutoAction })
+                          }
+                        >
+                          {AUTO_ACTIONS.map((action) => (
+                            <option value={action} key={action}>
+                              {autoActionLabel(action)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="leave-approval-field">
+                        <span>After</span>
+                        <span className="leave-approval-days">
+                          <input
+                            type="number"
+                            min={0}
+                            value={hasAutoAction ? level.autoActionDays : ""}
+                            placeholder="—"
+                            disabled={!hasAutoAction}
+                            onChange={(event) => updateApprovalLevel(index, { autoActionDays: Number(event.target.value) })}
+                            aria-label={`Level ${index + 1} auto action days`}
+                          />
+                          <em>days</em>
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="leave-table-remove"
+                        onClick={() =>
+                          patch({
+                            approvalWorkflow: {
+                              ...leaveType.approvalWorkflow,
+                              levels: normalizeLeaveTakeOver(levels.filter((_, levelIndex) => levelIndex !== index)),
+                            },
+                          })
+                        }
+                        aria-label="Remove approval level"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </Fragment>
+                );
+              })}
             </div>
           )}
           {leaveType.approvalWorkflow.isApprovalRequired && (
@@ -2943,6 +3003,65 @@ function CollapsibleSection({
       </div>
       {open && <div className="leave-section-body">{children}</div>}
     </section>
+  );
+}
+
+/**
+ * The link between two approval levels: when on, a request moves to `toLevel` once `fromLevel`
+ * (which has no auto action) has not acted for `days`. The wait is stored on `fromLevel`.
+ */
+function ApprovalHandoff({
+  fromLevel,
+  toLevel,
+  days,
+  checked,
+  disabled,
+  onToggle,
+  onDaysChange,
+}: {
+  fromLevel: number;
+  toLevel: number;
+  days: number;
+  checked: boolean;
+  disabled: boolean;
+  onToggle: (checked: boolean) => void;
+  onDaysChange: (days: number) => void;
+}) {
+  const className = [
+    "leave-approval-handoff",
+    checked ? "is-on" : "",
+    disabled ? "is-disabled" : "",
+  ].filter(Boolean).join(" ");
+  return (
+    <div className={className}>
+      <label className="leave-mini-switch">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onToggle(event.target.checked)}
+          aria-label={`Move to level ${toLevel} if level ${fromLevel} takes no action`}
+        />
+        <i aria-hidden />
+      </label>
+      {disabled ? (
+        <span>Set level {fromLevel} to No auto action to pass requests on to level {toLevel}.</span>
+      ) : checked ? (
+        <span>
+          Move to level {toLevel} if level {fromLevel} takes no action for
+          <input
+            type="number"
+            min={0}
+            value={days}
+            onChange={(event) => onDaysChange(Number(event.target.value))}
+            aria-label={`Days level ${fromLevel} has before the request moves to level ${toLevel}`}
+          />
+          {days === 1 ? "day" : "days"}
+        </span>
+      ) : (
+        <span>Move to level {toLevel} if level {fromLevel} takes no action</span>
+      )}
+    </div>
   );
 }
 

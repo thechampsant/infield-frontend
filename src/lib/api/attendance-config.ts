@@ -123,6 +123,8 @@ export interface RegularizationLevelAutoActionDto {
   level: number;
   autoAction: RegularizationAutoAction;
   autoActionDays: number;
+  /** Level 2+: take the request over when the previous None level's days pass. Sent only when true. */
+  takeOverFromPreviousLevel?: boolean;
 }
 
 export interface RegularizationReasonOptionDto {
@@ -257,6 +259,8 @@ export interface ApprovalLevelForm {
   /** What happens when this level takes no action for autoActionDays. */
   autoAction: RegularizationAutoAction;
   autoActionDays: number;
+  /** Level 2+: take the request over when the previous level takes no action for its days. */
+  takeOverFromPreviousLevel?: boolean;
 }
 
 export interface RegularizationReasonOptionForm extends RegularizationReasonOptionDto {
@@ -511,6 +515,24 @@ function approvalLevel(
 }
 
 /**
+ * A level from 2 up may take over from the level before it, only when that level has no auto
+ * action. A level with no auto action keeps its days only while the next level takes over:
+ * they are the wait before the request moves on.
+ */
+export function normalizeTakeOver(levels: ApprovalLevelForm[]): ApprovalLevelForm[] {
+  const withFlags = levels.map((level, index) => ({
+    ...level,
+    takeOverFromPreviousLevel:
+      index > 0 && level.takeOverFromPreviousLevel === true && levels[index - 1].autoAction === "None",
+  }));
+  return withFlags.map((level, index) =>
+    level.autoAction === "None" && !withFlags[index + 1]?.takeOverFromPreviousLevel
+      ? { ...level, autoActionDays: 0 }
+      : level,
+  );
+}
+
+/**
  * Approval levels with their auto actions. Configs saved before per-level actions carry one
  * project-wide rule pair, mapped onto the levels the way the backend ran it: the rule with
  * fewer days fires first (approve on a tie). "Approve all remaining levels" still gives every
@@ -525,10 +547,16 @@ function approvalLevelsToForm(
   if (Array.isArray(reg?.approvalLevelAutoActions)) {
     const entries = reg.approvalLevelAutoActions;
     return {
-      levels: hierarchy.map((id, index) => {
+      levels: normalizeTakeOver(hierarchy.map((id, index) => {
         const entry = entries.find((candidate) => candidate.level === index + 1);
-        return approvalLevel(id, entry?.autoAction ?? "None", Number(entry?.autoActionDays) || 0);
-      }),
+        return {
+          designationId: id,
+          designationName: "",
+          autoAction: entry?.autoAction ?? "None",
+          autoActionDays: Number(entry?.autoActionDays) || 0,
+          takeOverFromPreviousLevel: entry?.takeOverFromPreviousLevel === true,
+        };
+      })),
       fromLegacy: false,
     };
   }
@@ -552,13 +580,14 @@ function approvalLevelsToDto(levels: ApprovalLevelForm[]): Pick<
   "approvalHierarchy" | "approvalLevelAutoActions" | "autoApprovalRules" | "autoRejectRules"
 > {
   // Levels without a designation are dropped, so number the rest after filtering.
-  const kept = levels.filter((level) => level.designationId.trim());
+  const kept = normalizeTakeOver(levels.filter((level) => level.designationId.trim()));
   return {
     approvalHierarchy: kept.map((level) => level.designationId.trim()),
     approvalLevelAutoActions: kept.map((level, index) => ({
       level: index + 1,
       autoAction: level.autoAction,
-      autoActionDays: level.autoAction === "None" ? 0 : Number(level.autoActionDays) || 0,
+      autoActionDays: Number(level.autoActionDays) || 0,
+      ...(level.takeOverFromPreviousLevel && { takeOverFromPreviousLevel: true }),
     })),
     // Per-level actions replace the old project-wide rules.
     autoApprovalRules: { isEnabled: false, afterDays: 0, approveAllLevels: false },

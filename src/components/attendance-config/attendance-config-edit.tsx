@@ -18,6 +18,7 @@ import {
   DEFAULT_RANDOM_ATTENDANCE_EXPIRED_MESSAGE,
   DEFAULT_REGULARIZATION_REASON_OPTIONS,
   REGULARIZATION_AUTO_ACTION_MAX_DAYS,
+  normalizeTakeOver,
   attendanceConfigService,
 } from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
@@ -1323,8 +1324,12 @@ function RegularizationSettings({
                 const patchLevel = (patch: Partial<ApprovalLevelForm>) =>
                   onChange(
                     "approvalLevels",
-                    form.approvalLevels.map((lvl, x) => (x === i ? { ...lvl, ...patch } : lvl)),
+                    normalizeTakeOver(form.approvalLevels.map((lvl, x) => (x === i ? { ...lvl, ...patch } : lvl))),
                   );
+                // A level with no auto action still has days while the next level waits to take over.
+                const hasWait =
+                  level.autoAction !== "None" || form.approvalLevels[i + 1]?.takeOverFromPreviousLevel === true;
+                const previousHasNoAction = i > 0 && form.approvalLevels[i - 1].autoAction === "None";
 
                 return (
                   <div key={i} className="approval-step">
@@ -1378,12 +1383,35 @@ function RegularizationSettings({
                           min={0}
                           max={REGULARIZATION_AUTO_ACTION_MAX_DAYS}
                           step={1}
-                          disabled={level.autoAction === "None"}
-                          value={level.autoAction === "None" ? 0 : level.autoActionDays}
+                          disabled={!hasWait}
+                          value={hasWait ? level.autoActionDays : 0}
                           onChange={(e) => patchLevel({ autoActionDays: numberValue(e.target.value) })}
                         />
                         <span className="wh-unit">days</span>
                       </div>
+                      {i > 0 && (
+                        <div className="approval-auto-action">
+                          <Toggle
+                            ariaLabel={`Level ${i + 1} takes over if level ${i} takes no action`}
+                            checked={level.takeOverFromPreviousLevel === true}
+                            disabled={!previousHasNoAction}
+                            onChange={(checked) =>
+                              onChange(
+                                "approvalLevels",
+                                normalizeTakeOver(
+                                  form.approvalLevels.map((lvl, x) => {
+                                    if (x === i) return { ...lvl, takeOverFromPreviousLevel: checked };
+                                    // The previous level's days become the wait; start it at 1.
+                                    if (x === i - 1 && checked) return { ...lvl, autoActionDays: lvl.autoActionDays || 1 };
+                                    return lvl;
+                                  }),
+                                ),
+                              )
+                            }
+                          />
+                          <span className="wh-label">Take over if level {i} takes no action</span>
+                        </div>
+                      )}
                       <FieldError message={errors[`approvalLevels.${i}.autoActionDays`]} />
                     </div>
                     <button
@@ -1391,7 +1419,7 @@ function RegularizationSettings({
                       onClick={() =>
                         onChange(
                           "approvalLevels",
-                          form.approvalLevels.filter((_, x) => x !== i),
+                          normalizeTakeOver(form.approvalLevels.filter((_, x) => x !== i)),
                         )
                       }
                     >
@@ -1937,15 +1965,18 @@ function Toggle({
   checked,
   onChange,
   disabled = false,
+  ariaLabel,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }) {
   return (
     <label className="toggle">
       <input
         type="checkbox"
+        aria-label={ariaLabel}
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}

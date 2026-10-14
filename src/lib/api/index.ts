@@ -242,7 +242,7 @@ export type {
   TargetUploadedRow,
   TargetVsAchievementConfiguration,
 } from "./target-vs-achievement-service";
-export { leaveConfigService } from "./leave-config-service";
+export { leaveConfigService, normalizeLeaveTakeOver } from "./leave-config-service";
 export type {
   HolidayGroupingField,
   HolidayUploadResponse,
