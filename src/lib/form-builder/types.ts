@@ -156,13 +156,14 @@ export interface TypeSpecificConfig {
   codeType?: "barcode" | "qr" | "any";
   validateAgainstMaster?: boolean;
 
-  // Static option fields
+  // Static option fields (also File Upload: one file vs many)
   multiple?: boolean;
 
-  // File Upload
-  allowedFileTypes?: string[];
-  maxFileSize?: number;
-  maxFileCount?: number;
+  // File Upload — canonical UDF FILE config, saved top-level (see lib/udf/file-field-config.ts)
+  maxCount?: number;
+  maxFileSizeMB?: number;
+  allowedExtensions?: string[];
+  accept?: string[];
 }
 
 

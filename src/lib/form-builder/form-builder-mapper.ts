@@ -10,13 +10,28 @@
  * - Config and fields are fetched separately; this mapper combines them
  */
 
+import { fileFieldConfigToPatch, loadFileFieldConfig } from "@/lib/udf/file-field-config";
 import type { ApiFormConfig, ApiUdfField, UpdateFieldPayload } from "./form-builder-api";
 import type {
   ComponentType,
   EditWindow,
   FormConfiguration,
   FormField,
+  TypeSpecificConfig,
 } from "./types";
+
+/**
+ * Canonical UDF FILE config ({ multiple, maxCount, maxFileSizeMB, allowedExtensions, accept? })
+ * from any stored shape, including legacy `validation.*` keys. Same keys visit/claims save and
+ * mobile reads. An empty `accept` is dropped.
+ */
+function toCanonicalFileConfig(source: Record<string, unknown> | undefined): Record<string, unknown> {
+  const canonical = fileFieldConfigToPatch(loadFileFieldConfig(source), {});
+  if (Array.isArray(canonical.accept) && canonical.accept.length === 0) {
+    delete canonical.accept;
+  }
+  return canonical;
+}
 
 // ─── Component Type to UDF Type Mapping (for save-schema) ─────────────────
 
@@ -153,6 +168,13 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       config.source = "Camera";
       config.multiple = false;
       config.maxCount = 1;
+    }
+
+    // File Upload — canonical FILE config at the top level (what mobile reads and submit enforces).
+    // validation keeps only requiredMode so legacy nested FILE keys are not written back.
+    if (field.type === "file-upload") {
+      Object.assign(config, toCanonicalFileConfig(field.typeConfig as Record<string, unknown>));
+      config.validation = { requiredMode: field.required === "no" ? "never" : field.required };
     }
 
     // API Select config — save as flat config properties (same as Claims/Sales)
@@ -412,14 +434,17 @@ export function mapUdfFieldToFrontend(udf: ApiUdfField): FormField {
       operator: r.operator ?? "equals",
       value: r.value ?? "",
     })),
-    typeConfig: {
-      ...(cfg.validation?.typeConfig ?? cfg.validation ?? {}),
-      ...((apiComponentTypeToFrontend(componentType) === "dropdown" ||
-        apiComponentTypeToFrontend(componentType) === "multi-select") &&
-      typeof cfg.multiple === "boolean"
-        ? { multiple: cfg.multiple }
-        : {}),
-    },
+    typeConfig:
+      apiComponentTypeToFrontend(componentType) === "file-upload"
+        ? (toCanonicalFileConfig(cfg) as TypeSpecificConfig)
+        : {
+            ...(cfg.validation?.typeConfig ?? cfg.validation ?? {}),
+            ...((apiComponentTypeToFrontend(componentType) === "dropdown" ||
+              apiComponentTypeToFrontend(componentType) === "multi-select") &&
+            typeof cfg.multiple === "boolean"
+              ? { multiple: cfg.multiple }
+              : {}),
+          },
 
     // Options
     optionsSource: Array.isArray(cfg.options) ? "manual" : (cfg.options?.source ?? null),

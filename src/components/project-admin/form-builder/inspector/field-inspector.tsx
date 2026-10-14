@@ -5,6 +5,7 @@ import { X, MousePointerClick } from "lucide-react";
 import { useFormBuilder } from "@/lib/form-builder/form-builder-context";
 import { getComponentDefinition } from "@/lib/form-builder/constants";
 import type { FormField } from "@/lib/form-builder/types";
+import { FileFieldSettings } from "@/components/udf/file-field-settings";
 import { udfConfigService } from "@/lib/api";
 import type { UdfDataSourceDefinition, UdfSourcePreviewItem, UdfDatasourceFilterModesResponse } from "@/lib/api";
 
@@ -634,6 +635,7 @@ function InspectorContent({
   const isNumberType = field.type === "number";
   const isSignatureType = field.type === "signature";
   const isImageType = field.type === "image-capture";
+  const isFileUploadType = field.type === "file-upload";
   const isDateType = field.type === "date-picker";
   const isRatingType = field.type === "rating";
   const isApiSelectType = field.type === "api-select" || field.type === "list-view";
@@ -1036,6 +1038,21 @@ function InspectorContent({
               }
             />
           </>
+        )}
+        {isFileUploadType && (
+          // Same File Upload settings as visit/claims; saved as canonical top-level UDF FILE config.
+          <div style={{ padding: "6px 16px" }}>
+            <FileFieldSettings
+              key={field.id}
+              variant="modal"
+              config={field.typeConfig as Record<string, unknown>}
+              onChange={(patch) =>
+                updateField({
+                  typeConfig: { ...field.typeConfig, ...patch },
+                })
+              }
+            />
+          </div>
         )}
         {isRatingType && (
           <InspectorInput

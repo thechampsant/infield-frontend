@@ -251,7 +251,7 @@ const config1Fields: FormField[] = [
     label: "Invoice Upload",
     helpText: "Upload the purchase invoice",
     order: 22,
-    typeConfig: { allowedFileTypes: ["pdf", "jpg", "png"], maxFileSize: 10, maxFileCount: 3 },
+    typeConfig: { multiple: true, maxCount: 3, maxFileSizeMB: 10, allowedExtensions: ["pdf", "jpg", "png"] },
   }),
   createField({
     id: "f1-024",
@@ -567,7 +567,7 @@ const config2Fields: FormField[] = [
     label: "Supporting Documents",
     helpText: "Upload any supporting documents",
     order: 24,
-    typeConfig: { allowedFileTypes: ["pdf", "docx", "xlsx"], maxFileSize: 5, maxFileCount: 5 },
+    typeConfig: { multiple: true, maxCount: 5, maxFileSizeMB: 5, allowedExtensions: ["pdf", "docx", "xlsx"] },
   }),
   createField({
     id: "f2-026",
