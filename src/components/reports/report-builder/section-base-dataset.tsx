@@ -8,7 +8,10 @@ import type {
   ReportDataScope,
   ReportDynamicUdfConfig,
   ReportDateFilterConfig,
+  ReportFormBuilderForm,
 } from "@/lib/api/report-config-service";
+
+const FORM_BUILDER_SOURCE_KEY = "FORM_BUILDER";
 
 interface SectionBaseDatasetProps {
   dataSources: ReportDataSource[];
@@ -28,6 +31,10 @@ interface SectionBaseDatasetProps {
   onDataScopeChange: (scope: ReportDataScope) => void;
   onDynamicUdfChange: (config: ReportDynamicUdfConfig) => void;
   onDateFilterChange: (config: ReportDateFilterConfig) => void;
+  formOptions?: ReportFormBuilderForm[];
+  formsLoading?: boolean;
+  selectedFormConfigId?: string;
+  onFormChange?: (formConfigId: string) => void;
   errors?: Record<string, string>;
 }
 
@@ -49,8 +56,13 @@ export function SectionBaseDataset({
   onDataScopeChange,
   onDynamicUdfChange,
   onDateFilterChange,
+  formOptions = [],
+  formsLoading = false,
+  selectedFormConfigId = "",
+  onFormChange,
   errors = {},
 }: SectionBaseDatasetProps) {
+  const isFormBuilderSource = primarySourceKey === FORM_BUILDER_SOURCE_KEY;
   const secondaryOptions = dataSources.filter(
     (ds) => ds.sourceKey !== primarySourceKey,
   );
@@ -137,6 +149,33 @@ export function SectionBaseDataset({
           <p className="text-xs text-red-500 mt-1">{errors.primarySource}</p>
         )}
       </div>
+
+      {/* Form (FORM_BUILDER only): locks the report to one form's submissions and fields */}
+      {isFormBuilderSource && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Form <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={selectedFormConfigId}
+            onChange={(e) => onFormChange?.(e.target.value)}
+            disabled={formsLoading}
+            className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              errors.formConfigId ? "border-red-500" : "border-gray-300"
+            }`}
+          >
+            <option value="">{formsLoading ? "Loading forms..." : "Select a form..."}</option>
+            {formOptions.map((form) => (
+              <option key={form._id} value={form._id}>
+                {form.name}
+              </option>
+            ))}
+          </select>
+          {errors.formConfigId && (
+            <p className="text-xs text-red-500 mt-1">{errors.formConfigId}</p>
+          )}
+        </div>
+      )}
 
       {/* Secondary Source Toggle */}
       <div className="border-t border-gray-100 pt-4">
@@ -242,7 +281,8 @@ export function SectionBaseDataset({
         </div>
       )}
 
-      {/* Dynamic UDF Source */}
+      {/* Dynamic UDF Source (FORM_BUILDER uses the Form selector instead) */}
+      {!isFormBuilderSource && (
       <div className="border-t border-gray-100 pt-4">
         <label className="flex items-center gap-3 cursor-pointer">
           <input
@@ -298,6 +338,7 @@ export function SectionBaseDataset({
           </div>
         )}
       </div>
+      )}
 
       {/* Date Filter Field */}
       <div className="border-t border-gray-100 pt-4">
