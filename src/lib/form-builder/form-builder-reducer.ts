@@ -5,6 +5,7 @@ import type {
   ComponentType,
 } from "./types";
 import { getComponentDefinition } from "./constants";
+import { DEFAULT_FILE_FIELD_CONFIG } from "@/lib/udf/file-field-config";
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
@@ -41,7 +42,12 @@ function createDefaultField(
     // Validation
     required: "no",
     requiredRules: [],
-    typeConfig: componentType === "multi-select" ? { multiple: true } : {},
+    typeConfig:
+      componentType === "multi-select"
+        ? { multiple: true }
+        : componentType === "file-upload"
+          ? { ...DEFAULT_FILE_FIELD_CONFIG, allowedExtensions: [] }
+          : {},
 
     // Options
     optionsSource: null,
