@@ -249,6 +249,9 @@
   transition: box-shadow 0.2s;
 }
 .mood-section:hover { box-shadow: var(--mood-shadow-md); }
+/* An open designation dropdown must not be clipped by the card or covered by the next section. */
+.mood-section:has(.mood-ms-dd) { overflow: visible; position: relative; z-index: 5; }
+.mood-section:has(.mood-ms-dd) .mood-section-head { border-radius: 12px 12px 0 0; }
 .mood-section-head {
   display: flex;
   align-items: center;
