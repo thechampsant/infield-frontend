@@ -3,6 +3,7 @@ import {
   DEFAULT_CONFIG_FORM,
   docToForm,
   formToDto,
+  normalizeTakeOver,
   type AttendanceConfigDoc,
   type AttendanceConfigForm,
   type AttendanceTypeForm,
@@ -188,6 +189,75 @@ describe("regularization per-level auto actions", () => {
       const dto = formToDto(docToForm(doc({ approvalHierarchy: ["d1", "d2"], approvalLevelAutoActions: levels })));
 
       expect(dto.regularization.approvalLevelAutoActions).toEqual(levels);
+    });
+  });
+
+  describe("level take-over", () => {
+    const level = (autoAction: "None" | "AutoApprove" | "AutoReject", autoActionDays: number, takeOver = false) => ({
+      designationId: "d",
+      designationName: "",
+      autoAction,
+      autoActionDays,
+      takeOverFromPreviousLevel: takeOver,
+    });
+
+    it("reads the flag and keeps the previous level's days as its wait", () => {
+      const form = docToForm(doc({
+        approvalHierarchy: ["d1", "d2"],
+        approvalLevelAutoActions: [
+          { level: 1, autoAction: "None", autoActionDays: 3 },
+          { level: 2, autoAction: "AutoReject", autoActionDays: 2, takeOverFromPreviousLevel: true },
+        ],
+      }));
+
+      expect(actions(form)).toEqual([["None", 3], ["AutoReject", 2]]);
+      expect(form.approvalLevels.map((l) => l.takeOverFromPreviousLevel)).toEqual([false, true]);
+    });
+
+    it("sends the flag only when it is on, with the previous level's days", () => {
+      const dto = formToDto({
+        ...DEFAULT_CONFIG_FORM,
+        approvalLevels: [
+          { ...level("None", 3), designationId: "d1" },
+          { ...level("AutoReject", 2, true), designationId: "d2" },
+          { ...level("None", 5), designationId: "d3" },
+        ],
+      });
+
+      expect(dto.regularization.approvalLevelAutoActions).toEqual([
+        { level: 1, autoAction: "None", autoActionDays: 3 },
+        { level: 2, autoAction: "AutoReject", autoActionDays: 2, takeOverFromPreviousLevel: true },
+        { level: 3, autoAction: "None", autoActionDays: 0 },
+      ]);
+    });
+
+    it("round-trips a take-over through docToForm -> formToDto", () => {
+      const levels = [
+        { level: 1, autoAction: "None", autoActionDays: 3 },
+        { level: 2, autoAction: "None", autoActionDays: 4, takeOverFromPreviousLevel: true },
+        { level: 3, autoAction: "AutoApprove", autoActionDays: 1, takeOverFromPreviousLevel: true },
+      ];
+      const dto = formToDto(docToForm(doc({ approvalHierarchy: ["d1", "d2", "d3"], approvalLevelAutoActions: levels })));
+
+      expect(dto.regularization.approvalLevelAutoActions).toEqual(levels);
+    });
+
+    it("drops a flag on the first level or after a level with an auto action, and zeroes days nobody waits on", () => {
+      expect(normalizeTakeOver([
+        level("None", 3, true),
+        level("AutoApprove", 2),
+        level("None", 4, true),
+      ])).toEqual([
+        level("None", 0),
+        level("AutoApprove", 2),
+        level("None", 0),
+      ]);
+    });
+
+    it("clears a flag when a removed level leaves an auto action before it", () => {
+      const remaining = [level("AutoReject", 2), level("None", 0, true)];
+
+      expect(normalizeTakeOver(remaining).map((l) => l.takeOverFromPreviousLevel)).toEqual([false, false]);
     });
   });
 });

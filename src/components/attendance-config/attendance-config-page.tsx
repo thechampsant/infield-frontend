@@ -964,8 +964,11 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
     if (form.regApprovalEnabled) {
       form.approvalLevels.forEach((level, index) => {
         const days = Number(level.autoActionDays);
+        // A level with no auto action still has days while the next level waits to take over.
+        const hasWait =
+          level.autoAction !== "None" || form.approvalLevels[index + 1]?.takeOverFromPreviousLevel === true;
         if (
-          level.autoAction !== "None" &&
+          hasWait &&
           (!Number.isInteger(days) || days < 0 || days > REGULARIZATION_AUTO_ACTION_MAX_DAYS)
         ) {
           errors[`approvalLevels.${index}.autoActionDays`] =
