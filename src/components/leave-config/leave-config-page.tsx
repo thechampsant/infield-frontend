@@ -3057,6 +3057,9 @@ function ApprovalHandoff({
             aria-label={`Days level ${fromLevel} has before the request moves to level ${toLevel}`}
           />
           {days === 1 ? "day" : "days"}
+          <small className="leave-approval-handoff-note">
+            If level {fromLevel} approves, level {toLevel} is skipped.
+          </small>
         </span>
       ) : (
         <span>Move to level {toLevel} if level {fromLevel} takes no action</span>
