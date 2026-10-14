@@ -18,8 +18,17 @@ import type {
   CreateReportConfigInput,
   ReportDynamicUdfConfig,
   ReportDateFilterConfig,
+  ReportFormBuilderForm,
 } from "@/lib/api/report-config-service";
 import type { Designation } from "@/lib/api";
+
+const FORM_BUILDER_SOURCE_KEY = "FORM_BUILDER";
+const UUID_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Form-specific keys: `udf.<key>` answers or raw root-level answer UUIDs. */
+function isFormAnswerKey(fieldKey: string): boolean {
+  return fieldKey.startsWith("udf.") || UUID_KEY_PATTERN.test(fieldKey);
+}
 import { SectionReportDetails } from "./section-report-details";
 import { SectionBaseDataset } from "./section-base-dataset";
 import { SectionFieldsColumns } from "./section-fields-columns";
@@ -112,6 +121,9 @@ export function ReportBuilderPage({
     valueField: "udfFields",
   });
   const [dateFilter, setDateFilter] = useState<ReportDateFilterConfig>({});
+  const [formConfigId, setFormConfigId] = useState("");
+  const [formOptions, setFormOptions] = useState<ReportFormBuilderForm[]>([]);
+  const [formsLoading, setFormsLoading] = useState(false);
   const [status, setStatus] = useState<"draft" | "published">("draft");
 
   // Fields fetched from API
@@ -169,20 +181,52 @@ export function ReportBuilderPage({
     };
   }, [reportId, projectId]);
 
+  // ─── Load forms when the primary source is Form Builder ───────────────────
+  const isFormBuilderSource = primarySourceKey === FORM_BUILDER_SOURCE_KEY;
+  useEffect(() => {
+    if (!isFormBuilderSource || !projectId) {
+      setFormOptions([]);
+      return;
+    }
+    let mounted = true;
+    setFormsLoading(true);
+    reportConfigService
+      .getFormBuilderForms(projectId)
+      .then((forms) => {
+        if (mounted) setFormOptions(forms);
+      })
+      .catch(() => {
+        if (mounted) setFormOptions([]);
+      })
+      .finally(() => {
+        if (mounted) setFormsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [isFormBuilderSource, projectId]);
+
+  const selectedFormSchemaKey = isFormBuilderSource
+    ? formOptions.find((form) => form._id === formConfigId)?.udfSchemaKey || ""
+    : "";
+
   // ─── Fetch fields when source changes ─────────────────────────────────────
   useEffect(() => {
     if (!primarySourceKey) {
       setPrimaryFields([]);
       return;
     }
+    // A selected form scopes the field list to that form's questions.
+    const options = selectedFormSchemaKey
+      ? { schemaKey: selectedFormSchemaKey }
+      : dynamicUdf.enabled
+        ? { schemaKey: dynamicUdf.schemaKeyField, valueField: dynamicUdf.valueField }
+        : {};
     reportConfigService
-      .getSourceFields(primarySourceKey, projectId || '', dynamicUdf.enabled ? {
-        schemaKey: dynamicUdf.schemaKeyField,
-        valueField: dynamicUdf.valueField,
-      } : {})
+      .getSourceFields(primarySourceKey, projectId || '', options)
       .then(setPrimaryFields)
       .catch(() => setPrimaryFields([]));
-  }, [primarySourceKey, projectId, dynamicUdf.enabled, dynamicUdf.schemaKeyField, dynamicUdf.valueField]);
+  }, [primarySourceKey, projectId, selectedFormSchemaKey, dynamicUdf.enabled, dynamicUdf.schemaKeyField, dynamicUdf.valueField]);
 
   useEffect(() => {
     if (!secondaryEnabled || !secondarySourceKey) {
@@ -218,6 +262,7 @@ export function ReportBuilderPage({
     outputSettings,
     dynamicUdf,
     dateFilter,
+    formConfigId,
   ]);
 
   // ─── Populate form from existing config ───────────────────────────────────
@@ -268,6 +313,7 @@ export function ReportBuilderPage({
       },
     );
     setDateFilter(config.dateFilter || {});
+    setFormConfigId(config.sourceFilter?.formConfigId || "");
     setStatus(config.status === "published" ? "published" : "draft");
 
     setAutoSaveStatus("saved");
@@ -285,8 +331,24 @@ export function ReportBuilderPage({
       setFilters((prev) =>
         prev.filter((f) => f.sourceKey !== primarySourceKey),
       );
+      setFormConfigId("");
     },
     [primarySourceKey],
+  );
+
+  // ─── Handle form change: drop the previous form's question columns ────────
+  const handleFormChange = useCallback(
+    (nextFormConfigId: string) => {
+      if (nextFormConfigId === formConfigId) return;
+      setFormConfigId(nextFormConfigId);
+      setSelectedColumns((prev) =>
+        prev.filter((c) => !(c.sourceKey === FORM_BUILDER_SOURCE_KEY && isFormAnswerKey(c.fieldKey))),
+      );
+      setFilters((prev) =>
+        prev.filter((f) => !(f.sourceKey === FORM_BUILDER_SOURCE_KEY && isFormAnswerKey(f.fieldKey))),
+      );
+    },
+    [formConfigId],
   );
 
   const handleSecondaryToggle = useCallback(
@@ -339,6 +401,9 @@ export function ReportBuilderPage({
         if (!primarySourceKey) {
           newErrors.primarySource = "Primary source is required.";
         }
+        if (primarySourceKey === FORM_BUILDER_SOURCE_KEY && !formConfigId) {
+          newErrors.formConfigId = "Select a form.";
+        }
         if (selectedColumns.length === 0) {
           newErrors.selectedColumns = "At least one column must be selected.";
         }
@@ -353,7 +418,7 @@ export function ReportBuilderPage({
       setErrors(newErrors);
       return Object.keys(newErrors).length === 0;
     },
-    [reportName, accessRoles, primarySourceKey, selectedColumns, secondaryEnabled, joinConfig],
+    [reportName, accessRoles, primarySourceKey, formConfigId, selectedColumns, secondaryEnabled, joinConfig],
   );
 
   // ─── Build config payload ─────────────────────────────────────────────────
@@ -386,6 +451,10 @@ export function ReportBuilderPage({
       outputSettings,
       dateFilter: dateFilter.fieldKey ? dateFilter : null,
       dynamicUdf,
+      sourceFilter:
+        primarySourceKey === FORM_BUILDER_SOURCE_KEY && formConfigId
+          ? { formConfigId }
+          : null,
       status,
     }),
     [
@@ -407,6 +476,7 @@ export function ReportBuilderPage({
       outputSettings,
       dateFilter,
       dynamicUdf,
+      formConfigId,
     ],
   );
 
@@ -622,6 +692,10 @@ export function ReportBuilderPage({
             onDataScopeChange={setDataScope}
             onDynamicUdfChange={setDynamicUdf}
             onDateFilterChange={setDateFilter}
+            formOptions={formOptions}
+            formsLoading={formsLoading}
+            selectedFormConfigId={formConfigId}
+            onFormChange={handleFormChange}
             errors={errors}
           />
         </SectionCard>

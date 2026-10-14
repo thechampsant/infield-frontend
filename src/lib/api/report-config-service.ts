@@ -102,6 +102,17 @@ export interface ReportDynamicUdfConfig {
   includeInactiveFields?: boolean;
 }
 
+export interface ReportSourceFilter {
+  /** FORM_BUILDER only: the form the report is locked to. */
+  formConfigId?: string;
+}
+
+export interface ReportFormBuilderForm {
+  _id: string;
+  name: string;
+  udfSchemaKey: string | null;
+}
+
 export interface ReportJoinConfig {
   joinType: "left" | "right" | "inner";
   primaryKeyField: string;
@@ -133,6 +144,7 @@ export interface ReportConfigDocument {
   dateFilter?: ReportDateFilterConfig | null;
   enrichmentGroups?: ReportEnrichmentGroup[];
   dynamicUdf?: ReportDynamicUdfConfig | null;
+  sourceFilter?: ReportSourceFilter | null;
   status: "draft" | "published" | "inactive";
   createdBy?: string;
   favorites?: string[];
@@ -156,6 +168,7 @@ export interface CreateReportConfigInput {
   dateFilter?: ReportDateFilterConfig | null;
   enrichmentGroups?: ReportEnrichmentGroup[];
   dynamicUdf?: ReportDynamicUdfConfig | null;
+  sourceFilter?: ReportSourceFilter | null;
   status: "draft" | "published";
 }
 
@@ -244,6 +257,13 @@ export const reportConfigService = {
     if (options.valueField) params.set("valueField", options.valueField);
     return apiClient.get<ReportFieldMetadata[]>(
       `${BASE}/data-sources/${encodeURIComponent(sourceKey)}/fields?${params.toString()}`,
+    );
+  },
+
+  /** Published Form Builder forms of the project (FORM_BUILDER report form picker) */
+  async getFormBuilderForms(projectId: string): Promise<ReportFormBuilderForm[]> {
+    return apiClient.get<ReportFormBuilderForm[]>(
+      `${BASE}/data-sources/FORM_BUILDER/forms?projectId=${encodeURIComponent(projectId)}`,
     );
   },
 
