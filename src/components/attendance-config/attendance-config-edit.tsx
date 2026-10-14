@@ -1412,6 +1412,9 @@ function RegularizationSettings({
                           <span className="wh-label">Take over if level {i} takes no action</span>
                         </div>
                       )}
+                      {i > 0 && level.takeOverFromPreviousLevel === true && (
+                        <p className="setting-hint">If level {i} approves, level {i + 1} is skipped.</p>
+                      )}
                       <FieldError message={errors[`approvalLevels.${i}.autoActionDays`]} />
                     </div>
                     <button

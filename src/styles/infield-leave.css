@@ -1002,6 +1002,13 @@
   box-shadow: 0 0 0 3px rgba(30, 95, 168, 0.1);
 }
 
+.leave-approval-handoff-note {
+  flex-basis: 100%;
+  color: var(--leave-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .leave-mini-switch {
   position: relative;
   display: inline-flex;
