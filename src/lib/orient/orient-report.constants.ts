@@ -6,7 +6,17 @@ export const ORIENT_PROJECT_ID = "6a5dcaa8f374afa36003e396";
 /** Matches backend ORIENT_LOAD_DEFAULT_DAYS */
 export const ORIENT_LOAD_DEFAULT_DAYS = 7;
 
-export type OrientExportType = "attendance" | "claims" | "leave" | "visit-claims";
+export type OrientExportType =
+  | "attendance"
+  | "claims"
+  | "leave"
+  | "visit-claims"
+  | "attendance-daily-status";
+
+/** Matches backend ORIENT_LAYOUTS (report_configs.outputSettings.orientLayout). */
+const ORIENT_LAYOUT_EXPORT_TYPES: Record<string, OrientExportType> = {
+  "attendance-daily-status": "attendance-daily-status",
+};
 
 export function isOrientProject(projectCode: string): boolean {
   return projectCode === ORIENT_PROJECT_CODE;
@@ -30,10 +40,17 @@ export function defaultOrientLoadDateRange(
   return { fromDate: ymdLocal(from), toDate: ymdLocal(to) };
 }
 
-/** Map report_configs primarySource.sourceKey → Orient API path segment. */
+/**
+ * Map report_configs primarySource.sourceKey → Orient API path segment.
+ * A known `outputSettings.orientLayout` takes precedence (report can be renamed freely).
+ */
 export function sourceKeyToOrientExportType(
   sourceKey: string | undefined,
+  orientLayout?: string,
 ): OrientExportType | null {
+  if (orientLayout && ORIENT_LAYOUT_EXPORT_TYPES[orientLayout]) {
+    return ORIENT_LAYOUT_EXPORT_TYPES[orientLayout];
+  }
   switch (String(sourceKey || "").toUpperCase()) {
     case "ATTENDANCE":
       return "attendance";
