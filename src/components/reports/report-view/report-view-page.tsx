@@ -177,7 +177,10 @@ export function ReportViewPage({
       setLoadingData(true);
       setLoadError(null);
 
-      const orientType = sourceKeyToOrientExportType(config.primarySource?.sourceKey);
+      const orientType = sourceKeyToOrientExportType(
+        config.primarySource?.sourceKey,
+        config.outputSettings?.orientLayout,
+      );
       const useOrientApi = isOrientProject(projectCode) && !!orientType;
       const orientProjectId =
         contextProjectId || config.projectId || ORIENT_PROJECT_ID;

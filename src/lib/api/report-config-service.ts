@@ -79,6 +79,8 @@ export interface ReportOutputSettings {
   exportBehaviour: "direct" | "load-then-export";
   auditLogSheet?: boolean;
   fileNamePattern?: string;
+  /** Orient-only fixed Excel layout; routes the report regardless of its name. */
+  orientLayout?: string;
 }
 
 export interface ReportDateFilterConfig {
