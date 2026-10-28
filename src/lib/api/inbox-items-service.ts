@@ -71,6 +71,9 @@ export interface InboxDisplayMetadata {
 
 export type InboxSlaStatus = "OnTime" | "Warning" | "Breached";
 export type InboxRoutingReason = "no_manager" | "sla_escalated" | "with_pa" | "manager";
+/** Why a row is with the Project Admins; a row can carry several. */
+export type InboxPaRoutingTag = "no_manager" | "sla_escalated" | "manager_inactive";
+export const INBOX_PA_ROUTING_TAGS: InboxPaRoutingTag[] = ["no_manager", "sla_escalated", "manager_inactive"];
 
 export interface InboxItem {
   inboxItemId: string;
@@ -86,6 +89,8 @@ export interface InboxItem {
   slaStatus: InboxSlaStatus;
   slaDisplay: InboxSlaDisplay;
   routingReason: InboxRoutingReason;
+  /** Every reason the row is with the Project Admins; empty when it is with a manager. */
+  routingReasons: InboxPaRoutingTag[];
   updatedAt: string | null;
   paDueAt: string | null;
   pendingManager?: InboxSubmittedBy | null;
@@ -142,7 +147,7 @@ export interface InboxFilters {
   requestType?: string;
   status?: string;
   slaStatus?: string;
-  paReason?: "no_manager" | "sla_escalated";
+  paReason?: InboxPaRoutingTag;
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
@@ -204,6 +209,10 @@ function normalizeItem(raw: Record<string, unknown>): InboxItem {
       breachDuration: (slaDisplay.breachDuration as string) ?? null,
     },
     routingReason: ((raw.routingReason as string) ?? "manager") as InboxRoutingReason,
+    routingReasons: Array.isArray(raw.routingReasons)
+      ? (raw.routingReasons as string[]).filter((tag): tag is InboxPaRoutingTag =>
+          (INBOX_PA_ROUTING_TAGS as string[]).includes(tag))
+      : [],
     updatedAt: (raw.updatedAt as string) ?? null,
     paDueAt: (raw.paDueAt as string) ?? null,
     pendingManager: pendingManager

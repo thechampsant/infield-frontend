@@ -134,6 +134,20 @@ export const userReporteeMappingService = {
     };
   },
 
+  /** Read-only: the reportee's pending requests, which stay with their current approvers. */
+  async getManagerChangeImpact(
+    projectId: string,
+    userId: string,
+    newManagerId: string | null,
+  ): Promise<{ pendingCount: number; message: string | null }> {
+    const params = new URLSearchParams({ projectId });
+    if (newManagerId) params.set("newManagerId", newManagerId);
+    const res = await apiClient.get<{ pendingCount?: number; message?: string | null }>(
+      `${USERS_BASE}/reportee-mapping/${encodeURIComponent(userId)}/manager-change-impact?${params.toString()}`,
+    );
+    return { pendingCount: Number(res?.pendingCount ?? 0), message: res?.message ?? null };
+  },
+
   async assignManager(
     projectId: string,
     userId: string,

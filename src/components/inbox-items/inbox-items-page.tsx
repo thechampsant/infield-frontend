@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
-import { inboxItemsService, type InboxItem, type InboxFilters, type InboxPagination, type InboxAvailableAction, type InboxRoutingReason } from "@/lib/api/inbox-items-service";
+import { inboxItemsService, type InboxItem, type InboxFilters, type InboxPagination, type InboxAvailableAction, type InboxRoutingReason, type InboxPaRoutingTag } from "@/lib/api/inbox-items-service";
 import { inboxService, type ApprovalHistoryEntry } from "@/lib/api/inbox-service";
 import { ActionHistoryButton } from "@/components/inbox/action-history-drawer";
 import { ActionFileHint } from "@/components/inbox/action-file-hint";
@@ -46,6 +46,22 @@ const WHY_STYLES: Record<InboxRoutingReason, { label: string; bg: string; color:
   with_pa: { label: "With PAs", bg: "#f1f5f9", color: "#475569" },
   manager: { label: "Manager", bg: "#f1f5f9", color: "#475569" },
 };
+
+const WHY_TAG_STYLES: Record<InboxPaRoutingTag, { label: string; bg: string; color: string }> = {
+  no_manager: WHY_STYLES.no_manager,
+  sla_escalated: WHY_STYLES.sla_escalated,
+  manager_inactive: { label: "Manager Inactive", bg: "#f3e8ff", color: "#7e22ce" },
+};
+
+const PA_REASON_FILTERS: InboxPaRoutingTag[] = ["no_manager", "sla_escalated", "manager_inactive"];
+
+/** One badge per reason the row is with the PAs; the single routing reason otherwise. */
+function whyBadges(item: InboxItem): Array<{ label: string; bg: string; color: string }> {
+  if (item.routingReasons?.length) {
+    return item.routingReasons.map((tag) => WHY_TAG_STYLES[tag]);
+  }
+  return [WHY_STYLES[item.routingReason] ?? WHY_STYLES.with_pa];
+}
 
 const GRID_COLUMNS = "32px 1.4fr 0.85fr 1.2fr 1fr 1.1fr 1.1fr 1fr";
 
@@ -103,6 +119,9 @@ function paSlaCell(item: InboxItem): { label: string; bg: string; color: string 
       label: formatDateTime(item.paDueAt),
       ...(overdue ? SLA_COLORS.Breached : { bg: "#ffedd5", color: "#c2410c" }),
     };
+  }
+  if (item.routingReasons?.includes("manager_inactive")) {
+    return WHY_TAG_STYLES.manager_inactive;
   }
   if (item.routingReason === "no_manager") {
     return { label: "No manager", bg: "#ffedd5", color: "#c2410c" };
@@ -180,8 +199,8 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
         sortDirection,
       };
       if (filterModule) filters.module = filterModule;
-      if (filterPaReason === "no_manager" || filterPaReason === "sla_escalated") {
-        filters.paReason = filterPaReason;
+      if ((PA_REASON_FILTERS as string[]).includes(filterPaReason)) {
+        filters.paReason = filterPaReason as InboxPaRoutingTag;
       }
 
       const res = await inboxItemsService.getAssignedToMe(filters);
@@ -422,6 +441,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
           <option value="">All Why</option>
           <option value="no_manager">No manager</option>
           <option value="sla_escalated">Escalated</option>
+          <option value="manager_inactive">Manager Inactive</option>
         </select>
 
         <button
@@ -606,7 +626,7 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
             {/* Item rows */}
             {items.map((item) => {
               const slaCell = paSlaCell(item);
-              const whyStyle = WHY_STYLES[item.routingReason] ?? WHY_STYLES.with_pa;
+              const whyStyles = whyBadges(item);
               const isSelected = selectedIds.has(item.inboxItemId);
 
               return (
@@ -644,20 +664,23 @@ export function InboxItemsPage({ projectId, projectName }: InboxItemsPageProps) 
                         : capitalize(item.module)}
                     </div>
                   </div>
-                  <span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        borderRadius: 10,
-                        background: whyStyle.bg,
-                        color: whyStyle.color,
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {whyStyle.label}
-                    </span>
+                  <span style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {whyStyles.map((whyStyle) => (
+                      <span
+                        key={whyStyle.label}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 10,
+                          background: whyStyle.bg,
+                          color: whyStyle.color,
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {whyStyle.label}
+                      </span>
+                    ))}
                   </span>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
@@ -917,7 +940,7 @@ function DetailContent({ item }: { item: InboxItem }) {
   const statusCfg = item.displayMetadata.statusConfig[item.currentStatus];
   const statusBadge = hexToBadgeStyle(statusCfg?.colorCode);
   const slaStyle = paSlaCell(item);
-  const whyStyle = WHY_STYLES[item.routingReason] ?? WHY_STYLES.with_pa;
+  const whyStyles = whyBadges(item);
 
   const fields = resolveFields(item.displayMetadata.sections, item.moduleData);
   const textFields = fields.filter((f) => !f.isImage);
@@ -988,18 +1011,21 @@ function DetailContent({ item }: { item: InboxItem }) {
           >
             {statusCfg?.displayLabel ?? item.currentStatus.replace(/_/g, " ")}
           </span>
-          <span
-            style={{
-              fontSize: 10,
-              padding: "1px 8px",
-              borderRadius: 8,
-              background: whyStyle.bg,
-              color: whyStyle.color,
-              fontWeight: 600,
-            }}
-          >
-            {whyStyle.label}
-          </span>
+          {whyStyles.map((whyStyle) => (
+            <span
+              key={whyStyle.label}
+              style={{
+                fontSize: 10,
+                padding: "1px 8px",
+                borderRadius: 8,
+                background: whyStyle.bg,
+                color: whyStyle.color,
+                fontWeight: 600,
+              }}
+            >
+              {whyStyle.label}
+            </span>
+          ))}
           <span
             style={{
               fontSize: 10,

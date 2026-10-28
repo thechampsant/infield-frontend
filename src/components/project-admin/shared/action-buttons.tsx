@@ -11,7 +11,13 @@ interface ActionButtonsProps {
   onEdit: () => void;
   onAudit: () => void;
   onRefresh: () => void;
-  onDeactivate?: () => Promise<void>;
+  /** Return false when a failed deactivation has already been handled. */
+  onDeactivate?: () => Promise<void | boolean>;
+  /**
+   * Replaces the browser confirm: resolve true to go ahead. Lets a table show its own
+   * confirmation (e.g. what happens to pending requests).
+   */
+  onBeforeDeactivate?: () => Promise<boolean>;
   /** Return false when a failed reactivation has already been handled. */
   onReactivate?: () => Promise<void | boolean>;
 }
@@ -22,11 +28,16 @@ export function ActionButtons({
   onAudit,
   onRefresh,
   onDeactivate,
+  onBeforeDeactivate,
   onReactivate,
 }: ActionButtonsProps) {
   const handleDeactivate = async () => {
-    if (!confirm("Deactivate this record?")) return;
-    if (onDeactivate) await onDeactivate();
+    if (onBeforeDeactivate) {
+      if (!(await onBeforeDeactivate())) return;
+    } else if (!confirm("Deactivate this record?")) {
+      return;
+    }
+    if (onDeactivate && (await onDeactivate()) === false) return;
     onRefresh();
   };
 

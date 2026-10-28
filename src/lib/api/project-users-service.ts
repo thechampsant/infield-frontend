@@ -61,6 +61,17 @@ interface PaginatedUsers {
 
 export type UserListStatus = "active" | "inactive" | "all";
 
+/** What deactivating a user would do to pending requests (built by the backend). */
+export interface UserDeactivationImpact {
+  /** False while the user's own requests are pending, or approvals waiting on them have no Project Admin to move to. */
+  canDeactivate: boolean;
+  code: string | null;
+  /** Ready-to-show text; null when nothing is pending. */
+  message: string | null;
+  /** Pending approvals waiting on this user. */
+  approvalPendingTotal: number;
+}
+
 export interface ProjectUserListResult {
   data: ProjectUser[];
   meta: ListMeta;
@@ -581,6 +592,19 @@ export const projectUsersService = {
   /** Soft-delete a field user (sets isActive=false). */
   async delete(userId: string): Promise<void> {
     await apiClient.delete(`${BASE}/${encodeURIComponent(userId)}`);
+  },
+
+  /** Read-only: pending requests that block or are affected by deactivating this user. */
+  async getDeactivationImpact(userId: string): Promise<UserDeactivationImpact> {
+    const res = await apiClient.get<Partial<UserDeactivationImpact>>(
+      `${BASE}/${encodeURIComponent(userId)}/deactivation-impact`,
+    );
+    return {
+      canDeactivate: res?.canDeactivate !== false,
+      code: res?.code ?? null,
+      message: res?.message ?? null,
+      approvalPendingTotal: Number((res as any)?.approvalPending?.total ?? 0),
+    };
   },
 
   /** Re-activate a soft-deleted field user. */

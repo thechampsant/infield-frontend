@@ -68,6 +68,7 @@ export function EditUserModal({
   const [initialManagerId, setInitialManagerId] = useState("");
   const [currentManager, setCurrentManager] = useState<DirectManagerDisplay | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingImpactMessage, setPendingImpactMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -192,7 +193,14 @@ export function EditUserModal({
       return;
     }
     if (managerChanged && initialManagerId) {
+      setPendingImpactMessage(null);
       setConfirmOpen(true);
+      // Pending requests stay with the current manager; say so in the confirm. A failed
+      // lookup only leaves the extra line out.
+      userReporteeMappingService
+        .getManagerChangeImpact(projectId, backendUserId, managerId || null)
+        .then((impact) => setPendingImpactMessage(impact.message))
+        .catch(() => setPendingImpactMessage(null));
       return;
     }
 
@@ -399,6 +407,7 @@ export function EditUserModal({
         userCode={user.id}
         currentManager={currentManager}
         nextManagerLabel={managerLabel}
+        pendingImpactMessage={pendingImpactMessage}
         submitting={submitting}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={handleConfirmManagerChange}
