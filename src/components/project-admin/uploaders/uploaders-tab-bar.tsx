@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLeaveModuleEnabled } from "@/hooks/use-leave-module-enabled";
 import { uploadersTabs } from "@/lib/nav/nav";
+import { useProjectContext } from "@/lib/project-admin/project-context";
 
 export function UploadersTabBar({
   accountCode,
@@ -12,7 +14,11 @@ export function UploadersTabBar({
   projectCode: string;
 }) {
   const pathname = usePathname() ?? "/";
-  const tabs = uploadersTabs(accountCode, projectCode);
+  const { projectId } = useProjectContext();
+  const leaveEnabled = useLeaveModuleEnabled(projectId);
+  const tabs = uploadersTabs(accountCode, projectCode, {
+    leaveEnabled: leaveEnabled === true,
+  });
 
   return (
     <nav className="tab-bar" aria-label="Uploaders sections">

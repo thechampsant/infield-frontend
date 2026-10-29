@@ -11,6 +11,7 @@ export const MASTER_EXPORT_KINDS = [
   "pjp",
   "roles",
   "designations",
+  "leave-balance",
 ] as const;
 
 export type MasterExportKind = (typeof MASTER_EXPORT_KINDS)[number];
