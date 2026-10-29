@@ -166,9 +166,13 @@ export function projectAdminDrawerNav(
   return items;
 }
 
-export function uploadersTabs(accountCode: string, projectCode: string) {
+export function uploadersTabs(
+  accountCode: string,
+  projectCode: string,
+  options: { leaveEnabled?: boolean } = {},
+) {
   const base = `${projectAdminBase(accountCode, projectCode)}/uploaders`;
-  return [
+  const tabs = [
     { label: "Roles", href: `${base}/roles` },
     { label: "Designations", href: `${base}/designations` },
     { label: "Users", href: `${base}/users` },
@@ -180,4 +184,8 @@ export function uploadersTabs(accountCode: string, projectCode: string) {
     { label: "Product-Store Map", href: `${base}/product-store-map` },
     { label: "Target Master", href: `${base}/target-master` },
   ];
+  if (options.leaveEnabled) {
+    tabs.push({ label: "Leave Balance", href: `${base}/leave-balance` });
+  }
+  return tabs;
 }

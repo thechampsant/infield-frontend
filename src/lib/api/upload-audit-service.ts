@@ -22,7 +22,8 @@ export type UploadAuditKind =
   | "target-master"
   | "focus-target"
   | "custom-view"
-  | "holidays";
+  | "holidays"
+  | "leave-balance";
 
 export type UploadAuditResult = "accepted" | "gcs_failed";
 
@@ -62,6 +63,7 @@ export const UPLOAD_AUDIT_KIND_LABELS: Record<string, string> = {
   "focus-target": "Focus Target",
   "custom-view": "Custom View",
   holidays: "Holidays",
+  "leave-balance": "Leave Balance",
 };
 
 type UploadAuditEnvelope = {
