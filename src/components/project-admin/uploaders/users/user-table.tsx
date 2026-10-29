@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Users, CheckCircle, XCircle } from "lucide-react";
 import {
   DataTable,
@@ -11,8 +11,14 @@ import { StatusPill } from "@/components/project-admin/shared/status-pill";
 import { ActionButtons } from "@/components/project-admin/shared/action-buttons";
 import { EditUserModal } from "./edit-user-modal";
 import { AuditHistoryModal } from "@/components/project-admin/shared/audit-history-modal";
-import { projectUsersService, type UserListStatus } from "@/lib/api/project-users-service";
+import {
+  projectUsersService,
+  type UserDeactivationImpact,
+  type UserListStatus,
+} from "@/lib/api/project-users-service";
 import { reactivateProjectUser } from "@/lib/project-admin/user-reactivation";
+import { deactivateProjectUser } from "@/lib/project-admin/user-deactivation";
+import { DeactivateUserModal } from "./deactivate-user-modal";
 import type {
   ProjectUser,
   UDFField,
@@ -62,6 +68,31 @@ export function UserTable({
   const [editId, setEditId] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
   const [reactivationError, setReactivationError] = useState<string | null>(null);
+  const [deactivateDialog, setDeactivateDialog] = useState<{
+    loading: boolean;
+    impact: UserDeactivationImpact | null;
+  } | null>(null);
+  const deactivateDecision = useRef<((proceed: boolean) => void) | null>(null);
+
+  /** Shows what deactivating does to pending requests; resolves true to go ahead. */
+  const confirmDeactivate = (userId: string): Promise<boolean> => {
+    setReactivationError(null);
+    setDeactivateDialog({ loading: true, impact: null });
+    projectUsersService
+      .getDeactivationImpact(userId)
+      .then((impact) => setDeactivateDialog((prev) => (prev ? { loading: false, impact } : prev)))
+      // The server still refuses a blocked deactivation; fall back to the plain confirm.
+      .catch(() => setDeactivateDialog((prev) => (prev ? { loading: false, impact: null } : prev)));
+    return new Promise<boolean>((resolve) => {
+      deactivateDecision.current = resolve;
+    });
+  };
+
+  const closeDeactivateDialog = (proceed: boolean) => {
+    deactivateDecision.current?.(proceed);
+    deactivateDecision.current = null;
+    setDeactivateDialog(null);
+  };
 
   const total = activeCount + inactiveCount;
 
@@ -171,8 +202,10 @@ export function UserTable({
             onEdit={() => setEditId(u.backendId || u.id)}
             onAudit={() => setAuditId(u.backendId || u.id)}
             onRefresh={onRefresh}
+            onBeforeDeactivate={() => confirmDeactivate(u.backendId || u.id)}
             onDeactivate={async () => {
-              await projectUsersService.delete(u.backendId || u.id);
+              setReactivationError(null);
+              return deactivateProjectUser(u.backendId || u.id, setReactivationError);
             }}
             onReactivate={async () => {
               setReactivationError(null);
@@ -216,6 +249,14 @@ export function UserTable({
           onClick={() => onStatusFilterChange("inactive")}
         />
       </div>
+
+      <DeactivateUserModal
+        open={deactivateDialog !== null}
+        loading={deactivateDialog?.loading ?? false}
+        impact={deactivateDialog?.impact ?? null}
+        onCancel={() => closeDeactivateDialog(false)}
+        onConfirm={() => closeDeactivateDialog(true)}
+      />
 
       {reactivationError && (
         <div

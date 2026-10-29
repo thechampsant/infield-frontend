@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import {
   userReporteeMappingService,
@@ -12,6 +12,8 @@ import { MAX_LIST_PAGE_SIZE } from "@/lib/api/pagination";
 import type { ProjectUser } from "@/types/project-admin";
 
 const SEARCH_DEBOUNCE_MS = 300;
+/** Bounds the pending-request lookups made before saving a large remap. */
+const MAX_IMPACT_LOOKUPS = 25;
 
 interface AssignReporteesModalProps {
   user: UserReporteeMappingSummary;
@@ -38,6 +40,7 @@ export function AssignReporteesModal({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initialReporteeIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -67,7 +70,10 @@ export function AssignReporteesModal({
           projectId,
           user.userId,
         );
-        if (!cancelled) setSelected(new Set(reporteeIds));
+        if (!cancelled) {
+          initialReporteeIds.current = new Set(reporteeIds);
+          setSelected(new Set(reporteeIds));
+        }
       } catch (e) {
         if (!cancelled) {
           setError(formatApiError(e, "Failed to load mapped reportees"));
@@ -147,9 +153,38 @@ export function AssignReporteesModal({
     });
   };
 
+  /**
+   * Reportees moving to or away from this manager keep their pending requests with the
+   * approvers they were routed to. Lists them so the admin knows before saving; a failed
+   * lookup only leaves its line out.
+   */
+  const confirmPendingRequests = async (): Promise<boolean> => {
+    const added = Array.from(selected).filter((id) => !initialReporteeIds.current.has(id));
+    const removed = Array.from(initialReporteeIds.current).filter((id) => !selected.has(id));
+    const changes = [
+      ...added.map((id) => ({ id, newManagerId: user.userId as string | null })),
+      ...removed.map((id) => ({ id, newManagerId: null as string | null })),
+    ].slice(0, MAX_IMPACT_LOOKUPS);
+    if (changes.length === 0) return true;
+    const results = await Promise.allSettled(
+      changes.map((change) =>
+        userReporteeMappingService.getManagerChangeImpact(projectId, change.id, change.newManagerId),
+      ),
+    );
+    const messages = results
+      .map((result) => (result.status === "fulfilled" ? result.value.message : null))
+      .filter((message): message is string => Boolean(message));
+    if (messages.length === 0) return true;
+    return window.confirm(`${messages.join("\n\n")}\n\nSave the new mapping?`);
+  };
+
   const handleSave = async () => {
     setSubmitting(true);
     setError(null);
+    if (!(await confirmPendingRequests())) {
+      setSubmitting(false);
+      return;
+    }
     try {
       await userReporteeMappingService.updateMapping(
         projectId,

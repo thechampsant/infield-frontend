@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from "@/components/project-admin/shared/modal";
+import { PendingRequestNotice } from "@/components/project-admin/shared/pending-request-notice";
 import { formatUserNameWithCode } from "@/lib/project-admin/user-display";
 import type { DirectManagerDisplay } from "@/lib/api/user-reportee-mapping-service";
 
@@ -33,6 +34,7 @@ export function ConfirmManagerChangeModal({
   userCode,
   currentManager,
   nextManagerLabel,
+  pendingImpactMessage,
   submitting,
   onCancel,
   onConfirm,
@@ -43,6 +45,8 @@ export function ConfirmManagerChangeModal({
   userCode?: string | null;
   currentManager: DirectManagerDisplay | null;
   nextManagerLabel?: string | null;
+  /** The user's pending requests and who keeps them; shown under the question. */
+  pendingImpactMessage?: string | null;
   submitting?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -79,6 +83,13 @@ export function ConfirmManagerChangeModal({
           nextManagerLabel,
         })}
       </p>
+      {pendingImpactMessage && (
+        <PendingRequestNotice
+          tone="warning"
+          message={pendingImpactMessage}
+          style={{ marginTop: 12 }}
+        />
+      )}
     </Modal>
   );
 }
