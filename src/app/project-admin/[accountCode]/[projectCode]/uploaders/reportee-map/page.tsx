@@ -145,7 +145,7 @@ export default function ReporteeMapPage() {
       }
       if (result.invalidCount > 0) {
         setError(
-          `Upload completed: ${result.successCount} managers updated, ${result.invalidCount} rows had errors.`,
+          `Upload completed: ${result.successCount} managers processed, ${result.invalidCount} rows had errors.`,
         );
       }
     } catch (err) {
@@ -239,12 +239,13 @@ export default function ReporteeMapPage() {
         <ol style={{ margin: "8px 0 0", paddingLeft: 20 }}>
           <li>Use Assign to map reportees on-screen, or download the template for bulk edits</li>
           <li>Fill in <code>managerEmployeeId</code> and <code>reporteeEmployeeId</code> — one manager→reportee pair per row (e.g. A→B on one row, A→C on the next)</li>
-          <li>Upload the file — reportees will be assigned to managers after validation</li>
+          <li>Upload the file — reportees will be added to each manager&apos;s existing team after validation</li>
         </ol>
         <p style={{ margin: "8px 0 0", fontSize: 13 }}>
           Note: Do not put multiple reportees in one cell. Reportees must have a lower designation level than their manager.
-          Each upload replaces existing reportees for the managers listed in the file.
-          Users not in the file are left untouched.
+          Each upload only adds reportees; existing mappings are kept.
+          To remove a reportee, use Edit on the manager&apos;s row, or set No manager in Users → Edit.
+          An employee already mapped to another manager is rejected until that mapping is removed. Rows with an empty reportee cell are rejected.
           Inactive users are accepted and appear in red on Template, Export, and this table.
           Deactivating a user still clears their mapping. Live team reports still ignore inactive users.
         </p>
@@ -274,8 +275,7 @@ export default function ReporteeMapPage() {
             marginBottom: 16,
           }}
         >
-          Successfully updated reportees for {uploadResult.successCount} of{" "}
-          {uploadResult.total} managers.
+          Upload completed: {uploadResult.successCount} managers processed.
         </div>
       )}
 
