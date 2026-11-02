@@ -8,6 +8,7 @@
 
 import { apiClient } from "./api-client";
 import {
+  clampListPage,
   clampListPageSize,
   DEFAULT_LIST_PAGE_SIZE,
   normalizeListMeta,
@@ -72,7 +73,7 @@ export const userReporteeMappingService = {
   ): Promise<UserReporteeMappingListResult> {
     const params = new URLSearchParams({
       projectId,
-      page: String(page),
+      page: String(clampListPage(page)),
       pageSize: String(clampListPageSize(pageSize)),
       mapped,
       status,

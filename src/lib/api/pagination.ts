@@ -48,22 +48,32 @@ export function normalizeListMeta(
   raw: RawListMeta | undefined,
   rowCount: number,
 ): ListMeta {
-  const page = raw?.page ?? 1;
+  const page = Math.max(1, raw?.page ?? 1);
   const pageSize = raw?.pageSize ?? rowCount;
   const totalCount = raw?.totalCount ?? raw?.total ?? rowCount;
   const counts: Partial<Pick<ListMeta, (typeof OPTIONAL_COUNT_KEYS)[number]>> = {};
   for (const key of OPTIONAL_COUNT_KEYS) {
     if (typeof raw?.[key] === "number") counts[key] = raw[key];
   }
+  const rawTotalPages =
+    typeof raw?.totalPages === "number" && raw.totalPages > 0
+      ? raw.totalPages
+      : undefined;
   return {
     page,
     pageSize,
     totalCount,
     totalPages:
-      raw?.totalPages ??
+      rawTotalPages ??
       Math.max(1, Math.ceil(totalCount / Math.max(pageSize, 1))),
     ...counts,
   };
+}
+
+/** Clamp a requested page number so it is always at least 1. */
+export function clampListPage(page: number | undefined | null): number {
+  if (typeof page !== "number" || !Number.isFinite(page) || page < 1) return 1;
+  return Math.floor(page);
 }
 
 /** Clamp a requested page size to what the list APIs accept. */
@@ -71,3 +81,4 @@ export function clampListPageSize(pageSize: number): number {
   if (!Number.isFinite(pageSize) || pageSize < 1) return DEFAULT_LIST_PAGE_SIZE;
   return Math.min(Math.floor(pageSize), MAX_LIST_PAGE_SIZE);
 }
+

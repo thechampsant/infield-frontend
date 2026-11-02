@@ -50,27 +50,31 @@ export function WorkspaceHeader() {
     <div
       style={{
         height: 56,
-        borderBottom: "1px solid #e2e8f0",
+        borderBottom: "1px solid var(--border)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "0 20px",
         flexShrink: 0,
-        background: "#ffffff",
+        background: "var(--surface)",
       }}
     >
       {/* Left side: back link + form name + field count */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <Link
           href={backHref}
+          className="pa-form-builder-back-link"
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 2,
+            gap: 4,
             fontSize: 13,
-            color: "#3b82f6",
+            color: "var(--blue)",
             textDecoration: "none",
             fontWeight: 500,
+            padding: "5px 10px",
+            borderRadius: 6,
+            transition: "background 150ms",
           }}
         >
           <ChevronLeft size={16} />
@@ -80,26 +84,31 @@ export function WorkspaceHeader() {
         <div
           style={{
             width: 1,
-            height: 24,
-            background: "#e2e8f0",
+            height: 22,
+            background: "var(--border)",
           }}
         />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span
             style={{
               fontSize: 15,
               fontWeight: 600,
-              color: "#0f172a",
+              color: "var(--navy)",
+              letterSpacing: "-0.01em",
             }}
           >
             {formName}
           </span>
           <span
             style={{
-              fontSize: 12,
-              color: "#94a3b8",
-              fontWeight: 400,
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--text-muted)",
+              background: "var(--bg)",
+              border: "1px solid var(--border)",
+              padding: "2px 8px",
+              borderRadius: 999,
             }}
           >
             {fieldCount} {fieldCount === 1 ? "field" : "fields"}
@@ -108,106 +117,118 @@ export function WorkspaceHeader() {
       </div>
 
       {/* Right side: action buttons */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <button
           onClick={() => dispatch({ type: "UNDO" })}
           disabled={!canUndo}
-          title="Undo"
+          title="Undo (Ctrl+Z)"
           aria-label="Undo"
+          className="pa-form-builder-header-btn"
           style={{
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            border: "none",
-            background: "transparent",
-            color: "#475569",
+            width: 34,
+            height: 34,
+            borderRadius: 7,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: canUndo ? "var(--text)" : "var(--text-muted)",
             cursor: canUndo ? "pointer" : "default",
-            opacity: canUndo ? 1 : 0.4,
-            transition: "opacity 150ms",
+            opacity: canUndo ? 1 : 0.45,
+            transition: "all 150ms",
           }}
         >
-          <Undo2 size={18} />
+          <Undo2 size={16} />
         </button>
 
         <button
           onClick={() => dispatch({ type: "REDO" })}
           disabled={!canRedo}
-          title="Redo"
+          title="Redo (Ctrl+Y)"
           aria-label="Redo"
+          className="pa-form-builder-header-btn"
           style={{
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            border: "none",
-            background: "transparent",
-            color: "#475569",
+            width: 34,
+            height: 34,
+            borderRadius: 7,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: canRedo ? "var(--text)" : "var(--text-muted)",
             cursor: canRedo ? "pointer" : "default",
-            opacity: canRedo ? 1 : 0.4,
-            transition: "opacity 150ms",
+            opacity: canRedo ? 1 : 0.45,
+            transition: "all 150ms",
           }}
         >
-          <Redo2 size={18} />
+          <Redo2 size={16} />
         </button>
 
         <button
           title="Refresh"
           aria-label="Refresh"
+          className="pa-form-builder-header-btn"
           style={{
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            border: "none",
-            background: "transparent",
-            color: "#475569",
+            width: 34,
+            height: 34,
+            borderRadius: 7,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--text)",
             cursor: "pointer",
+            transition: "all 150ms",
           }}
         >
-          <RotateCw size={18} />
+          <RotateCw size={16} />
         </button>
 
         <button
           title="Settings"
           aria-label="Settings"
+          className="pa-form-builder-header-btn"
           style={{
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            border: "none",
-            background: "transparent",
-            color: "#475569",
+            width: 34,
+            height: 34,
+            borderRadius: 7,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--text)",
             cursor: "pointer",
+            transition: "all 150ms",
           }}
         >
-          <Settings size={18} />
+          <Settings size={16} />
         </button>
 
         <button
           onClick={handleSaveAndPublish}
           disabled={publishing}
+          className="pa-form-builder-publish-btn"
           style={{
             marginLeft: 8,
-            padding: "8px 16px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 18px",
             borderRadius: 8,
             border: "none",
-            background: "#22c55e",
-            color: "#fff",
+            background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+            color: "#ffffff",
             fontSize: 13,
             fontWeight: 600,
             cursor: publishing ? "not-allowed" : "pointer",
-            opacity: publishing ? 0.7 : 1,
+            opacity: publishing ? 0.75 : 1,
+            boxShadow: "0 1px 2px rgba(22, 163, 74, 0.25)",
             whiteSpace: "nowrap",
+            transition: "all 150ms",
           }}
         >
           {publishing ? "Publishing..." : "Save & Publish"}

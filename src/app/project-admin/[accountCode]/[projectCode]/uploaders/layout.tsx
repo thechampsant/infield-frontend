@@ -1,8 +1,7 @@
 "use client";
 
 import { use } from "react";
-import { UploadersTabBar } from "@/components/project-admin/uploaders/uploaders-tab-bar";
-import { UploadersSetupChecklist } from "@/components/project-admin/uploaders/uploaders-setup-checklist";
+import { UploadersSetupSidebar } from "@/components/project-admin/uploaders/uploaders-setup-sidebar";
 
 export default function UploadersLayout({
   params,
@@ -14,16 +13,22 @@ export default function UploadersLayout({
   const { accountCode, projectCode } = use(params);
 
   return (
-    <div className="pa-uploaders-layout">
-      <div className="pa-eyebrow" style={{ marginBottom: 12 }}>
+    <div className="pa-uploaders-layout-root">
+      <div className="pa-eyebrow" style={{ marginBottom: 14 }}>
         Uploaders
       </div>
-      <UploadersSetupChecklist
-        accountCode={accountCode}
-        projectCode={projectCode}
-      />
-      <UploadersTabBar accountCode={accountCode} projectCode={projectCode} />
-      {children}
+      <div className="pa-uploaders-workspace">
+        <aside className="pa-uploaders-sidebar-wrap">
+          <UploadersSetupSidebar
+            accountCode={accountCode}
+            projectCode={projectCode}
+          />
+        </aside>
+        <div className="pa-uploaders-content-area">
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
+

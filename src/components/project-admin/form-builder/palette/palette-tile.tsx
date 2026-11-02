@@ -98,19 +98,19 @@ export function PaletteTile({ component, onClick }: PaletteTileProps) {
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
+        gap: 7,
         width: "100%",
-        height: 44,
-        padding: "6px 10px",
+        height: 40,
+        padding: "5px 8px",
         borderRadius: 8,
-        border: "1px solid #e2e8f0",
-        background: "#ffffff",
+        border: "1px solid var(--border, #e2e8f0)",
+        background: "var(--surface, #ffffff)",
         cursor: "pointer",
-        transition: "border-color .15s, box-shadow .15s",
+        transition: "border-color .15s, box-shadow .15s, background .15s",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = colors.icon;
-        e.currentTarget.style.boxShadow = `0 1px 4px ${colors.icon}18`;
+        e.currentTarget.style.boxShadow = `0 1px 4px ${colors.icon}20`;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = "#e2e8f0";
@@ -120,30 +120,33 @@ export function PaletteTile({ component, onClick }: PaletteTileProps) {
       {/* Colored icon box */}
       <div
         style={{
-          width: 28,
-          height: 28,
-          minWidth: 28,
+          width: 26,
+          height: 26,
+          minWidth: 26,
           borderRadius: 6,
           background: colors.bg,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          flexShrink: 0,
         }}
       >
         {IconComponent && (
-          <IconComponent size={14} color={colors.icon} strokeWidth={2.2} />
+          <IconComponent size={13} color={colors.icon} strokeWidth={2.2} />
         )}
       </div>
 
       {/* Label */}
       <span
         style={{
-          fontSize: 12,
+          fontSize: 11.5,
           fontWeight: 500,
-          color: "#0f172a",
+          color: "var(--text, #0f172a)",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
+          lineHeight: 1.2,
+          textAlign: "left",
         }}
       >
         {component.name}

@@ -54,7 +54,7 @@ function WorkspaceContent({ configId }: { configId: string }) {
           alignItems: "center",
           justifyContent: "center",
           flex: 1,
-          color: "#94a3b8",
+          color: "var(--text-muted, #94a3b8)",
           fontSize: 14,
         }}
       >
@@ -96,23 +96,10 @@ function WorkspaceContent({ configId }: { configId: string }) {
       <WorkspaceHeader />
 
       {/* Three-panel body */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
+      <div className="pa-form-builder-body">
         {/* Palette (left) */}
         <aside
-          style={{
-            width: 260,
-            flexShrink: 0,
-            borderRight: "1px solid #e2e8f0",
-            overflowY: "auto",
-            background: "#ffffff",
-          }}
+          className="pa-form-builder-palette-pane"
           data-slot="component-palette"
         >
           <ComponentPalette
@@ -124,12 +111,7 @@ function WorkspaceContent({ configId }: { configId: string }) {
 
         {/* Canvas (center) */}
         <main
-          style={{
-            flex: 1,
-            minWidth: 0,
-            overflowY: "auto",
-            background: "#f8fafc",
-          }}
+          className="pa-form-builder-canvas-pane"
           data-slot="form-canvas"
         >
           <FormCanvas />
@@ -137,13 +119,7 @@ function WorkspaceContent({ configId }: { configId: string }) {
 
         {/* Inspector (right) */}
         <aside
-          style={{
-            width: 350,
-            flexShrink: 0,
-            borderLeft: "1px solid #e2e8f0",
-            overflowY: "auto",
-            background: "#ffffff",
-          }}
+          className="pa-form-builder-inspector-pane"
           data-slot="field-inspector"
         >
           <FieldInspector />
@@ -165,21 +141,10 @@ interface FormBuilderWorkspaceProps {
 export function FormBuilderWorkspace({ configId }: FormBuilderWorkspaceProps) {
   return (
     <FormBuilderProvider>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100vh",
-          minHeight: 0,
-          /* Break out of pa-content-wrap max-width and pa-stage padding */
-          width: "calc(100% + 64px)",
-          maxWidth: "none",
-          margin: "-32px",
-          position: "relative",
-        }}
-      >
+      <div className="pa-form-builder-workspace">
         <WorkspaceContent configId={configId} />
       </div>
     </FormBuilderProvider>
   );
 }
+

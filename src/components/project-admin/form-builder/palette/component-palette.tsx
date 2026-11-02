@@ -63,12 +63,12 @@ export function ComponentPalette({ onComponentClick }: ComponentPaletteProps) {
       }}
     >
       {/* Header */}
-      <div style={{ padding: "16px 16px 0" }}>
+      <div style={{ padding: "16px 14px 0" }}>
         <div
           style={{
             fontSize: 14,
             fontWeight: 600,
-            color: "#0f172a",
+            color: "var(--navy, #0f172a)",
           }}
         >
           Components
@@ -76,7 +76,7 @@ export function ComponentPalette({ onComponentClick }: ComponentPaletteProps) {
         <div
           style={{
             fontSize: 12,
-            color: "#94a3b8",
+            color: "var(--text-muted, #94a3b8)",
             marginTop: 2,
           }}
         >
@@ -98,7 +98,7 @@ export function ComponentPalette({ onComponentClick }: ComponentPaletteProps) {
               left: 10,
               top: "50%",
               transform: "translateY(-50%)",
-              color: "#94a3b8",
+              color: "var(--text-muted, #94a3b8)",
               pointerEvents: "none",
             }}
           />
@@ -115,10 +115,11 @@ export function ComponentPalette({ onComponentClick }: ComponentPaletteProps) {
               paddingRight: searchQuery ? 32 : 10,
               fontSize: 12,
               borderRadius: 8,
-              border: "1px solid #e2e8f0",
-              background: "#f8fafc",
-              color: "#0f172a",
+              border: "1px solid var(--border, #e2e8f0)",
+              background: "var(--bg, #f8fafc)",
+              color: "var(--text, #0f172a)",
               outline: "none",
+              transition: "border-color 150ms, box-shadow 150ms",
             }}
           />
           {searchQuery && (
@@ -138,7 +139,7 @@ export function ComponentPalette({ onComponentClick }: ComponentPaletteProps) {
                 height: 18,
                 borderRadius: "50%",
                 border: "none",
-                background: "#94a3b8",
+                background: "var(--text-muted, #94a3b8)",
                 color: "white",
                 cursor: "pointer",
                 padding: 0,
@@ -152,10 +153,11 @@ export function ComponentPalette({ onComponentClick }: ComponentPaletteProps) {
 
       {/* Scrollable groups */}
       <div
+        data-slot="palette-scroll"
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "0 16px 16px",
+          padding: "0 14px 20px",
         }}
       >
         {hasResults ? (

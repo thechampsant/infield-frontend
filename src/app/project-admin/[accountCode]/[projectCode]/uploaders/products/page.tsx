@@ -67,7 +67,7 @@ export default function ProductsMasterPage() {
       setUdfFields(fields);
       // Deleting the last row of the final page can leave us past the end.
       if (page > productList.meta.totalPages) {
-        setPage(productList.meta.totalPages);
+        setPage(Math.max(1, productList.meta.totalPages));
       }
     } catch (err) {
       setError(formatApiError(err, "Failed to load products"));

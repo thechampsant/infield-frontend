@@ -58,20 +58,21 @@ function FormHeaderCard({
   return (
     <div
       style={{
-        padding: "16px 20px",
+        padding: "18px 20px",
         borderRadius: 10,
-        border: "1px solid #e2e8f0",
-        background: "#ffffff",
-        marginBottom: 16,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+        border: "1px solid var(--border, #e2e8f0)",
+        background: "var(--surface, #ffffff)",
+        marginBottom: 4,
+        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
       }}
     >
       <div
         style={{
           fontSize: 16,
           fontWeight: 700,
-          color: "#0f172a",
+          color: "var(--navy, #0f172a)",
           marginBottom: 6,
+          letterSpacing: "-0.01em",
         }}
       >
         {formName}
@@ -86,8 +87,8 @@ function FormHeaderCard({
       >
         <span
           style={{
-            fontSize: 13,
-            color: "#94a3b8",
+            fontSize: 12.5,
+            color: "var(--text-muted, #94a3b8)",
           }}
         >
           {fieldCount} {fieldCount === 1 ? "field" : "fields"}
@@ -332,10 +333,11 @@ export function FormCanvas() {
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 10,
-        padding: 24,
-        maxWidth: 720,
+        gap: 12,
+        padding: "24px 20px 60px",
+        maxWidth: 780,
         margin: "0 auto",
+        width: "100%",
       }}
     >
       {/* Form header card */}

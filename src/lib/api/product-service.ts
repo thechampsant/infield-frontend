@@ -1,5 +1,6 @@
 import { ApiError, apiClient } from "./api-client";
 import {
+  clampListPage,
   clampListPageSize,
   DEFAULT_LIST_PAGE_SIZE,
   MAX_LIST_PAGE_SIZE,
@@ -304,7 +305,7 @@ export const productService = {
   ): Promise<ProductListResult> {
     const params = new URLSearchParams({
       projectId,
-      page: String(page),
+      page: String(clampListPage(page)),
       pageSize: String(clampListPageSize(pageSize)),
     });
     const term = search?.trim();
@@ -428,7 +429,7 @@ export const productService = {
   ): Promise<StoreMappingListResult> {
     const params = new URLSearchParams({
       projectId,
-      page: String(page),
+      page: String(clampListPage(page)),
       pageSize: String(clampListPageSize(pageSize)),
       mapped,
     });

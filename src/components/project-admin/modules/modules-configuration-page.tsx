@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Info, Search, X } from "lucide-react";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ModuleCard } from "@/components/project-admin/modules/module-card";
 import { formatApiError } from "@/lib/api";
@@ -33,7 +34,6 @@ export function ModulesConfigurationPage() {
   const { user } = useAuth();
   const manageModules = canManageModules(user);
 
-    
   const base = projectAdminBase(accountCode, projectCode);
 
   const [modules, setModules] = useState<ProjectModuleState[]>([]);
@@ -41,6 +41,8 @@ export function ModulesConfigurationPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [savingModuleId, setSavingModuleId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -226,6 +228,28 @@ export function ModulesConfigurationPage() {
     });
   }
 
+  const totalCount = modules.length;
+  const enabledCount = useMemo(
+    () => modules.filter((m) => m.enabled).length,
+    [modules],
+  );
+  const disabledCount = totalCount - enabledCount;
+
+  const filteredModules = useMemo(() => {
+    return modules.filter((mod) => {
+      if (statusFilter === "enabled" && !mod.enabled) return false;
+      if (statusFilter === "disabled" && mod.enabled) return false;
+
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const matchesName = mod.definition.name.toLowerCase().includes(q);
+        const matchesDesc = mod.definition.description.toLowerCase().includes(q);
+        if (!matchesName && !matchesDesc) return false;
+      }
+      return true;
+    });
+  }, [modules, statusFilter, search]);
+
   if (ctxLoading || (loading && !modules.length)) {
     return <div className="pa-loading">Loading modules…</div>;
   }
@@ -246,51 +270,133 @@ export function ModulesConfigurationPage() {
   }
 
   return (
-    <>
-      <div className="pa-page-header">
-        <div>
+    <div className="pa-modules-page">
+      <div className="pa-modules-header">
+        <div className="pa-modules-header-main">
           <div className="pa-eyebrow">Setup</div>
-          <div className="pa-page-title">Module Configuration</div>
-          <div className="pa-page-desc">
+          <h1 className="pa-page-title">Module Configuration</h1>
+          <p className="pa-page-desc">
             Configure each module first, then activate it for this project
+          </p>
+        </div>
+
+        <div className="pa-modules-stats">
+          <div className="pa-modules-stat-chip">
+            <span className="pa-modules-stat-val">{totalCount}</span>
+            <span className="pa-modules-stat-lbl">Total Modules</span>
+          </div>
+          <div className="pa-modules-stat-chip pa-modules-stat-chip--active">
+            <span className="pa-modules-stat-val">{enabledCount}</span>
+            <span className="pa-modules-stat-lbl">Active</span>
+          </div>
+          <div className="pa-modules-stat-chip">
+            <span className="pa-modules-stat-val">{disabledCount}</span>
+            <span className="pa-modules-stat-lbl">Disabled</span>
           </div>
         </div>
       </div>
 
-      <div className="pa-info-banner">
-        {manageModules
-          ? "Modules stay disabled until their required configuration is complete."
-          : "You do not have permission to change module configuration. Ask an admin for module-config:update."}
+      <div className="pa-modules-notice-banner">
+        <Info size={16} className="pa-modules-notice-icon" />
+        <div className="pa-modules-notice-text">
+          {manageModules
+            ? "Modules stay disabled until their required configuration is complete. Toggle switches update status in real-time."
+            : "You do not have permission to change module configuration. Ask an admin for module-config:update."}
+        </div>
       </div>
 
-      <div className="pa-mod-grid">
-        {modules.map((mod) => {
-          const path =
-            mod.definition.id === "visits"
-              ? "modules/visit"
-              : mod.definition.configPath;
-          const alwaysShowConfig = Boolean(path);
-          const configHref =
-            path && (mod.enabled || alwaysShowConfig)
-              ? `${base}/${path}`
-              : undefined;
-          return (
-            <ModuleCard
-              key={mod.definition.id}
-              module={mod}
-              configHref={configHref}
-              alwaysShowConfig={alwaysShowConfig}
-              readOnly={!manageModules}
-              onToggle={(enabled) =>
-                handleToggle(mod.definition.id, enabled)
-              }
-              onConfigUnavailable={() =>
-                handleConfigUnavailable(mod.definition.name)
-              }
-            />
-          );
-        })}
+      <div className="pa-modules-toolbar">
+        <div className="pa-modules-search-wrap">
+          <Search size={15} className="pa-modules-search-icon" />
+          <input
+            type="text"
+            placeholder="Search modules by name or description..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pa-modules-search-input"
+            aria-label="Search modules"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="pa-modules-search-clear"
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="pa-modules-filter-tabs" role="tablist" aria-label="Filter modules">
+          <button
+            type="button"
+            className={`pa-modules-filter-tab${statusFilter === "all" ? " is-active" : ""}`}
+            onClick={() => setStatusFilter("all")}
+          >
+            All ({totalCount})
+          </button>
+          <button
+            type="button"
+            className={`pa-modules-filter-tab${statusFilter === "enabled" ? " is-active" : ""}`}
+            onClick={() => setStatusFilter("enabled")}
+          >
+            Active ({enabledCount})
+          </button>
+          <button
+            type="button"
+            className={`pa-modules-filter-tab${statusFilter === "disabled" ? " is-active" : ""}`}
+            onClick={() => setStatusFilter("disabled")}
+          >
+            Disabled ({disabledCount})
+          </button>
+        </div>
       </div>
+
+      {filteredModules.length > 0 ? (
+        <div className="pa-mod-grid">
+          {filteredModules.map((mod) => {
+            const path =
+              mod.definition.id === "visits"
+                ? "modules/visit"
+                : mod.definition.configPath;
+            const alwaysShowConfig = Boolean(path);
+            const configHref =
+              path && (mod.enabled || alwaysShowConfig)
+                ? `${base}/${path}`
+                : undefined;
+            return (
+              <ModuleCard
+                key={mod.definition.id}
+                module={mod}
+                configHref={configHref}
+                alwaysShowConfig={alwaysShowConfig}
+                readOnly={!manageModules}
+                onToggle={(enabled) =>
+                  handleToggle(mod.definition.id, enabled)
+                }
+                onConfigUnavailable={() =>
+                  handleConfigUnavailable(mod.definition.name)
+                }
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <div className="pa-modules-empty">
+          <p className="pa-modules-empty-text">No modules match your current filter or search criteria.</p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("all");
+            }}
+          >
+            Reset Filters
+          </button>
+        </div>
+      )}
 
       {savingModuleId && (
         <div className="pa-info-banner" style={{ marginTop: 14 }}>
@@ -299,6 +405,6 @@ export function ModulesConfigurationPage() {
       )}
 
       <If2Toast toast={toast} onDismiss={() => setToast(null)} />
-    </>
+    </div>
   );
 }

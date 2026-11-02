@@ -86,10 +86,10 @@ export function WorkspaceFooter() {
   return (
     <footer
       style={{
-        height: 48,
+        height: 44,
         flexShrink: 0,
-        borderTop: "1px solid #e2e8f0",
-        background: "#ffffff",
+        borderTop: "1px solid var(--border)",
+        background: "var(--surface)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -100,16 +100,30 @@ export function WorkspaceFooter() {
       {/* Left side — Draft status */}
       <div
         style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
           fontSize: 12,
           color: draftInfo.color,
           lineHeight: 1,
         }}
       >
+        {draftStatus === "saved" && (
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "#16a34a",
+              display: "inline-block",
+            }}
+          />
+        )}
         {draftInfo.text}
       </div>
 
       {/* Right side — Back + Save & Publish */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <button
           type="button"
           onClick={handleBack}
@@ -117,18 +131,19 @@ export function WorkspaceFooter() {
             display: "inline-flex",
             alignItems: "center",
             gap: 4,
-            padding: "6px 14px",
-            fontSize: 13,
+            padding: "5px 12px",
+            fontSize: 12,
             fontWeight: 500,
-            color: "#0f172a",
-            background: "transparent",
-            border: "1px solid #e2e8f0",
+            color: "var(--text)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             borderRadius: 6,
             cursor: "pointer",
             lineHeight: 1.4,
+            transition: "all 150ms",
           }}
         >
-          &lt; Back
+          Cancel
         </button>
 
         <button
@@ -138,16 +153,18 @@ export function WorkspaceFooter() {
           style={{
             display: "inline-flex",
             alignItems: "center",
-            padding: "6px 16px",
-            fontSize: 13,
+            padding: "5px 14px",
+            fontSize: 12,
             fontWeight: 600,
             color: "#fff",
-            background: "#22c55e",
-            border: "1px solid #22c55e",
+            background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+            border: "none",
             borderRadius: 6,
             cursor: publishing ? "not-allowed" : "pointer",
-            opacity: publishing ? 0.7 : 1,
+            opacity: publishing ? 0.75 : 1,
             lineHeight: 1.4,
+            boxShadow: "0 1px 2px rgba(22, 163, 74, 0.2)",
+            transition: "all 150ms",
           }}
         >
           {publishing ? "Publishing..." : "Save & Publish"}

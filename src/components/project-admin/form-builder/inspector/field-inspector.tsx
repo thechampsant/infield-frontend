@@ -76,16 +76,29 @@ function EmptyState() {
         height: "100%",
         padding: 32,
         textAlign: "center",
-        gap: 12,
+        gap: 10,
       }}
     >
-      <MousePointerClick size={28} style={{ color: colors.muted }} />
-      <span style={{ fontSize: 14, fontWeight: 600, color: colors.muted }}>
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: "var(--bg, #f8fafc)",
+          border: "1px solid var(--border, #e2e8f0)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 4,
+        }}
+      >
+        <MousePointerClick size={22} style={{ color: "var(--text-muted, #94a3b8)" }} />
+      </div>
+      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--navy, #0f172a)" }}>
         Select a field
       </span>
-      <span style={{ fontSize: 12, color: colors.muted, lineHeight: 1.5 }}>
-        Click any field to edit its properties, visibility, validation, and data
-        sources.
+      <span style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)", lineHeight: 1.5, maxWidth: 220 }}>
+        Click any field on the canvas to edit its properties, visibility, validation, and data sources.
       </span>
     </div>
   );

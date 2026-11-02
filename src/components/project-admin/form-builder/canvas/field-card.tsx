@@ -45,15 +45,9 @@ function truncate(text: string, maxLength: number): string {
 
 function getDisplayLabel(field: FormField, questionNumber: number): string {
   const definition = getComponentDefinition(field.type);
-  const label = field.label && field.label.trim() ? field.label : "Untitled Field";
-  const description = definition?.description ?? "";
+  const label = field.label && field.label.trim() ? field.label : (definition?.name ?? "Untitled Field");
   const requiredSuffix = field.required === "always" ? " *" : "";
-
-  // Format: "N: Label — description *"
-  if (description) {
-    return `${questionNumber}: ${truncate(label, 40)} — ${truncate(description, 40)}${requiredSuffix}`;
-  }
-  return `${questionNumber}: ${truncate(label, 60)}${requiredSuffix}`;
+  return `${label}${requiredSuffix}`;
 }
 
 function getDisplayHelpText(field: FormField): string | null {
@@ -275,11 +269,11 @@ export function FieldCard({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 24,
-            height: 24,
+            width: 22,
+            height: 22,
             borderRadius: "50%",
-            background: "#1e293b",
-            color: "#fff",
+            background: "var(--navy, #0f172a)",
+            color: "#ffffff",
             fontSize: 10,
             fontWeight: 700,
             flexShrink: 0,
@@ -328,15 +322,15 @@ export function FieldCard({
         ))}
       </div>
 
-      {/* Field label with format: "N: Label — description *" */}
+      {/* Field label */}
       <div
         style={{
-          fontSize: 13,
+          fontSize: 13.5,
           fontWeight: 600,
           color:
             field.label && field.label.trim()
-              ? "#0f172a"
-              : "#94a3b8",
+              ? "var(--navy, #0f172a)"
+              : "var(--text-muted, #94a3b8)",
           lineHeight: 1.4,
         }}
       >
@@ -348,7 +342,7 @@ export function FieldCard({
         <div
           style={{
             fontSize: 12,
-            color: "#94a3b8",
+            color: "var(--text-muted, #94a3b8)",
             lineHeight: 1.4,
           }}
         >
@@ -363,10 +357,10 @@ export function FieldCard({
             marginTop: 4,
             padding: "8px 12px",
             borderRadius: 6,
-            background: "#f1f5f9",
-            border: "1px solid #e2e8f0",
+            background: "var(--bg, #f8fafc)",
+            border: "1px solid var(--border, #e2e8f0)",
             fontSize: 12,
-            color: "#94a3b8",
+            color: "var(--text-muted, #94a3b8)",
             lineHeight: 1.4,
             fontStyle: "normal",
           }}

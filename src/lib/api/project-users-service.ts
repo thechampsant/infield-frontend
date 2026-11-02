@@ -4,6 +4,7 @@
 
 import { apiClient } from "./api-client";
 import {
+  clampListPage,
   clampListPageSize,
   DEFAULT_LIST_PAGE_SIZE,
   MAX_LIST_PAGE_SIZE,
@@ -458,7 +459,7 @@ export const projectUsersService = {
   ): Promise<ProjectUserListResult> {
     const params = new URLSearchParams({
       projectId,
-      page: String(page),
+      page: String(clampListPage(page)),
       pageSize: String(clampListPageSize(pageSize)),
     });
     const term = search?.trim();

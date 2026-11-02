@@ -23,6 +23,11 @@
   --orca-text: #0f172a;
   --orca-text-2: #475569;
   --orca-text-3: #94a3b8;
+
+  --scrollbar-thumb: rgba(148, 163, 184, 0.4);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.65);
+  --scrollbar-thumb-active: rgba(71, 85, 105, 0.85);
+  --scrollbar-track: transparent;
 }
 
 @theme inline {
@@ -55,6 +60,11 @@
   --orca-text: #f1f5f9;
   --orca-text-2: #94a3b8;
   --orca-text-3: #64748b;
+
+  --scrollbar-thumb: rgba(148, 163, 184, 0.25);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
+  --scrollbar-thumb-active: rgba(148, 163, 184, 0.65);
+  --scrollbar-track: transparent;
 }
 
 body {
@@ -455,4 +465,63 @@ body {
 /* Smooth transitions for theme switch */
 *, *::before, *::after {
   transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+
+/* ============================================================
+   Global Modern Scrollbar Styling
+   ============================================================ */
+
+/* 1. WebKit & Chromium-based browsers (Chrome, Edge, Safari, Opera, Brave) */
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, rgba(148, 163, 184, 0.4));
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, rgba(100, 116, 139, 0.65));
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:active,
+*::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-active, rgba(71, 85, 105, 0.85));
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 2. Firefox (uses standard CSS scrollbars where ::-webkit-scrollbar is unsupported) */
+@supports not selector(::-webkit-scrollbar) {
+  html,
+  body,
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb, rgba(148, 163, 184, 0.4)) transparent;
+  }
 }

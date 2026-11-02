@@ -5,6 +5,7 @@ import {
   Bell,
   Boxes,
   CalendarDays,
+  ChevronRight,
   Clock,
   FolderOpen,
   LayoutGrid,
@@ -66,20 +67,30 @@ export function ModuleCard({
 
   return (
     <article
-      className={`pa-mod-card${planned ? " pa-mod-card--planned" : ""}`}
+      className={`pa-mod-card${planned ? " pa-mod-card--planned" : ""}${enabled ? " pa-mod-card--enabled" : ""}`}
     >
-      {planned && (
-        <span className="pa-mod-ribbon" aria-hidden>
-          Coming Soon
-        </span>
-      )}
+      <div className="pa-mod-card-header">
+        <div className={`pa-mod-icon ${ACCENT_CLASS[definition.accent]}`}>
+          <Icon size={20} strokeWidth={2} aria-hidden />
+        </div>
 
-      <div className={`pa-mod-icon ${ACCENT_CLASS[definition.accent]}`}>
-        <Icon size={20} strokeWidth={2} aria-hidden />
+        <div className="pa-mod-card-status">
+          {planned ? (
+            <span className="pa-mod-pill pa-mod-pill--planned">Coming Soon</span>
+          ) : enabled ? (
+            <span className="pa-mod-pill pa-mod-pill--active">
+              <span className="pa-mod-pill-dot" aria-hidden /> Active
+            </span>
+          ) : (
+            <span className="pa-mod-pill pa-mod-pill--inactive">Disabled</span>
+          )}
+        </div>
       </div>
 
-      <h3 className="pa-mod-title">{definition.name}</h3>
-      <p className="pa-mod-desc">{definition.description}</p>
+      <div className="pa-mod-body">
+        <h3 className="pa-mod-title">{definition.name}</h3>
+        <p className="pa-mod-desc">{definition.description}</p>
+      </div>
 
       <div className="pa-mod-footer">
         <label
@@ -99,7 +110,8 @@ export function ModuleCard({
         {!planned && (enabled || alwaysShowConfig) && (
           configHref ? (
             <Link href={configHref} className="pa-mod-config-btn">
-              Go to Configuration
+              <span>Go to Configuration</span>
+              <ChevronRight size={13} className="pa-mod-btn-arrow" />
             </Link>
           ) : (
             <button
@@ -107,7 +119,8 @@ export function ModuleCard({
               className="pa-mod-config-btn"
               onClick={onConfigUnavailable}
             >
-              Go to Configuration
+              <span>Go to Configuration</span>
+              <ChevronRight size={13} className="pa-mod-btn-arrow" />
             </button>
           )
         )}
@@ -115,3 +128,4 @@ export function ModuleCard({
     </article>
   );
 }
+
