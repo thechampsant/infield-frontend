@@ -14,7 +14,9 @@ const BASE = "/api/v1/feature-config";
 
 export interface FeatureModuleStatus {
   key: string;
-  isActive: boolean;
+  isActive?: boolean;
+  /** Some API responses expose the module state as `active`. */
+  active?: boolean;
   activatedAt?: string;
   updatedAt?: string;
   moduleIconUrl?: string;
@@ -94,12 +96,20 @@ export const featureConfigService = {
   ): Promise<FeatureConfigDto> {
     if (USE_MOCK_API) {
       const config = buildDefaultConfig(projectId);
-      return {
+      const updated = {
         ...config,
         modules: config.modules.map((module) =>
           module.key === moduleKey ? { ...module, isActive } : module,
         ),
       };
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("feature-config:changed", {
+            detail: { projectId, moduleId: moduleKey, enabled: isActive },
+          }),
+        );
+      }
+      return updated;
     }
 
     const raw = await apiClient.put<unknown>(
@@ -107,10 +117,18 @@ export const featureConfigService = {
       { isActive },
     );
     const data = unwrapApiData(raw) as FeatureConfigDto;
-    return {
+    const result: FeatureConfigDto = {
       projectId: data.projectId ?? projectId,
       modules: Array.isArray(data.modules) ? data.modules : [],
     };
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("feature-config:changed", {
+          detail: { projectId, moduleId: moduleKey, enabled: isActive },
+        }),
+      );
+    }
+    return result;
   },
 
   /** Sets the module name shown in the app; empty or null resets it to the default. */
