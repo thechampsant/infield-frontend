@@ -84,6 +84,14 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     comingSoon: false,
   },
   {
+    id: "connect",
+    name: "Connect",
+    description: "Instantly connect with your team using instant messaging",
+    accent: "blue",
+    defaultEnabled: true,
+    comingSoon: false,
+  },
+  {
     id: "custom-view",
     name: "Custom View",
     description:
