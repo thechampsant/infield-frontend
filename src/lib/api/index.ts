@@ -277,7 +277,7 @@ export type {
   FeatureWizardStep,
   FeatureWizardStepStatus,
 } from "./feature-wizard-service";
-export { featureConfigService } from "./feature-config-service";
+export { featureConfigService, MODULE_DISPLAY_NAME_MAX_LENGTH } from "./feature-config-service";
 export type { FeatureConfigDto, FeatureModuleStatus, ProjectModuleState } from "./feature-config-service";
 export { storeService } from "./store-service";
 export type {

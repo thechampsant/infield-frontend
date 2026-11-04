@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileUp, FolderOpen } from "lucide-react";
+import { ArrowLeft, FileUp, FolderOpen, Smartphone } from "lucide-react";
 import {
   documentsService,
   designationService,
+  featureConfigService,
   formatApiError,
+  MODULE_DISPLAY_NAME_MAX_LENGTH,
   type Designation,
   type DocumentAcknowledgementReport,
   type DocumentRecord,
@@ -18,6 +20,9 @@ import { projectAdminBase } from "@/lib/nav/nav";
 import { DesignationSelector } from "./designation-selector";
 import { DesignationCard } from "./designation-card";
 import { DocumentsTable } from "./documents-table";
+
+const RESOURCES_MODULE_KEY = "resources";
+const DEFAULT_APP_MODULE_NAME = "Resources";
 
 interface Props {
   projectId: string;
@@ -48,6 +53,9 @@ export function DocumentsPage({
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [ackReport, setAckReport] = useState<DocumentAcknowledgementReport | null>(null);
   const [loadingAckReport, setLoadingAckReport] = useState(false);
+  const [appModuleName, setAppModuleName] = useState("");
+  const [savedAppModuleName, setSavedAppModuleName] = useState("");
+  const [savingAppModuleName, setSavingAppModuleName] = useState(false);
 
   // ─── Initial data load ────────────────────────────────────────
 
@@ -63,6 +71,20 @@ export function DocumentsPage({
       .getTargetModules(projectId)
       .then((config) => setTargetModules(config.modules ?? []))
       .catch(() => setTargetModules([]));
+
+    featureConfigService
+      .getRawByProject(projectId)
+      .then((config) => {
+        const name =
+          config.modules.find((m) => m.key === RESOURCES_MODULE_KEY)
+            ?.displayName ?? "";
+        setAppModuleName(name);
+        setSavedAppModuleName(name);
+      })
+      .catch(() => {
+        setAppModuleName("");
+        setSavedAppModuleName("");
+      });
   }, [projectId]);
 
   // ─── Load documents ───────────────────────────────────────────
@@ -145,6 +167,33 @@ export function DocumentsPage({
     }
   }, []);
 
+  const handleSaveAppModuleName = useCallback(async () => {
+    if (!projectId) return;
+    setSavingAppModuleName(true);
+    try {
+      const config = await featureConfigService.setModuleDisplayName(
+        projectId,
+        RESOURCES_MODULE_KEY,
+        appModuleName,
+      );
+      const name =
+        config.modules.find((m) => m.key === RESOURCES_MODULE_KEY)
+          ?.displayName ?? "";
+      setAppModuleName(name);
+      setSavedAppModuleName(name);
+      setToast({
+        message: name
+          ? `The app will show this module as "${name}"`
+          : `The app will show this module as "${DEFAULT_APP_MODULE_NAME}"`,
+        type: "success",
+      });
+    } catch (err) {
+      setToast({ message: formatApiError(err), type: "error" });
+    } finally {
+      setSavingAppModuleName(false);
+    }
+  }, [projectId, appModuleName]);
+
   // ─── Derived ──────────────────────────────────────────────────
 
   const selectedDesignations = useMemo(
@@ -179,6 +228,50 @@ export function DocumentsPage({
         Upload documents per designation and manage them with date filters and
         status toggles. Each designation is configured independently.
       </div>
+
+      {/* App settings: module name shown in the mobile app */}
+      <section className="doc-section">
+        <h2 className="doc-section-title">
+          <Smartphone size={16} />
+          App Settings
+        </h2>
+        <div className="doc-filter-row">
+          <div className="doc-filter-fields">
+            <div className="doc-field">
+              <label className="doc-label" htmlFor="doc-app-module-name">
+                Show module name in app as
+              </label>
+              <input
+                id="doc-app-module-name"
+                type="text"
+                className="doc-input"
+                placeholder={DEFAULT_APP_MODULE_NAME}
+                maxLength={MODULE_DISPLAY_NAME_MAX_LENGTH}
+                value={appModuleName}
+                onChange={(e) => setAppModuleName(e.target.value)}
+                disabled={savingAppModuleName}
+              />
+            </div>
+          </div>
+          <div className="doc-filter-actions">
+            <button
+              type="button"
+              className="doc-btn doc-btn-primary doc-btn-sm"
+              onClick={handleSaveAppModuleName}
+              disabled={
+                savingAppModuleName ||
+                appModuleName.trim() === savedAppModuleName.trim()
+              }
+            >
+              {savingAppModuleName ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+        <p className="doc-table-info">
+          Shown in this project&apos;s mobile app menu. Leave empty to show
+          &quot;{DEFAULT_APP_MODULE_NAME}&quot;.
+        </p>
+      </section>
 
       {/* Section 1: Upload Documents */}
       <section className="doc-section">

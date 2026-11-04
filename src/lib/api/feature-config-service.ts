@@ -18,7 +18,12 @@ export interface FeatureModuleStatus {
   activatedAt?: string;
   updatedAt?: string;
   moduleIconUrl?: string;
+  /** Name shown in the mobile app instead of the default module name (e.g. "Broadcast"). */
+  displayName?: string | null;
 }
+
+/** Longest app display name the backend accepts. */
+export const MODULE_DISPLAY_NAME_MAX_LENGTH = 30;
 
 export interface FeatureConfigDto {
   projectId: string;
@@ -100,6 +105,35 @@ export const featureConfigService = {
     const raw = await apiClient.put<unknown>(
       `${BASE}/${projectId}/module/${encodeURIComponent(moduleKey)}`,
       { isActive },
+    );
+    const data = unwrapApiData(raw) as FeatureConfigDto;
+    return {
+      projectId: data.projectId ?? projectId,
+      modules: Array.isArray(data.modules) ? data.modules : [],
+    };
+  },
+
+  /** Sets the module name shown in the app; empty or null resets it to the default. */
+  async setModuleDisplayName(
+    projectId: string,
+    moduleKey: string,
+    displayName: string | null,
+  ): Promise<FeatureConfigDto> {
+    const value = displayName?.trim() ? displayName.trim() : null;
+
+    if (USE_MOCK_API) {
+      const config = buildDefaultConfig(projectId);
+      return {
+        ...config,
+        modules: config.modules.map((module) =>
+          module.key === moduleKey ? { ...module, displayName: value } : module,
+        ),
+      };
+    }
+
+    const raw = await apiClient.put<unknown>(
+      `${BASE}/${projectId}/module/${encodeURIComponent(moduleKey)}/display-name`,
+      { displayName: value },
     );
     const data = unwrapApiData(raw) as FeatureConfigDto;
     return {
