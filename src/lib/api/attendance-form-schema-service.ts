@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { attendanceVisibilityConfig } from "../attendance/visibility";
 import type {
   UdfApiSelectConfig,
   UdfFieldConfig,
@@ -62,7 +63,7 @@ function normalizeFieldConfig(value: unknown): UdfFieldConfig | undefined {
   return value as UdfFieldConfig;
 }
 
-function normalizeVisibilityRules(value: unknown): UdfVisibilityRule[] | undefined {
+function normalizeVisibilityRules(value: unknown): UdfVisibilityRule<string | number | boolean>[] | undefined {
   if (!Array.isArray(value)) return undefined;
 
   const rules = value
@@ -71,12 +72,14 @@ function normalizeVisibilityRules(value: unknown): UdfVisibilityRule[] | undefin
       const raw = item as Record<string, unknown>;
       const dependsOnField = String(raw.dependsOnField ?? "").trim();
       const showWhen = Array.isArray(raw.showWhen)
-        ? raw.showWhen.map((entry) => String(entry)).filter((entry) => entry.trim() !== "")
+        ? raw.showWhen.filter((entry): entry is string | number | boolean =>
+            typeof entry === "number" || typeof entry === "boolean" ||
+            (typeof entry === "string" && entry.trim() !== ""))
         : [];
       if (!dependsOnField || showWhen.length === 0) return null;
       return { dependsOnField, showWhen };
     })
-    .filter((rule): rule is UdfVisibilityRule => Boolean(rule));
+    .filter((rule): rule is UdfVisibilityRule<string | number | boolean> => Boolean(rule));
 
   return rules.length > 0 ? rules : undefined;
 }
@@ -92,7 +95,7 @@ function normalizeField(rawValue: unknown, index: number): UdfSchemaField {
     order: typeof raw.order === "number" ? raw.order : index + 1,
     status: typeof raw.status === "boolean" ? raw.status : true,
     summaryKey: typeof raw.summaryKey === "boolean" ? raw.summaryKey : false,
-    config: normalizeFieldConfig(raw.config),
+    config: attendanceVisibilityConfig(normalizeFieldConfig(raw.config), visibilityRules),
     ...(visibilityRules ? { visibilityRules } : {}),
   };
 }
@@ -135,7 +138,12 @@ function sanitizeApiSelectConfig(config: UdfFieldConfig | undefined): UdfFieldCo
     next.storeFilterMode = raw.storeFilterMode.trim();
   }
 
-  return next;
+  return {
+    ...next,
+    ...(raw.visibilityMode === "always" || raw.visibilityMode === "conditional"
+      ? { visibilityMode: raw.visibilityMode }
+      : {}),
+  };
 }
 
 function sanitizeField(field: UdfSchemaField, index: number): UdfSchemaField {
@@ -148,7 +156,10 @@ function sanitizeField(field: UdfSchemaField, index: number): UdfSchemaField {
     order: field.order ?? index + 1,
     status: field.status ?? true,
     summaryKey: Boolean(field.summaryKey),
-    config: field.type === "API_SELECT" ? sanitizeApiSelectConfig(field.config) : field.config,
+    config: attendanceVisibilityConfig(
+      field.type === "API_SELECT" ? sanitizeApiSelectConfig(field.config) : field.config,
+      visibilityRules,
+    ),
     ...(visibilityRules ? { visibilityRules } : {}),
   };
 }
