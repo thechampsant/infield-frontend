@@ -48,9 +48,9 @@ export type UdfConfigScope = keyof typeof UDF_ENTITY_TYPES;
 export type UdfEntityType = (typeof UDF_ENTITY_TYPES)[UdfConfigScope] | string;
 export type UdfImageSource = "Camera" | "Gallery" | "Both";
 
-export interface UdfVisibilityRule {
+export interface UdfVisibilityRule<Value = string> {
   dependsOnField: string;
-  showWhen: string[];
+  showWhen: Value[];
 }
 
 export interface UdfCascadingStaticOption {
@@ -149,7 +149,7 @@ export interface UdfSchemaField {
   includeInProfileView?: boolean;
   showInMasterTable?: boolean;
   view_type?: "default" | "table";
-  visibilityRules?: UdfVisibilityRule[];
+  visibilityRules?: UdfVisibilityRule<string | number | boolean>[];
 }
 
 export interface UdfSchemaDocument {

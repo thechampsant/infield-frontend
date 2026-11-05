@@ -28,6 +28,7 @@ import { ApiError } from "@/lib/api/api-client";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { AttendanceConfigEdit } from "./attendance-config-edit";
 import { AttendanceFormBuilder } from "./attendance-form-builder";
+import { validateAttendanceVisibility } from "@/lib/attendance/visibility";
 import { useAuth } from "@/lib/auth/auth-context";
 import { canManageModules } from "@/lib/auth/permissions";
 import { validateRejectionReasons } from "@/lib/approval/rejection-reasons";
@@ -360,6 +361,7 @@ function AttendanceConfigEditor({
     const validation = validateAttendanceSchema(fields, {
       remarksRequired,
     });
+    validation.push(...validateAttendanceVisibility(fields, remarksRequired, savedSchemas[formType]));
     if (validation.length > 0) {
       setFormValidation((prev) => ({ ...prev, [formType]: validation }));
       return;
@@ -922,12 +924,14 @@ function validateConfig(form: AttendanceConfigForm): Record<string, string> {
         errors.regTminusDays = "Days must be between 1 and 90.";
       }
     } else if (
+      !Number.isInteger(form.regDateFrom) ||
+      !Number.isInteger(form.regDateTo) ||
       form.regDateFrom < 1 ||
       form.regDateFrom > 31 ||
       form.regDateTo < 1 ||
       form.regDateTo > 31
     ) {
-      errors.regDateRange = "Day of month must be between 1 and 31.";
+      errors.regDateRange = "Day of month must be a whole number between 1 and 31.";
     }
 
     if (form.regMaxRequestsEnabled && form.regMaxRequestCount < 1) {

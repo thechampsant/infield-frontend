@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  canEditVisibility, visibilityParents, visibilityForParent, visibilityForValues,
+} from "@/lib/attendance/visibility";
 import { formatApiError, udfConfigService } from "@/lib/api";
 import type {
   AttendanceFormType,
@@ -445,6 +448,70 @@ export function AttendanceFormBuilder({
                   Summary Key
                 </label>
               </div>
+
+              <fieldset className="att-form-builder__field">
+                <legend>Conditional Visibility (optional)</legend>
+                <label className="att-form-builder__field">
+                  <span>Depends On</span>
+                  <select
+                    className="form-input"
+                    value={selectedField.visibilityRules?.[0]?.dependsOnField ?? ""}
+                    disabled={!canEditVisibility(fields, selectedField) ||
+                      (requirements.remarksRequired && selectedField.fieldKey.trim() === "remarks")}
+                    onChange={(event) => updateField(selectedIndex, {
+                      visibilityRules: visibilityForParent(event.target.value),
+                    })}
+                  >
+                    <option value="">Always visible</option>
+                    {!canEditVisibility(fields, selectedField) && (
+                      <option value={selectedField.visibilityRules?.[0]?.dependsOnField}>
+                        Existing configuration (preserved)
+                      </option>
+                    )}
+                    {visibilityParents(fields, selectedField).map((field) => (
+                      <option key={field.fieldKey} value={field.fieldKey}>{field.label}</option>
+                    ))}
+                  </select>
+                </label>
+                {requirements.remarksRequired && selectedField.fieldKey.trim() === "remarks" && (
+                  <p>Attendance configuration requires remarks to remain visible.</p>
+                )}
+                {!!selectedField.visibilityRules?.length && (
+                  <>
+                    {canEditVisibility(fields, selectedField) ? (
+                      <label className="att-form-builder__field">
+                        <span>Show When Values</span>
+                        <OptionsTextarea
+                          key={`visibility-${selectedIndex}-${selectedField.fieldKey}-${selectedField.visibilityRules[0].dependsOnField}`}
+                          className="form-input"
+                          rows={2}
+                          value={[selectedField.visibilityRules[0].showWhen.join(", ")]}
+                          placeholder="Approved, Pending"
+                          onChange={(lines) => {
+                            const text = lines.join(",");
+                            if (text === selectedField.visibilityRules![0].showWhen.join(", ")) return;
+                            updateField(selectedIndex, {
+                              visibilityRules: visibilityForValues(
+                                selectedField.visibilityRules![0].dependsOnField, text,
+                              ),
+                            });
+                          }}
+                        />
+                        <small>Comma-separated exact values. For API Select, use stored values.</small>
+                      </label>
+                    ) : (
+                      <div>
+                        <p>Existing rules are preserved. Clear them to configure a supported text dependency.</p>
+                        <pre>{JSON.stringify(selectedField.visibilityRules, null, 2)}</pre>
+                      </div>
+                    )}
+                    <button type="button" className="btn btn-secondary btn-sm"
+                      onClick={() => updateField(selectedIndex, { visibilityRules: undefined })}>
+                      Always visible (clear rules)
+                    </button>
+                  </>
+                )}
+              </fieldset>
 
               {selectedField.type === "DROPDOWN" || selectedField.type === "SELECT" ? (
                 <>
