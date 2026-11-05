@@ -20,6 +20,7 @@ import "@/styles/infield-brand.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemeInitScript } from "@/components/theme/theme-init-script";
 import { AuthProvider } from "@/lib/auth/auth-context";
+import { BRAND_ASSETS } from "@/lib/brand/assets";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,8 +42,12 @@ export const metadata: Metadata = {
   title: "InField",
   description: "Admin, Account & Project Configuration Platform",
   icons: {
-    icon: "/brand/appicon.svg",
-    apple: "/brand/appicon.svg",
+    icon: [
+      { url: BRAND_ASSETS.favicon48, sizes: "48x48", type: "image/png" },
+      { url: BRAND_ASSETS.favicon192, sizes: "192x192", type: "image/png" },
+      { url: BRAND_ASSETS.favicon512, sizes: "512x512", type: "image/png" },
+    ],
+    apple: BRAND_ASSETS.favicon192,
   },
 };
 

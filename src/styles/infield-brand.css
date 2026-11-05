@@ -10,8 +10,10 @@
 }
 
 .infield-brand-wordmark--topbar {
-  height: 30px;
-  max-width: 168px;
+  height: 40px;
+  width: 40px;
+  max-width: 40px;
+  border-radius: 10px;
 }
 
 .infield-brand-wordmark--hero {
@@ -134,7 +136,7 @@ html.dark .infield-splash-screen {
   position: relative;
   width: min(320px, 88vw);
   max-width: 360px;
-  aspect-ratio: 417 / 410;
+  aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
   justify-content: center;
