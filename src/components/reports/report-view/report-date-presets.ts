@@ -45,6 +45,16 @@ function addDays(dateKey: string, days: number): string {
   return next.toISOString().slice(0, 10);
 }
 
+/** Initial MTD selection; on the first day, select that day alone. */
+export function resolveReportDefaultDateRange(now: Date = new Date()): ReportDateRange {
+  const today = getIstToday(now);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  return {
+    fromDate: monthStart,
+    toDate: today === monthStart ? today : addDays(today, -1),
+  };
+}
+
 /** Monday of the IST week containing dateKey (Mon–Sun). */
 function startOfWeekMonday(dateKey: string): string {
   const { year, month, day } = parseDateKey(dateKey);
