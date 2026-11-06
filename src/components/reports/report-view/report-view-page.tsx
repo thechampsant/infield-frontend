@@ -20,14 +20,16 @@ import type {
 } from "@/lib/api/report-config-service";
 import {
   downloadReportExport,
+  clearReportExport,
+  createReportExportVisitId,
   getReportExportSnapshot,
   reportExportSessionKey,
   startReportExport,
   subscribeReportExport,
+  type ReportExportSnapshot,
 } from "@/lib/api/report-export-session";
 import {
   isExportJobInProgress,
-  type ReportExportJob,
 } from "@/lib/reports/report-export-job";
 import {
   formatMultiValueText,
@@ -39,6 +41,7 @@ import { ReportDataTable } from "./report-data-table";
 import { ReportExportBanners } from "./report-export-banners";
 import {
   REPORT_DATE_PRESETS,
+  resolveReportDefaultDateRange,
   resolveReportDatePreset,
   type ReportDatePresetId,
 } from "./report-date-presets";
@@ -75,29 +78,24 @@ export function ReportViewPage({
   // Filter state
   const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
 
-  // Global date range state — Orient defaults to last 7 days for fast Load
-  const orientDefaults = isOrientProject(projectCode) ? defaultOrientLoadDateRange() : null;
-  const [fromDate, setFromDate] = useState(orientDefaults?.fromDate ?? "");
-  const [toDate, setToDate] = useState(orientDefaults?.toDate ?? "");
-  const [activePreset, setActivePreset] = useState<ReportDatePresetId | null>(
-    orientDefaults ? "last7" : null,
-  );
+  // Default selection only; execution remains in the Load/Export handlers.
+  const [defaultDateRange] = useState(() => resolveReportDefaultDateRange());
+  const [fromDate, setFromDate] = useState(defaultDateRange.fromDate);
+  const [toDate, setToDate] = useState(defaultDateRange.toDate);
+  const [activePreset, setActivePreset] = useState<ReportDatePresetId | null>(null);
 
-  // Export job session (product-store pattern: poll + progress + tab-safe)
+  // Export visibility belongs only to this visit, never to a historical job.
+  const [exportVisitId] = useState(createReportExportVisitId);
   const exportProjectId = contextProjectId || config?.projectId || "";
   const exportSessionKey = exportProjectId
-    ? reportExportSessionKey(exportProjectId, reportId)
+    ? reportExportSessionKey(exportProjectId, reportId, exportVisitId)
     : "";
-  const [exportSnapshot, setExportSnapshot] = useState<{
-    job: ReportExportJob | null;
-    error: string | null;
-  }>(() =>
-    exportSessionKey
-      ? getReportExportSnapshot(exportSessionKey)
-      : { job: null, error: null },
-  );
-  const exportJob = exportSnapshot.job;
-  const exportError = exportSnapshot.error;
+  const [exportSnapshot, setExportSnapshot] = useState<ReportExportSnapshot & { key: string }>({
+    key: "", job: null, error: null, starting: false,
+  });
+  const exportJob = exportSnapshot.key === exportSessionKey ? exportSnapshot.job : null;
+  const exportError = exportSnapshot.key === exportSessionKey ? exportSnapshot.error : null;
+  const startingExport = exportSnapshot.key === exportSessionKey && exportSnapshot.starting;
 
   const applyPreset = useCallback((presetId: ReportDatePresetId) => {
     const range = resolveReportDatePreset(presetId);
@@ -131,6 +129,14 @@ export function ReportViewPage({
         const cfg = await reportConfigService.getConfig(reportId);
         if (!mounted) return;
         setConfig(cfg);
+        setFilterValues(Object.fromEntries(
+          (cfg.filters || [])
+            .filter((filter) => filter.controlType === "date-range")
+            .map((filter) => [filter.fieldKey, {
+              start: defaultDateRange.fromDate,
+              end: defaultDateRange.toDate,
+            }]),
+        ));
 
         // Build full column list: selected source columns + calculated fields
         const calcColumns = (cfg.calculatedFields || []).map((cf: ReportCalculatedField) => ({
@@ -156,24 +162,21 @@ export function ReportViewPage({
     return () => {
       mounted = false;
     };
-  }, [reportId]);
+  }, [reportId, defaultDateRange]);
 
   useEffect(() => {
-    if (!exportProjectId) {
-      setExportSnapshot({ job: null, error: null });
-      return;
-    }
-    const key = reportExportSessionKey(exportProjectId, reportId);
-    setExportSnapshot(getReportExportSnapshot(key));
-    return subscribeReportExport(key, reportId, () => {
-      setExportSnapshot(getReportExportSnapshot(key));
+    if (!exportSessionKey) return;
+    const key = exportSessionKey;
+    return subscribeReportExport(key, () => {
+      setExportSnapshot({ ...getReportExportSnapshot(key), key });
     });
-  }, [exportProjectId, reportId]);
+  }, [exportSessionKey]);
 
   // Load data
   const handleLoadData = useCallback(
-    async (requestedPage = page) => {
+    async (requestedPage = page, clearExcel = true) => {
       if (!config) return;
+      if (clearExcel && exportSessionKey) clearReportExport(exportSessionKey);
       setLoadingData(true);
       setLoadError(null);
 
@@ -243,13 +246,14 @@ export function ReportViewPage({
         setLoadingData(false);
       }
     },
-    [config, reportId, filterValues, page, pageSize, fromDate, toDate, projectCode, contextProjectId],
+    [config, reportId, filterValues, page, pageSize, fromDate, toDate, projectCode, contextProjectId, exportSessionKey],
   );
 
   // Handle export — enqueue a job; session poll + banner handle the rest
   const handleExport = useCallback(async () => {
-    if (!config || !exportProjectId) return;
+    if (!config || !exportProjectId || !exportSessionKey) return;
     await startReportExport({
+      sessionKey: exportSessionKey,
       projectId: exportProjectId,
       reportId,
       filters: filterValues,
@@ -258,7 +262,7 @@ export function ReportViewPage({
       toDate: toDate || undefined,
       estimatedTotal: totalCount > 0 ? totalCount : undefined,
     });
-  }, [config, reportId, filterValues, fromDate, toDate, exportProjectId, totalCount]);
+  }, [config, reportId, filterValues, fromDate, toDate, exportProjectId, exportSessionKey, totalCount]);
 
   const handleDownloadReady = useCallback(() => {
     if (!exportSessionKey) return;
@@ -268,7 +272,7 @@ export function ReportViewPage({
   // Handle page change
   const handlePageChange = useCallback(
     (newPage: number) => {
-      handleLoadData(newPage);
+      handleLoadData(newPage, false);
     },
     [handleLoadData],
   );
@@ -308,7 +312,7 @@ export function ReportViewPage({
 
   const isDirectExport = config.outputSettings?.exportBehaviour === "direct";
   const exportDisabled = !isDirectExport && !dataLoaded;
-  const preparingExport = isExportJobInProgress(exportJob?.status);
+  const preparingExport = startingExport || isExportJobInProgress(exportJob?.status);
 
   return (
     <div className="mx-auto max-w-7xl">
