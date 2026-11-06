@@ -587,8 +587,8 @@ export function UDFConfigModal({
         {(scope === "user" || scope === "store") && (
           <div className="pa-info-banner">
             For attendance Night Shift, manually add a BOOLEAN <strong>nightShift</strong> field
-            and STRING fields <strong>shiftStartTime</strong> and <strong>shiftEndTime</strong>.
-            All three exact keys are required before Night Shift can be enabled.
+            and STRING fields <strong>shiftStartTime</strong>, <strong>shiftEndTime</strong>, <strong>nightShiftStartTime</strong> and <strong>nightShiftEndTime</strong>.
+            All five exact keys support separate Day/Night schedules. Night timings are mandatory when enabled; only the Day pair supports 00:00 bypass. Existing overnight records require an explicit conversion.
             {scope === "store" ? " Store" : " User"} create/edit forms will render
             these as HH:mm time inputs.
           </div>

@@ -176,7 +176,7 @@ export function EditUserModal({
     if (reporteesField?.mandatory && reportees.length === 0) {
       errs.push(String(reporteesField.id));
     }
-    const shiftValidation = validateUserShiftTimes(udfFields, udfValues);
+    const shiftValidation = validateUserShiftTimes(udfFields, udfValues, user.udfs.nightShift === true);
     if (shiftValidation) {
       errs.push(...shiftValidation.errorKeys);
       setSubmitError(shiftValidation.message);
