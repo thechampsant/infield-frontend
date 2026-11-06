@@ -174,9 +174,9 @@ export function ReportViewPage({
 
   // Load data
   const handleLoadData = useCallback(
-    async (requestedPage = page, includeTotalCount = true) => {
+    async (requestedPage = page, clearExcel = true) => {
       if (!config) return;
-      if (includeTotalCount && exportSessionKey) clearReportExport(exportSessionKey);
+      if (clearExcel && exportSessionKey) clearReportExport(exportSessionKey);
       setLoadingData(true);
       setLoadError(null);
 
@@ -199,8 +199,6 @@ export function ReportViewPage({
           ? await orientReportService.executeReport({
               exportType: orientType,
               projectId: orientProjectId,
-              // Attendance 2 rows follow the report's designation selection.
-              reportId: orientType === "attendance-daily-status" ? reportId : undefined,
               page: requestedPage,
               pageSize,
               fromDate: fromDate || undefined,
@@ -209,7 +207,6 @@ export function ReportViewPage({
           : await reportConfigService.executeReport({
               reportId,
               filters: filterValues,
-              includeTotalCount,
               page: requestedPage,
               pageSize,
               fromDate: fromDate || undefined,
@@ -237,7 +234,7 @@ export function ReportViewPage({
           );
         }
         const meta = "meta" in result ? result.meta : undefined;
-        if (includeTotalCount) setTotalCount(meta?.totalCount ?? result.totalCount ?? 0);
+        setTotalCount(meta?.totalCount ?? result.totalCount ?? 0);
         setPage(requestedPage);
         setDataLoaded(true);
       } catch (err) {

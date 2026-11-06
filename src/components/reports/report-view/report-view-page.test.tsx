@@ -236,7 +236,7 @@ describe("web report default selection and explicit actions", () => {
     expect(startReportExport).not.toHaveBeenCalled();
   });
 
-  it("preserves count-free pagination from the separate large-report change", async () => {
+  it("preserves the original pagination API contract without clearing Excel", async () => {
     vi.mocked(reportConfigService.executeReport).mockResolvedValueOnce({
       data: [{ Name: "first" }], columns: [],
       meta: { totalCount: 100, page: 1, pageSize: 50, totalPages: 2 },
@@ -244,9 +244,14 @@ describe("web report default selection and explicit actions", () => {
     await button(await mount(), "Load").props.onClick!();
     const table = elements(render()).find((element) => element.props.onPageChange)!;
     vi.mocked(clearReportExport).mockClear();
+    vi.mocked(reportConfigService.executeReport).mockResolvedValueOnce({
+      data: [{ Name: "second" }], columns: [],
+      meta: { totalCount: 100, page: 2, pageSize: 50, totalPages: 2 },
+    });
     table.props.onPageChange!(2);
     await Promise.resolve();
-    expect(reportConfigService.executeReport).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, includeTotalCount: false }));
+    expect(reportConfigService.executeReport).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+    expect(reportConfigService.executeReport).toHaveBeenLastCalledWith(expect.not.objectContaining({ includeTotalCount: expect.anything() }));
     expect(elements(render()).find((element) => element.props.onPageChange)?.props.totalCount).toBe(100);
     expect(startReportExport).not.toHaveBeenCalled();
     expect(clearReportExport).not.toHaveBeenCalled();
