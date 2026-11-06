@@ -8,6 +8,9 @@ import { formatUserNameWithCode } from "@/lib/project-admin/user-display";
 import {
   hasNightShiftFields,
   isShiftTimeFieldKey,
+  isNightShiftTimeFieldKey,
+  NIGHT_SHIFT_START_FIELD_KEY,
+  NIGHT_SHIFT_END_FIELD_KEY,
   NIGHT_SHIFT_FIELD_KEY,
 } from "@/lib/project-admin/user-shift-times";
 import type { UDFField, UDFValue } from "@/types/project-admin";
@@ -148,8 +151,9 @@ export function UDFFormFields({
     }
   };
 
+  const visibleFields = fields.filter((f) => !isNightShiftTimeFieldKey(f.fieldKey) || booleanValue(NIGHT_SHIFT_FIELD_KEY));
   const pairs: UDFField[][] = [];
-  for (let i = 0; i < fields.length; i += 2) pairs.push(fields.slice(i, i + 2));
+  for (let i = 0; i < visibleFields.length; i += 2) pairs.push(visibleFields.slice(i, i + 2));
 
   return (
     <div ref={rootRef}>
@@ -187,7 +191,7 @@ export function UDFFormFields({
               <div key={f.id} className="form-group">
                 <label className="form-label">
                   {f.name}
-                  {f.mandatory && <span className="req"> *</span>}
+                  {(f.mandatory || (isNightShiftTimeFieldKey(f.fieldKey) && booleanValue(NIGHT_SHIFT_FIELD_KEY))) && <span className="req"> *</span>}
                 </label>
 
                 {f.fieldKey === NIGHT_SHIFT_FIELD_KEY && f.type === "boolean" ? (
@@ -197,7 +201,7 @@ export function UDFFormFields({
                         type="button"
                         className={`btn ${booleanValue(f.fieldKey) ? "btn-primary" : "btn-secondary"}`}
                         aria-pressed={booleanValue(f.fieldKey)}
-                        disabled={!nightShiftReady}
+                        disabled={!nightShiftReady && !booleanValue(f.fieldKey)}
                         onClick={() => set(f.fieldKey, !booleanValue(f.fieldKey))}
                       >
                         {booleanValue(f.fieldKey) ? "Yes" : "No"}
@@ -206,9 +210,24 @@ export function UDFFormFields({
                         {booleanValue(f.fieldKey) ? "Night Shift enabled" : "Night Shift disabled"}
                       </span>
                     </div>
+                    {nightShiftReady && booleanValue(NIGHT_SHIFT_FIELD_KEY)
+                      && !stringValue(NIGHT_SHIFT_START_FIELD_KEY)
+                      && !stringValue(NIGHT_SHIFT_END_FIELD_KEY)
+                      && stringValue("shiftStartTime") > stringValue("shiftEndTime") && (
+                      <div className="pa-info-banner" style={{ marginTop: 8 }}>
+                        Existing overnight schedule: {stringValue("shiftStartTime")} – {stringValue("shiftEndTime")}.
+                        Convert it to separate Night timings, then configure the normal Day pair or choose Day bypass.
+                        <button type="button" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}
+                          onClick={() => onChange({ ...values,
+                            [NIGHT_SHIFT_START_FIELD_KEY]: stringValue("shiftStartTime"),
+                            [NIGHT_SHIFT_END_FIELD_KEY]: stringValue("shiftEndTime"),
+                            shiftStartTime: "", shiftEndTime: "",
+                          })}>Copy existing timings to Night</button>
+                      </div>
+                    )}
                     {!nightShiftReady && (
                       <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>
-                        Add Night Shift and both timing fields to the User/Store UDF schema first.
+                        Add nightShift, Day start/end and Night start/end exact keys to the selected User/Store UDF schema before conversion.
                       </div>
                     )}
                   </>
@@ -222,23 +241,23 @@ export function UDFFormFields({
                         onChange={(e) => set(f.fieldKey, e.target.value)}
                         style={{ flex: 1 }}
                       />
-                      <button
+                      {!isNightShiftTimeFieldKey(f.fieldKey) && <button
                         type="button"
                         className="btn btn-secondary btn-sm"
                         onClick={() => set(f.fieldKey, "00:00")}
                       >
                         00:00
-                      </button>
-                      <button
+                      </button>}
+                      {!isNightShiftTimeFieldKey(f.fieldKey) && <button
                         type="button"
                         className="btn btn-secondary btn-sm"
                         onClick={() => set(f.fieldKey, "")}
                       >
                         Clear
-                      </button>
+                      </button>}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                      Leave both shift times blank for default attendance. Use 00:00 for both to bypass shift logic.
+                      {isNightShiftTimeFieldKey(f.fieldKey) ? "Required when Night Shift is Yes. Night start/end must cross midnight; 00:00 is not allowed." : "Leave both Day times blank for default attendance. Use 00:00 for both for Day bypass; separate Night timings still apply."}
                     </div>
                   </>
                 ) : f.type === "dropdown" ? (

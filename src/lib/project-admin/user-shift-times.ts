@@ -3,15 +3,20 @@ import type { UDFField, UDFValue } from "@/types/project-admin";
 export const SHIFT_START_FIELD_KEY = "shiftStartTime";
 export const SHIFT_END_FIELD_KEY = "shiftEndTime";
 export const NIGHT_SHIFT_FIELD_KEY = "nightShift";
+export const NIGHT_SHIFT_START_FIELD_KEY = "nightShiftStartTime";
+export const NIGHT_SHIFT_END_FIELD_KEY = "nightShiftEndTime";
+export function isNightShiftTimeFieldKey(key: string): boolean {
+  return key === NIGHT_SHIFT_START_FIELD_KEY || key === NIGHT_SHIFT_END_FIELD_KEY;
+}
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export function isShiftTimeFieldKey(fieldKey: string): boolean {
-  return fieldKey === SHIFT_START_FIELD_KEY || fieldKey === SHIFT_END_FIELD_KEY;
+  return fieldKey === SHIFT_START_FIELD_KEY || fieldKey === SHIFT_END_FIELD_KEY || isNightShiftTimeFieldKey(fieldKey);
 }
 
 export function hasNightShiftFields(fields: UDFField[]): boolean {
-  return [NIGHT_SHIFT_FIELD_KEY, SHIFT_START_FIELD_KEY, SHIFT_END_FIELD_KEY].every((fieldKey) =>
+  return [NIGHT_SHIFT_FIELD_KEY, SHIFT_START_FIELD_KEY, SHIFT_END_FIELD_KEY, NIGHT_SHIFT_START_FIELD_KEY, NIGHT_SHIFT_END_FIELD_KEY].every((fieldKey) =>
     fields.some((field) => field.fieldKey === fieldKey),
   );
 }
@@ -32,7 +37,7 @@ export function shiftFieldsChanged(
   original: Record<string, UDFValue>,
   current: Record<string, UDFValue>,
 ): boolean {
-  return [NIGHT_SHIFT_FIELD_KEY, SHIFT_START_FIELD_KEY, SHIFT_END_FIELD_KEY].some(
+  return [NIGHT_SHIFT_FIELD_KEY, SHIFT_START_FIELD_KEY, SHIFT_END_FIELD_KEY, NIGHT_SHIFT_START_FIELD_KEY, NIGHT_SHIFT_END_FIELD_KEY].some(
     (fieldKey) => original[fieldKey] !== current[fieldKey],
   );
 }
@@ -50,11 +55,27 @@ export function validateShiftTimes(
   fields: UDFField[],
   values: Record<string, UDFValue>,
   entityLabel = "user",
+  existing = false,
 ): { errorKeys: string[]; message: string } | null {
   const startField = fields.find((field) => field.fieldKey === SHIFT_START_FIELD_KEY);
   const endField = fields.find((field) => field.fieldKey === SHIFT_END_FIELD_KEY);
 
   if (!startField && !endField) return null;
+
+  const nightStart = stringValue(values[NIGHT_SHIFT_START_FIELD_KEY]);
+  const nightEnd = stringValue(values[NIGHT_SHIFT_END_FIELD_KEY]);
+  const separate = !existing || String(values.shiftTimingVersion) === "2" || !!nightStart || !!nightEnd;
+  const nightEnabled = values[NIGHT_SHIFT_FIELD_KEY] === true;
+  if (nightEnabled && separate && (
+    !TIME_PATTERN.test(nightStart) || !TIME_PATTERN.test(nightEnd) ||
+    nightStart === "00:00" || nightEnd === "00:00" ||
+    timeToMinutes(nightEnd) >= timeToMinutes(nightStart)
+  )) {
+    return {
+      errorKeys: fields.filter((f) => isNightShiftTimeFieldKey(f.fieldKey)).map((f) => "udf_" + f.id),
+      message: "Night start and end are required, must be nonzero HH:mm, and must cross midnight.",
+    };
+  }
 
   const start = stringValue(values[SHIFT_START_FIELD_KEY]);
   const end = stringValue(values[SHIFT_END_FIELD_KEY]);
@@ -99,14 +120,14 @@ export function validateShiftTimes(
     };
   }
 
-  if (nightShift && endMinutes > startMinutes) {
+  if (nightShift && !separate && endMinutes > startMinutes) {
     return {
       errorKeys,
-      message: "Night Shift needs an end time earlier than the start time.",
+      message: "Configure separate Night start/end timings before enabling Night Shift with daytime timings.",
     };
   }
 
-  if (!nightShift && endMinutes < startMinutes) {
+  if ((!nightShift || separate) && endMinutes < startMinutes) {
     return {
       errorKeys,
       message: "Overnight timings require Night Shift to be enabled.",
@@ -119,6 +140,7 @@ export function validateShiftTimes(
 export function validateUserShiftTimes(
   fields: UDFField[],
   values: Record<string, UDFValue>,
+  existing = false,
 ): { errorKeys: string[]; message: string } | null {
-  return validateShiftTimes(fields, values, "user");
+  return validateShiftTimes(fields, values, "user", existing);
 }

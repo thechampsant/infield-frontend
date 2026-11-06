@@ -868,6 +868,28 @@ export function AttendanceConfigEdit({
             checked={form.shiftManagementEnabled}
             onChange={(v) => onChange("shiftManagementEnabled", v)}
           />
+          <div className="flat-mode-note">
+            <strong>Night Attendance Cycle Reset Buffer</strong>
+            <p>Extra checkout time after the scheduled Night end. Maximum 3 hours; 0 means no extra wait.
+              Expiry leaves checkout missing for regularization and does not add working hours.</p>
+            <div style={{ display: "flex", gap: 12 }}>
+              <label>Hours <input type="number" className="form-input" min={0} max={3} step={1} disabled={readOnly}
+                value={Math.floor((form.nightCycleResetBufferMinutes ?? 180) / 60)}
+                onChange={(e) => {
+                  const hours = Math.max(0, Math.min(3, Math.trunc(Number(e.target.value) || 0)));
+                  onChange("nightCycleResetBufferMinutes", hours * 60 + (hours === 3 ? 0 : (form.nightCycleResetBufferMinutes ?? 180) % 60));
+                }} /></label>
+              <label>Minutes <input type="number" className="form-input" min={0}
+                max={(form.nightCycleResetBufferMinutes ?? 180) >= 180 ? 0 : 59} step={1} disabled={readOnly}
+                value={(form.nightCycleResetBufferMinutes ?? 180) % 60}
+                onChange={(e) => {
+                  const hours = Math.floor((form.nightCycleResetBufferMinutes ?? 180) / 60);
+                  const minutes = hours === 3 ? 0 : Math.max(0, Math.min(59, Math.trunc(Number(e.target.value) || 0)));
+                  onChange("nightCycleResetBufferMinutes", hours * 60 + minutes);
+                }} /></label>
+            </div>
+            {errors.nightCycleResetBufferMinutes && <p role="alert">{errors.nightCycleResetBufferMinutes}</p>}
+          </div>
           {!form.shiftManagementEnabled ? (
             <div className="flat-mode-note">
               Working hours are calculated from raw check-in to check-out duration.
@@ -887,8 +909,8 @@ export function AttendanceConfigEdit({
               </FormGroup>
               <div className="flat-mode-note">
                 {storeShiftCopy
-                  ? "Uses shiftStartTime and shiftEndTime from the user's mapped Store Master record."
-                  : "Uses shiftStartTime and shiftEndTime from User Master."}
+                  ? "Uses all Day/Night timings and Night eligibility from one selected mapped Store Master record."
+                  : "Uses all Day/Night timings and Night eligibility from User Master; never mixed with Store fields."}
               </div>
               <InfoBanner>
                 No mapping = no shift logic. If no usable shift timing is found,

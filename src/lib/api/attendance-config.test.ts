@@ -261,3 +261,17 @@ describe("regularization per-level auto actions", () => {
     });
   });
 });
+
+describe("night checkout buffer mapping", () => {
+  it.each([0, 90, 180])("preserves %i minutes through edit serialization", (minutes) => {
+    const form = docToForm({ _id: "c1", shiftManagement: { isEnabled: true, assignmentMode: "USER_MASTER", zeroHoursBypassEnabled: true, bypassAttendanceTypes: [], nightCycleResetBufferMinutes: minutes } } as AttendanceConfigDoc);
+    expect(form.nightCycleResetBufferMinutes).toBe(minutes);
+    expect(formToDto(form).shiftManagement.nightCycleResetBufferMinutes).toBe(minutes);
+  });
+  it("defaults to three hours without replacing explicit zero", () => {
+    expect(docToForm(null).nightCycleResetBufferMinutes).toBe(180);
+  });
+  it.each([-1, 181, 1.5])("rejects invalid buffer %s", (minutes) => {
+    expect(() => formToDto({ ...DEFAULT_CONFIG_FORM, nightCycleResetBufferMinutes: minutes })).toThrow();
+  });
+});

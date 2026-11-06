@@ -75,7 +75,7 @@ export function EditStoreModal({
     if (!form.storeName.trim()) errs.push("storeName");
     if (form.latitude.trim() && isNaN(Number(form.latitude))) errs.push("latitude");
     if (form.longitude.trim() && isNaN(Number(form.longitude))) errs.push("longitude");
-    const shiftValidation = validateShiftTimes(udfFields, udfValues, "store");
+    const shiftValidation = validateShiftTimes(udfFields, udfValues, "store", store.udfs.nightShift === true);
     if (shiftValidation) {
       errs.push(...shiftValidation.errorKeys);
       setSubmitError(shiftValidation.message);

@@ -163,6 +163,7 @@ export interface LeaveModuleConfigDto {
 export type ShiftAssignmentMode = "USER_MASTER" | "STORE_MASTER";
 
 export interface ShiftManagementConfigDto {
+  nightCycleResetBufferMinutes?: number;
   isEnabled: boolean;
   assignmentMode: ShiftAssignmentMode;
   zeroHoursBypassEnabled: boolean;
@@ -305,6 +306,7 @@ export interface AttendanceConfigForm {
   halfDayMinHrs: number;
   halfDayMaxHrs: number;
   singlePunchFullDay: boolean;
+  nightCycleResetBufferMinutes: number;
   shiftManagementEnabled: boolean;
   shiftAssignmentMode: ShiftAssignmentMode;
   zeroHoursBypassEnabled: boolean;
@@ -453,6 +455,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   halfDayMinHrs: 4.5,
   halfDayMaxHrs: 9,
   singlePunchFullDay: false,
+  nightCycleResetBufferMinutes: 180,
   shiftManagementEnabled: false,
   shiftAssignmentMode: "USER_MASTER",
   zeroHoursBypassEnabled: true,
@@ -673,6 +676,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     halfDayMinHrs: wh?.halfDayLogic?.minHours ?? DEFAULT_CONFIG_FORM.halfDayMinHrs,
     halfDayMaxHrs: wh?.halfDayLogic?.maxHours ?? DEFAULT_CONFIG_FORM.halfDayMaxHrs,
     singlePunchFullDay: Boolean(wh?.enableSinglePunchLogic),
+    nightCycleResetBufferMinutes: doc.shiftManagement?.nightCycleResetBufferMinutes ?? 180,
     shiftManagementEnabled: Boolean(doc.shiftManagement?.isEnabled),
     shiftAssignmentMode: doc.shiftManagement?.assignmentMode ?? DEFAULT_CONFIG_FORM.shiftAssignmentMode,
     zeroHoursBypassEnabled:
@@ -735,6 +739,10 @@ function label(value: string, fallback: string): LabelConfigDto {
 }
 
 export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
+  const buffer = form.nightCycleResetBufferMinutes ?? 180;
+  if (!Number.isInteger(buffer) || buffer < 0 || buffer > 180) {
+    throw new Error("Night attendance buffer must be between 0 and 180 whole minutes.");
+  }
   const anyGeoFenced = form.types.some((t) => !t.isBypassed && t.geoFenced);
   const activeTypeNames = new Set(
     form.types.filter((t) => t.active).map((t) => t.name.trim()).filter(Boolean),
@@ -818,6 +826,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
     },
     leaveModule: { autoWeekOff: form.autoWeekOffEnabled },
     shiftManagement: {
+      nightCycleResetBufferMinutes: buffer,
       isEnabled: form.shiftManagementEnabled,
       assignmentMode: form.shiftAssignmentMode,
       zeroHoursBypassEnabled: form.zeroHoursBypassEnabled,
