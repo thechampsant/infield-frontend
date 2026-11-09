@@ -7,8 +7,8 @@ import {
   formatApiError,
   type Designation,
   type DocumentType,
-  type UploadDocumentInput,
 } from "@/lib/api";
+import { documentFileAccept, parseYouTubeUrl, validateDocumentFile, validateYouTubeUrl } from "@/lib/documents";
 
 const DOCUMENT_TYPES: DocumentType[] = [
   "PDF",
@@ -16,9 +16,8 @@ const DOCUMENT_TYPES: DocumentType[] = [
   "Word",
   "Video",
   "Image",
+  "YouTube",
 ];
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 interface Props {
   designation: Designation;
@@ -30,6 +29,7 @@ interface Props {
 
 interface CardState {
   title: string;
+  youtubeUrl: string;
   documentType: DocumentType | "";
   targetModule: string;
   description: string;
@@ -41,6 +41,7 @@ interface CardState {
 
 const INITIAL_STATE: CardState = {
   title: "",
+  youtubeUrl: "",
   documentType: "",
   targetModule: "",
   description: "",
@@ -66,8 +67,8 @@ export function DesignationCard({
       state.title.trim() !== "" &&
       state.documentType !== "" &&
       state.targetModule !== "" &&
-      state.file !== null,
-    [state.title, state.documentType, state.targetModule, state.file],
+      (state.documentType === "YouTube" ? Boolean(parseYouTubeUrl(state.youtubeUrl)) : state.file !== null),
+    [state.title, state.documentType, state.targetModule, state.file, state.youtubeUrl],
   );
 
   const hasValidDates = useMemo(() => {
@@ -82,13 +83,17 @@ export function DesignationCard({
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0] ?? null;
-      if (file && file.size > MAX_FILE_SIZE) {
-        onUploadError("File size exceeds 100MB limit");
-        return;
+      if (file && state.documentType) {
+        const error = validateDocumentFile(file, state.documentType);
+        if (error) {
+          onUploadError(error);
+          e.target.value = "";
+          return;
+        }
       }
       setState((prev) => ({ ...prev, file }));
     },
-    [onUploadError],
+    [onUploadError, state.documentType],
   );
 
   const handleClear = useCallback(() => {
@@ -96,13 +101,12 @@ export function DesignationCard({
   }, []);
 
   const handleUpload = useCallback(async () => {
-    if (!canUpload || !state.file || !state.documentType) return;
+    if (!canUpload || !state.documentType) return;
 
     setUploading(true);
     try {
-      const input: UploadDocumentInput = {
+      const metadata = {
         title: state.title.trim(),
-        documentType: state.documentType as DocumentType,
         targetModule: state.targetModule,
         designationId: designation.id,
         projectId,
@@ -110,16 +114,20 @@ export function DesignationCard({
         fromDate: state.fromDate || undefined,
         toDate: state.toDate || undefined,
         acknowledgementRequired: state.acknowledgementRequired,
-        file: state.file,
       };
-      await documentsService.uploadDocument(input);
+      if (state.documentType === "YouTube") {
+        await documentsService.uploadDocument({ ...metadata, documentType: "YouTube", youtubeUrl: state.youtubeUrl });
+      } else {
+        if (!state.file) return;
+        await documentsService.uploadDocument({ ...metadata, documentType: state.documentType, file: state.file });
+      }
       onUploadSuccess();
     } catch (err) {
       onUploadError(formatApiError(err));
     } finally {
       setUploading(false);
     }
-  }, [canUpload, state, designation.id, onUploadSuccess, onUploadError]);
+  }, [canUpload, state, designation.id, projectId, onUploadSuccess, onUploadError]);
 
   return (
     <div className="doc-card">
@@ -174,13 +182,15 @@ export function DesignationCard({
                   setState((prev) => ({
                     ...prev,
                     documentType: e.target.value as DocumentType | "",
+                    file: null,
+                    youtubeUrl: "",
                   }))
                 }
               >
                 <option value="">Select type...</option>
                 {DOCUMENT_TYPES.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {t === "YouTube" ? "YouTube Link" : t}
                   </option>
                 ))}
               </select>
@@ -211,7 +221,15 @@ export function DesignationCard({
           </div>
 
           {/* File Upload */}
-          <div className="doc-field">
+          {state.documentType === "YouTube" ? (
+            <div className="doc-field">
+              <label className="doc-label" htmlFor={`doc-upload-youtube-${designation.id}`}>YouTube Link <span className="doc-required">*</span></label>
+              <input id={`doc-upload-youtube-${designation.id}`} type="url" className="doc-input" value={state.youtubeUrl} placeholder="Paste a YouTube video or playlist link" aria-describedby={`doc-upload-youtube-help-${designation.id}`} aria-invalid={Boolean(state.youtubeUrl && validateYouTubeUrl(state.youtubeUrl))} onChange={(event) => setState((previous) => ({ ...previous, youtubeUrl: event.target.value }))} />
+              <span id={`doc-upload-youtube-help-${designation.id}`} className={state.youtubeUrl && validateYouTubeUrl(state.youtubeUrl) ? "doc-field-error" : "doc-edit-help"} role="status">
+                {state.youtubeUrl && (validateYouTubeUrl(state.youtubeUrl) || parseYouTubeUrl(state.youtubeUrl)?.notice)}
+              </span>
+            </div>
+          ) : <div className="doc-field">
             <label className="doc-label">
               File <span className="doc-required">*</span>
             </label>
@@ -236,12 +254,13 @@ export function DesignationCard({
                 <span>Click or drag to upload (max 100MB)</span>
                 <input
                   type="file"
+                  accept={state.documentType ? documentFileAccept(state.documentType) : undefined}
                   className="doc-file-input"
                   onChange={handleFileChange}
                 />
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Description */}
           <div className="doc-field">
@@ -313,7 +332,7 @@ export function DesignationCard({
               disabled={!canUpload}
               onClick={handleUpload}
             >
-              {uploading ? "Uploading..." : "Upload Document"}
+              {uploading ? "Saving..." : state.documentType === "YouTube" ? "Add Link" : "Upload Document"}
             </button>
             <button
               type="button"

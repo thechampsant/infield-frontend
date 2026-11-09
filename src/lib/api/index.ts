@@ -316,6 +316,8 @@ export type {
 
 export { documentsService } from "./documents-service";
 export type {
+  DocumentAssignmentsResponse,
+  UpdateDocumentInput,
   DocumentAcknowledgementReport,
   DocumentAcknowledgementUser,
   DocumentRecord,

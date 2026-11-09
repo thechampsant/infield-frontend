@@ -1,12 +1,17 @@
 "use client";
 
 import { useMemo } from "react";
-import { Download, Filter, X } from "lucide-react";
+import { Download, ExternalLink, Filter, Pencil, X } from "lucide-react";
+import { getDocumentUrl } from "@/lib/documents";
 import type { Designation, DocumentRecord, DocumentStatus } from "@/lib/api";
 
 interface Props {
   documents: DocumentRecord[];
   total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onEdit: (doc: DocumentRecord) => void;
   loading: boolean;
   designations: Designation[];
   filterFromDate: string;
@@ -17,15 +22,6 @@ interface Props {
   onFilterClear: () => void;
   onStatusToggle: (docId: string, newStatus: DocumentStatus) => void;
   onViewAcknowledgements?: (doc: DocumentRecord) => void;
-}
-
-/**
- * Build a download URL that goes through the Next.js proxy → backend GCS endpoint.
- * We use gcsPath instead of the raw fileUrl (which may have a wrong APP_URL prefix).
- */
-function getDownloadUrl(doc: DocumentRecord): string {
-  // Use the gcsPath to construct a relative URL that the Next.js rewrite will proxy
-  return `/api/v1/gcs/file?path=${encodeURIComponent(doc.gcsPath)}`;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -46,6 +42,10 @@ function formatFileSize(bytes: number): string {
 export function DocumentsTable({
   documents,
   total,
+  page,
+  pageSize,
+  onPageChange,
+  onEdit,
   loading,
   designations,
   filterFromDate,
@@ -119,13 +119,14 @@ export function DocumentsTable({
       ) : (
         <>
           <div className="doc-table-info">
-            Showing {documents.length} of {total} documents
+            Showing {(page - 1) * pageSize + 1}–{(page - 1) * pageSize + documents.length} of {total} documents
           </div>
           <div className="doc-table-wrapper">
             <table className="doc-table">
               <thead>
                 <tr>
                   <th>Title</th>
+                  <th>Category</th>
                   <th>Type</th>
                   <th>Target Module</th>
                   <th>Designation</th>
@@ -141,7 +142,8 @@ export function DocumentsTable({
                 {documents.map((doc) => (
                   <tr key={doc._id}>
                     <td className="doc-cell-title">{doc.title}</td>
-                    <td>{doc.documentType}</td>
+                    <td>{doc.category || "—"}</td>
+                    <td>{doc.documentType === "YouTube" ? "YouTube Link" : doc.documentType}</td>
                     <td>{doc.targetModule}</td>
                     <td>
                       {designationMap.get(doc.designationId) ??
@@ -150,7 +152,7 @@ export function DocumentsTable({
                     <td className="doc-cell-timeline">
                       {formatDate(doc.fromDate)} — {formatDate(doc.toDate)}
                     </td>
-                    <td>{formatFileSize(doc.fileSize)}</td>
+                    <td>{doc.documentType === "YouTube" ? "—" : formatFileSize(doc.fileSize)}</td>
                     <td>{doc.acknowledgementRequired ? "Required" : "No"}</td>
                     <td>v{doc.documentVersion ?? 1}</td>
                     <td>
@@ -161,6 +163,9 @@ export function DocumentsTable({
                       </span>
                     </td>
                     <td className="doc-cell-actions">
+                      <button type="button" className="doc-btn doc-btn-sm doc-btn-secondary" onClick={() => onEdit(doc)}>
+                        <Pencil size={12} /> Edit
+                      </button>
                       <button
                         type="button"
                         className={`doc-btn doc-btn-sm ${doc.status === "Active" ? "doc-btn-secondary" : "doc-btn-success"}`}
@@ -175,15 +180,15 @@ export function DocumentsTable({
                           ? "Make Inactive"
                           : "Make Active"}
                       </button>
-                      <a
-                        href={getDownloadUrl(doc)}
+                      {getDocumentUrl(doc) && <a
+                        href={getDocumentUrl(doc)!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="doc-btn doc-btn-sm doc-btn-primary"
                       >
-                        <Download size={12} />
-                        Download
-                      </a>
+                        {doc.documentType === "YouTube" ? <ExternalLink size={12} /> : <Download size={12} />}
+                        {doc.documentType === "YouTube" ? "Open" : "Download"}
+                      </a>}
                       {doc.acknowledgementRequired && onViewAcknowledgements && (
                         <button
                           type="button"
@@ -199,6 +204,11 @@ export function DocumentsTable({
               </tbody>
             </table>
           </div>
+          <nav className="doc-pagination" aria-label="Documents pagination">
+            <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" disabled={page <= 1 || loading} onClick={() => onPageChange(page - 1)}>Previous</button>
+            <span aria-live="polite">Page {page} of {Math.max(1, Math.ceil(total / pageSize))}</span>
+            <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" disabled={page * pageSize >= total || loading} onClick={() => onPageChange(page + 1)}>Next</button>
+          </nav>
         </>
       )}
     </div>

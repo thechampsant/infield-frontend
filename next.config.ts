@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+// Set BACKEND_URL in .env.local to use a local backend during development.
 const BACKEND_URL = process.env.BACKEND_URL || "https://services.infield.co.in";
 
 const nextConfig: NextConfig = {

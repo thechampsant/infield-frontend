@@ -764,3 +764,91 @@
     flex-direction: column;
   }
 }
+
+/* Edit document and additional designation assignments */
+.documents-page dialog.doc-edit-modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 32px));
+  padding: 0;
+  color: var(--text, #102033);
+}
+
+.documents-page dialog.doc-edit-modal::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.doc-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 20px;
+  border: 0;
+  min-width: 0;
+}
+
+.doc-edit-help {
+  color: var(--muted, #6b7c93);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.doc-current-file {
+  overflow-wrap: anywhere;
+}
+
+.doc-assignment-fieldset {
+  border: 1px solid var(--border, #dde6f0);
+  border-radius: 6px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.doc-assignment-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.doc-assignment-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.doc-assignment-option:has(input:disabled) {
+  color: var(--muted, #6b7c93);
+}
+
+.doc-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  padding: 16px 20px;
+  background: #fff;
+  border-top: 1px solid var(--border, #dde6f0);
+}
+
+.doc-edit-save-error {
+  padding: 0 20px;
+}
+
+.doc-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 13px;
+}

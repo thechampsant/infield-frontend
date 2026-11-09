@@ -7,10 +7,12 @@
  *   PATCH  /api/v1/documents-config/modules/:moduleName      (toggle module)
  *   POST   /api/v1/documents/upload                          (multipart upload)
  *   GET    /api/v1/documents?projectId=&fromDate=&toDate=&page=&limit=
+ *   PATCH  /api/v1/documents/:id                             (edit one row and assign copies)
  *   PATCH  /api/v1/documents/:id/status                      (toggle status)
  */
 
-import { apiClient } from "./api-client";
+import { ApiError, apiClient } from "./api-client";
+import { parseYouTubeUrl } from "@/lib/documents";
 
 const CONFIG_BASE = "/api/v1/documents-config";
 const DOCUMENTS_BASE = "/api/v1/documents";
@@ -19,7 +21,7 @@ const DOCUMENTS_BASE = "/api/v1/documents";
 // Types
 // ─────────────────────────────────────────────────────────────
 
-export type DocumentType = "PDF" | "Excel" | "Word" | "Video" | "Image";
+export type DocumentType = "PDF" | "Excel" | "Word" | "Video" | "Image" | "YouTube";
 export type DocumentStatus = "Active" | "Inactive";
 
 export interface DocumentRecord {
@@ -27,6 +29,10 @@ export interface DocumentRecord {
   projectId: string;
   designationId: string;
   title: string;
+  category?: string;
+  youtubeUrl?: string | null;
+  youtubeId?: string;
+  youtubeKind?: "video" | "playlist";
   documentType: DocumentType;
   targetModule: string;
   description: string | null;
@@ -39,6 +45,7 @@ export interface DocumentRecord {
   acknowledgedAt?: string | null;
   documentVersion?: number;
   documentGroupId?: string;
+  assignmentFamilyId?: string;
   fromDate: string | null;
   toDate: string | null;
   status: DocumentStatus;
@@ -58,7 +65,7 @@ export interface DocumentTargetModuleConfig {
   modules: DocumentTargetModule[];
 }
 
-export interface UploadDocumentInput {
+interface UploadDocumentMetadata {
   title: string;
   documentType: DocumentType;
   targetModule: string;
@@ -68,7 +75,30 @@ export interface UploadDocumentInput {
   fromDate?: string;
   toDate?: string;
   acknowledgementRequired?: boolean;
-  file: File;
+}
+
+export type UploadDocumentInput = UploadDocumentMetadata & (
+  | { documentType: "YouTube"; youtubeUrl: string; file?: never }
+  | { documentType: Exclude<DocumentType, "YouTube">; file: File; youtubeUrl?: never }
+);
+
+/** Updates a single designation row; versions and assignments are server-owned. */
+export interface UpdateDocumentInput {
+  title: string;
+  category: string;
+  description: string | null;
+  fromDate: string | null;
+  toDate: string | null;
+  acknowledgementRequired: boolean;
+  alsoAssignTo: string[];
+  file?: File;
+  youtubeUrl?: string;
+}
+
+export interface DocumentAssignmentsResponse {
+  /** Complete set across all pages, including inactive rows. */
+  designationIds: string[];
+  canAssign: boolean;
 }
 
 export interface DocumentAcknowledgementUser {
@@ -164,7 +194,14 @@ export const documentsService = {
    */
   async uploadDocument(input: UploadDocumentInput): Promise<DocumentRecord> {
     const formData = new FormData();
-    formData.append("file", input.file);
+    if (input.file) formData.append("file", input.file);
+    if (input.documentType === "YouTube") {
+      const link = parseYouTubeUrl(input.youtubeUrl);
+      if (!link) throw new Error("Enter a valid YouTube video or playlist link.");
+      formData.append("youtubeUrl", link.url);
+      formData.append("youtubeId", link.id);
+      formData.append("youtubeKind", link.kind);
+    }
     formData.append("title", input.title);
     formData.append("documentType", input.documentType);
     formData.append("targetModule", input.targetModule);
@@ -201,6 +238,39 @@ export const documentsService = {
     return apiClient.get<DocumentsListResponse>(
       `${DOCUMENTS_BASE}?${searchParams.toString()}`,
     );
+  },
+
+  /** Assignment families differ from version lineage; let the backend resolve them. */
+  async getAssignments(document: Pick<DocumentRecord, "_id" | "designationId">): Promise<DocumentAssignmentsResponse> {
+    try {
+      const result = await apiClient.get<{ designationIds: string[] }>(
+        `${DOCUMENTS_BASE}/${encodeURIComponent(document._id)}/assignments`,
+      );
+      return { designationIds: result.designationIds, canAssign: true };
+    } catch (error) {
+      // Older deployments lack this route. Do not infer families from version IDs,
+      // titles or shared files, or offer assignments whose uniqueness is unknown.
+      if (error instanceof ApiError && error.status === 404) {
+        return { designationIds: [document.designationId], canAssign: false };
+      }
+      throw error;
+    }
+  },
+
+  /** Atomically update this row and create additional designation rows. */
+  async updateDocument(documentId: string, input: UpdateDocumentInput): Promise<DocumentRecord> {
+    const endpoint = `${DOCUMENTS_BASE}/${encodeURIComponent(documentId)}`;
+    const { file, ...metadata } = input;
+    const link = input.youtubeUrl === undefined ? null : parseYouTubeUrl(input.youtubeUrl);
+    if (input.youtubeUrl !== undefined && !link) throw new Error("Enter a valid YouTube video or playlist link.");
+    const payload = link ? { ...metadata, youtubeUrl: link.url, youtubeId: link.id, youtubeKind: link.kind } : metadata;
+    if (!file) return apiClient.patch<DocumentRecord>(endpoint, payload);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    // JSON retains explicit nulls (clearing fields), booleans and assignment arrays.
+    formData.append("metadata", JSON.stringify(payload));
+    return apiClient.patchFormData<DocumentRecord>(endpoint, formData);
   },
 
   // ─── Document Status Toggle ──────────────────────────────────
