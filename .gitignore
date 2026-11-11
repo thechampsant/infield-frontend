@@ -44,3 +44,5 @@ next-env.d.ts
 /api-docs.json
 /designs
 /requirements
+
+/docs

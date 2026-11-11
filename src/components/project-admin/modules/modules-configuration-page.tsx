@@ -8,6 +8,7 @@ import {
   featureConfigService,
   type ProjectModuleState,
 } from "@/lib/api/feature-config-service";
+import { connectConfigService } from "@/lib/api/connect-config-service";
 import { leaveConfigService } from "@/lib/api/leave-config-service";
 import {
   salesConfigModuleKey,
@@ -90,6 +91,10 @@ export function ModulesConfigurationPage() {
           }
           if (module.definition.id === "form-builder") {
             return { ...module, enabled: hasLiveFormBuilderModule };
+          }
+          if (module.definition.id === "connect") {
+            const connectSettings = connectConfigService.getSettingsSync(projectId);
+            return { ...module, enabled: connectSettings.connect };
           }
           return module;
         }),
@@ -184,6 +189,18 @@ export function ModulesConfigurationPage() {
         } else {
           await leaveConfigService.deactivate(projectId);
         }
+      } else if (moduleId === "connect") {
+        const adminName = user
+          ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+            user.email ||
+            "Project Admin"
+          : "Project Admin";
+        await connectConfigService.updateSetting(
+          projectId,
+          "connect",
+          enabled,
+          adminName,
+        );
       } else {
         // All other modules (resources, notifications, custom-view, etc.)
         // use the generic feature-config toggle endpoint.
