@@ -77,8 +77,10 @@ export function DesignationCard({
       state.title.trim() !== "" &&
       state.documentType !== "" &&
       targetModules.includes(state.targetModule) &&
-      state.file !== null,
-    [state.title, state.documentType, state.targetModule, state.file, targetModules],
+      (state.documentType === "YouTube"
+        ? validateYouTubeUrl(state.youtubeUrl) === null
+        : state.file !== null),
+    [state.title, state.documentType, state.targetModule, state.youtubeUrl, state.file, targetModules],
   );
 
   const hasValidDates = useMemo(() => {
@@ -207,10 +209,11 @@ export function DesignationCard({
             </div>
 
             <div className="doc-field">
-              <label className="doc-label">
+              <label className="doc-label" htmlFor={`doc-upload-category-${designation.id}`}>
                 Category <span className="doc-required">*</span>
               </label>
               <select
+                id={`doc-upload-category-${designation.id}`}
                 className="doc-select"
                 value={state.targetModule}
                 onChange={(e) =>

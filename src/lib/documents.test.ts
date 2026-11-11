@@ -37,13 +37,18 @@ describe("YouTube resource links", () => {
 });
 
 describe("document validation", () => {
-  const valid = { title: "Safety", category: "Training", fromDate: "2026-01-01", toDate: "2026-01-01" };
+  const valid = { title: "Safety", targetModule: "Training", fromDate: "2026-01-01", toDate: "2026-01-01" };
   it("allows equal dates and empty optional dates", () => {
     expect(validateDocumentDetails(valid)).toEqual({});
     expect(validateDocumentDetails({ ...valid, fromDate: "", toDate: "" })).toEqual({});
   });
   it("reports whitespace-only required fields and reversed dates", () => {
-    expect(validateDocumentDetails({ ...valid, title: " ", category: "\t", toDate: "2025-12-31" })).toMatchObject({ title: expect.any(String), category: expect.any(String), toDate: expect.any(String) });
+    expect(validateDocumentDetails({ ...valid, title: " ", targetModule: "\t", toDate: "2025-12-31" })).toMatchObject({ title: expect.any(String), targetModule: expect.any(String), toDate: expect.any(String) });
+  });
+  it("requires a category from the managed list", () => {
+    expect(validateDocumentDetails(valid, ["Training", "Cooking"])).toEqual({});
+    expect(validateDocumentDetails(valid, ["Cooking"])).toHaveProperty("targetModule");
+    expect(validateDocumentDetails(valid, [])).toHaveProperty("targetModule");
   });
   it("accepts a replacement exactly at 100 MB and rejects one byte over", () => {
     const file = { name: "guide.pdf", type: "application/pdf", size: MAX_DOCUMENT_SIZE };

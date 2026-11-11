@@ -77,10 +77,11 @@ export function getDocumentUrl(doc: DocumentRecord): string | null {
   return doc.gcsPath ? `/api/v1/gcs/file?path=${encodeURIComponent(doc.gcsPath)}` : null;
 }
 
-export function validateDocumentDetails(values: { title: string; category: string; fromDate: string; toDate: string }): Record<string, string> {
+export function validateDocumentDetails(values: { title: string; targetModule: string; fromDate: string; toDate: string }, categories?: readonly string[]): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!values.title.trim()) errors.title = "Title is required.";
-  if (!values.category.trim()) errors.category = "Category is required.";
+  if (!values.targetModule.trim()) errors.targetModule = "Category is required.";
+  else if (categories && !categories.includes(values.targetModule)) errors.targetModule = "Select an available category from Manage categories.";
   if (values.fromDate && values.toDate && values.toDate < values.fromDate) errors.toDate = "To Date cannot be before From Date.";
   return errors;
 }
