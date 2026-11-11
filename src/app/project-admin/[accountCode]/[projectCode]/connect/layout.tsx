@@ -30,7 +30,7 @@ export default function ConnectLayout({
       </header>
       <nav aria-label="Connect sections" className="mb-6 flex items-center gap-2 border-b border-slate-200">
         {tabs.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href;
+          const active = pathname === href || (href === `${base}/room` && pathname.startsWith(`${base}/room`));
           return (
             <Link key={href} href={href} aria-current={active ? "page" : undefined}
               className={`connect-tab-item ${active ? "connect-tab-item--active" : ""}`}>

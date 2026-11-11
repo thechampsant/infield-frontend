@@ -1,44 +1,53 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { featureConfigService } from "@/lib/api/feature-config-service";
+import { connectConfigService } from "@/lib/api/connect-config-service";
 
 const CONNECT_MODULE_KEY = "connect";
 
 /**
  * Custom hook to check whether the Connect module is active for a project.
- * Uses /feature-config/:projectId endpoint and listens to reactive updates.
+ * Uses connectConfigService and listens to reactive updates.
  */
 export function useConnectModuleEnabled(projectId: string | undefined): boolean {
-  const [loaded, setLoaded] = useState<{ projectId: string; enabled: boolean } | null>(null);
+  const [enabled, setEnabled] = useState<boolean>(() => {
+    if (!projectId) return false;
+    return connectConfigService.getSettingsSync(projectId).connect;
+  });
 
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
 
-    const checkConnectModule = () => {
-      featureConfigService
-        .getRawByProject(projectId)
-        .then((config) => {
-          if (cancelled) return;
-          const isConnectActive = Boolean(
-            config?.modules?.some(
-              (m) =>
-                m.key?.toLowerCase() === CONNECT_MODULE_KEY &&
-                Boolean(m.isActive ?? m.active),
-            ),
-          );
-          setLoaded({ projectId, enabled: isConnectActive });
-        })
-        .catch((err) => {
-          console.error("Unable to check feature config for Connect module", err);
-          if (!cancelled) setLoaded({ projectId, enabled: false });
-        });
+    // Load asynchronous status
+    connectConfigService
+      .getSettings(projectId)
+      .then((settings) => {
+        if (!cancelled) setEnabled(settings.connect);
+      })
+      .catch(() => {
+        if (!cancelled) setEnabled(false);
+      });
+
+    const handleConnectChange = (e: Event) => {
+      const detail = (
+        e as CustomEvent<{
+          projectId?: string;
+          key?: string;
+          value?: boolean;
+          settings?: { connect: boolean };
+        }>
+      ).detail;
+      if (!detail || !detail.projectId || detail.projectId === projectId) {
+        if (detail?.key === "connect" && typeof detail.value === "boolean") {
+          setEnabled(detail.value);
+        } else if (detail?.settings) {
+          setEnabled(detail.settings.connect);
+        }
+      }
     };
 
-    checkConnectModule();
-
-    const handleConfigChange = (e: Event) => {
+    const handleFeatureConfigChange = (e: Event) => {
       const detail = (
         e as CustomEvent<{
           projectId?: string;
@@ -51,19 +60,19 @@ export function useConnectModuleEnabled(projectId: string | undefined): boolean 
           detail?.moduleId?.toLowerCase() === CONNECT_MODULE_KEY &&
           typeof detail.enabled === "boolean"
         ) {
-          setLoaded({ projectId, enabled: detail.enabled });
-        } else {
-          checkConnectModule();
+          setEnabled(detail.enabled);
         }
       }
     };
 
-    window.addEventListener("feature-config:changed", handleConfigChange);
+    window.addEventListener("connect-settings:changed", handleConnectChange);
+    window.addEventListener("feature-config:changed", handleFeatureConfigChange);
     return () => {
       cancelled = true;
-      window.removeEventListener("feature-config:changed", handleConfigChange);
+      window.removeEventListener("connect-settings:changed", handleConnectChange);
+      window.removeEventListener("feature-config:changed", handleFeatureConfigChange);
     };
   }, [projectId]);
 
-  return Boolean(projectId && loaded?.projectId === projectId ? loaded.enabled : false);
+  return enabled;
 }

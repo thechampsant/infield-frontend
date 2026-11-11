@@ -17,6 +17,13 @@
   background-color: #1d4ed8;
 }
 
+.connect-switch:disabled,
+.connect-switch.connect-switch--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(40%);
+}
+
 .connect-switch-thumb {
   pointer-events: none;
   display: inline-block;

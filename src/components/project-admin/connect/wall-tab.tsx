@@ -1,41 +1,98 @@
 "use client";
 
-import React from "react";
-import {
-  Plus,
-  Eye,
-  Trash2,
-  Users,
-  Image as ImageIcon,
-  Video,
-} from "lucide-react";
+import React, { useState } from "react";
+import { Plus, Info, Loader2, AlertCircle } from "lucide-react";
 import type { WallPost } from "./types";
+import {
+  WallPostCard,
+  WallComposerModal,
+  WallUnseenModal,
+  WallDeleteModal,
+  type WallPostFormValues,
+  type UnseenUserRow,
+  exportUnseenUsersToCsv,
+} from "./wall";
+import { connectWallService } from "@/lib/api/connect-wall-service";
 
-interface WallTabProps {
+export interface WallTabProps {
   posts: WallPost[];
   userCount: number;
-  onNewPost: () => void;
-  onDeletePost: (id: string) => void;
-  onViewUnseen: (post: WallPost) => void;
-}
-
-function getProgressWidthClass(seenCount: number, total: number): string {
-  const pct = Math.round((seenCount / total) * 100);
-  if (pct <= 5) return "w-[3%]";
-  if (pct <= 30) return "w-[28%]";
-  if (pct <= 70) return "w-[67%]";
-  if (pct <= 80) return "w-[78%]";
-  if (pct <= 95) return "w-[92%]";
-  return "w-full";
+  wallEnabled?: boolean;
+  projectName?: string;
+  isLoading?: boolean;
+  error?: string | null;
+  unseenUsers?: UnseenUserRow[];
+  onNewPost?: () => void;
+  onCreatePost?: (data: WallPostFormValues) => void | Promise<void>;
+  onDeletePost: (id: string) => void | Promise<void>;
+  onViewUnseen?: (post: WallPost) => void;
+  onDownloadUnseen?: (post: WallPost, users: UnseenUserRow[]) => void | Promise<void>;
 }
 
 export function WallTab({
   posts,
   userCount,
+  wallEnabled = true,
+  isLoading = false,
+  error = null,
+  unseenUsers,
   onNewPost,
+  onCreatePost,
   onDeletePost,
   onViewUnseen,
+  onDownloadUnseen,
 }: WallTabProps) {
+  // Modal visibility states
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [selectedUnseenPost, setSelectedUnseenPost] = useState<WallPost | null>(null);
+  const [postToDeleteId, setPostToDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  function handleOpenComposer() {
+    if (onNewPost && !onCreatePost) {
+      onNewPost();
+    } else {
+      setIsComposerOpen(true);
+    }
+  }
+
+  function handleViewUnseen(post: WallPost) {
+    if (onViewUnseen) {
+      onViewUnseen(post);
+    }
+    setSelectedUnseenPost(post);
+  }
+
+  async function handleConfirmDelete() {
+    if (!postToDeleteId) return;
+    try {
+      setIsDeleting(true);
+      await onDeletePost(postToDeleteId);
+    } finally {
+      setIsDeleting(false);
+      setPostToDeleteId(null);
+    }
+  }
+
+  async function handleCreatePostSubmit(values: WallPostFormValues) {
+    if (onCreatePost) {
+      await onCreatePost(values);
+    }
+    setIsComposerOpen(false);
+  }
+
+  async function handleDownloadUnseenList(post: WallPost, users: UnseenUserRow[]) {
+    if (onDownloadUnseen) {
+      await onDownloadUnseen(post, users);
+      return;
+    }
+    try {
+      await connectWallService.downloadUnseenXlsx(post.id);
+    } catch {
+      exportUnseenUsersToCsv(post, users);
+    }
+  }
+
   return (
     <div>
       {/* Section Subheader */}
@@ -46,140 +103,97 @@ export function WallTab({
             Every post goes to all {userCount} active users in the project, with a push notification.
           </p>
         </div>
+
         <button
           type="button"
-          onClick={onNewPost}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0b4ea2] hover:bg-[#093e82] text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+          onClick={handleOpenComposer}
+          disabled={!wallEnabled}
+          aria-label="New post"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0b4ea2] hover:bg-[#093e82] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New post</span>
         </button>
       </div>
 
+      {/* Wall Disabled Notice */}
+      {!wallEnabled && (
+        <div
+          role="alert"
+          className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-2 text-xs"
+        >
+          <Info className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>The Wall is switched off in Settings. Existing posts are hidden from field users.</span>
+        </div>
+      )}
+
+      {/* Error alert if any */}
+      {error && (
+        <div
+          role="alert"
+          className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-center gap-2 text-xs"
+        >
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Wall Posts Feed */}
-      <div className="space-y-3">
-        {posts.map((post) => {
-          const unseenCount = Math.max(0, post.totalUsers - post.seenCount);
-
-          return (
-            <div
+      {isLoading ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center flex flex-col items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-[#0b4ea2] mb-2" />
+          <p className="text-xs text-slate-500">Loading Wall feed...</p>
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
+          <p className="text-sm font-semibold text-slate-700">No Wall posts yet</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Create an announcement to broadcast updates to the entire project.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {posts.map((post) => (
+            <WallPostCard
               key={post.id}
-              className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs hover:border-slate-300 transition-colors"
-            >
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                {/* Post Content (Left) */}
-                <div className="flex-1 pr-0 md:pr-6">
-                  <div className="text-xs font-semibold text-slate-400">
-                    {post.timestamp}
-                  </div>
-                  <div className="text-sm font-bold text-slate-900 mt-1 leading-snug">
-                    {post.content}
-                  </div>
+              post={{
+                ...post,
+                totalUsers: post.totalUsers > 0 ? post.totalUsers : userCount,
+              }}
+              onViewUnseen={handleViewUnseen}
+              onDelete={(id) => setPostToDeleteId(id)}
+            />
+          ))}
+        </div>
+      )}
 
-                  {/* Metadata row */}
-                  <div className="flex items-center gap-3 text-xs text-slate-500 font-medium mt-3">
-                    {post.hasImages && (
-                      <span className="inline-flex items-center gap-1">
-                        <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{post.imageCount} images</span>
-                      </span>
-                    )}
-                    {post.hasVideo && (
-                      <span className="inline-flex items-center gap-1">
-                        <Video className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Video · {post.videoDuration}</span>
-                      </span>
-                    )}
-                    <span className="inline-flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{post.audience}</span>
-                    </span>
-                  </div>
-                </div>
+      {/* Composer Modal with React-Hook-Form & Zod validation */}
+      <WallComposerModal
+        isOpen={isComposerOpen}
+        onClose={() => setIsComposerOpen(false)}
+        onSubmit={handleCreatePostSubmit}
+        userCount={userCount}
+      />
 
-                {/* Stats & Actions (Right) */}
-                <div className="w-full md:w-80 flex-shrink-0">
-                  {/* Seen & Reaction columns */}
-                  <div className="grid grid-cols-5 gap-2 text-center">
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        SEEN BY
-                      </div>
-                      <div className="text-xs font-extrabold text-slate-800 mt-1">
-                        {post.seenCount} <span className="text-slate-400 font-medium">of {post.totalUsers}</span>
-                      </div>
-                    </div>
+      {/* Unseen Users Modal with XLSX/CSV download */}
+      <WallUnseenModal
+        post={selectedUnseenPost ? {
+          ...selectedUnseenPost,
+          totalUsers: selectedUnseenPost.totalUsers > 0 ? selectedUnseenPost.totalUsers : userCount,
+        } : null}
+        unseenUsers={unseenUsers}
+        onDownload={handleDownloadUnseenList}
+        onClose={() => setSelectedUnseenPost(null)}
+      />
 
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        LIKE
-                      </div>
-                      <div className="text-xs font-extrabold text-slate-800 mt-1">
-                        {post.likes}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        CLAP
-                      </div>
-                      <div className="text-xs font-extrabold text-slate-800 mt-1">
-                        {post.claps}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        CELEBRATE
-                      </div>
-                      <div className="text-xs font-extrabold text-slate-800 mt-1">
-                        {post.celebrates}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        USEFUL
-                      </div>
-                      <div className="text-xs font-extrabold text-slate-800 mt-1">
-                        {post.usefuls}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="connect-progress-track mt-2.5">
-                    <div
-                      className={`connect-progress-bar ${getProgressWidthClass(post.seenCount, post.totalUsers)}`}
-                    />
-                  </div>
-
-                  {/* Not Seen Button & Delete Action */}
-                  <div className="flex items-center justify-end gap-2 mt-3">
-                    <button
-                      type="button"
-                      onClick={() => onViewUnseen(post)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Not seen · {unseenCount}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onDeletePost(post.id)}
-                      className="p-1 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-50 cursor-pointer"
-                      title="Delete post"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Delete Confirmation Modal */}
+      <WallDeleteModal
+        isOpen={!!postToDeleteId}
+        onClose={() => setPostToDeleteId(null)}
+        onConfirm={handleConfirmDelete}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }
+export default WallTab;

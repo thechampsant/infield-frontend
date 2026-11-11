@@ -88,8 +88,9 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     name: "Connect",
     description: "Instantly connect with your team using instant messaging",
     accent: "blue",
-    defaultEnabled: true,
+    defaultEnabled: false,
     comingSoon: false,
+    configPath: "modules/connect",
   },
   {
     id: "custom-view",
