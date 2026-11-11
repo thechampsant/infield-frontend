@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { Modal } from "@/components/project-admin/shared/modal";
 import {
+  buildOnvoDashboardUrl,
   extractDashboardEmbedUrl,
   projectDashboardsService,
   type ProjectDashboard,
@@ -177,38 +178,43 @@ export function DashboardsPage({
 
       {rows.length > 0 ? (
         <div className="att-config-list">
-          {rows.map((row, index) => (
-            <article key={row.id} className="att-config-card">
-              <div className="att-config-card__number">{index + 1}</div>
-              <Link
-                href={`${base}/dashboards/${row.id}`}
-                className="att-config-card__main"
-                style={{ textDecoration: "none" }}
-              >
-                <strong>{row.name}</strong>
-              </Link>
-              {canManage ? (
-                <div className="att-config-card__actions">
-                  <button
-                    type="button"
-                    className="att-card-action"
-                    aria-label={`Edit ${row.name}`}
-                    onClick={() => openEdit(row)}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="att-card-action danger"
-                    aria-label={`Delete ${row.name}`}
-                    onClick={() => setDeleteTarget(row)}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ) : null}
-            </article>
-          ))}
+          {rows.map((row, index) => {
+            const externalUrl = buildOnvoDashboardUrl(row.url);
+            return (
+              <article key={row.id} className="att-config-card">
+                <div className="att-config-card__number">{index + 1}</div>
+                <Link
+                  href={externalUrl ?? `${base}/dashboards/${row.id}`}
+                  target={externalUrl ? "_blank" : undefined}
+                  rel={externalUrl ? "noopener noreferrer" : undefined}
+                  className="att-config-card__main"
+                  style={{ textDecoration: "none" }}
+                >
+                  <strong>{row.name}</strong>
+                </Link>
+                {canManage ? (
+                  <div className="att-config-card__actions">
+                    <button
+                      type="button"
+                      className="att-card-action"
+                      aria-label={`Edit ${row.name}`}
+                      onClick={() => openEdit(row)}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="att-card-action danger"
+                      aria-label={`Delete ${row.name}`}
+                      onClick={() => setDeleteTarget(row)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
       ) : null}
 

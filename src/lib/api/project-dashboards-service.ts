@@ -46,6 +46,44 @@ export function parseDashboardEmbed(raw: string): ParsedDashboardEmbed | null {
   }
 }
 
+const REDIRECTED_HOSTS_TO_EMBED_DOMAIN = [
+  "dashboard.onvo.ai",
+  "embed.onvo.ai"
+]
+
+/** Route Onvo dashboard embeds to the hosted app with this month's date range. */
+export function buildOnvoDashboardUrl(raw: string, now = new Date()): string | null {
+  const src = extractDashboardEmbedUrl(raw);
+  if (!src) return null;
+
+  try {
+    const url = new URL(src);
+    if (!REDIRECTED_HOSTS_TO_EMBED_DOMAIN.includes(url.hostname.toLowerCase())) return null;
+
+    const firstDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+    );
+
+    const lastDay = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+    );
+
+    const formatDate = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+    url.searchParams.set("from", formatDate(firstDay));
+    url.searchParams.set("to", formatDate(lastDay));
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 const BASE = "/api/v1/project-dashboards";
 
 export interface ProjectDashboard {
