@@ -55,6 +55,9 @@ import { projectUsersService } from "@/lib/api/project-users-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
 import { validateRejectionReasons } from "@/lib/approval/rejection-reasons";
+import { LeaveAutoApprovalEditor } from "./leave-auto-approval-editor";
+import { SectionHeader, ToggleRow } from "./leave-config-controls";
+import { ApiError } from "@/lib/api/api-client";
 
 interface LeaveConfigPageProps {
   projectId: string;
@@ -299,6 +302,15 @@ function validateConfig(config: LeaveConfigDocument): string[] {
         errors.push(`${policyLabel}: ${leaveType.shortCode} is used by more than one leave type.`);
       }
       shortCodes.add(leaveType.shortCode);
+      const autoRules = leaveType.autoApprovalRules;
+      if (autoRules) {
+        if (!Number.isInteger(autoRules.monthlyThresholdDays) || autoRules.monthlyThresholdDays < 0 || autoRules.monthlyThresholdDays > 31) {
+          errors.push(`${typeLabel}: monthly auto-approval threshold must be a whole number from 0 to 31.`);
+        }
+        if (autoRules.enabled && (!leaveType.approvalWorkflow.isApprovalRequired || !leaveType.approvalWorkflow.levels.length)) {
+          errors.push(`${typeLabel}: auto-approval requires Approval Required and at least one approval level.`);
+        }
+      }
       if (leaveType.approvalWorkflow.isApprovalRequired) {
         for (const message of validateRejectionReasons(leaveType.approvalWorkflow.rejectionReasons)) {
           errors.push(`${typeLabel}: ${message}`);
@@ -720,6 +732,41 @@ export function LeaveConfigPage({
     setReconcileDate(localDateInputValue());
   }
 
+  async function handleBypassAction(action: "upload" | "template" | "remove", value?: File | string) {
+    if (!config || view.mode !== "type" || saving) return;
+    const { policyIndex, typeIndex } = view;
+    let working = config;
+    if (dirty || !working.policies[policyIndex]?._id || !working.policies[policyIndex]?.leaveTypes[typeIndex]?._id) {
+      const saved = await saveDraft({ silent: true });
+      if (!saved) return;
+      working = saved;
+    }
+    const policy = working.policies[policyIndex];
+    const type = policy?.leaveTypes[typeIndex];
+    if (!policy?._id || !type?._id) return;
+    setSaving(true);
+    try {
+      if (action === "template") {
+        const blob = await leaveConfigService.downloadBypassTemplate(projectId, policy._id, type._id);
+        downloadBlob(blob, "leave-bypass-dates-template.xlsx");
+      } else if (action === "upload" && value instanceof File) {
+        const response = await leaveConfigService.uploadBypassDates(projectId, policy._id, type._id, value);
+        applyResponse(response.config, response.warnings);
+        setToast({ type: "success", message: `${response.uploadSummary?.added ?? 0} bypass dates added; ${response.uploadSummary?.skipped ?? 0} duplicates skipped.` });
+      } else if (action === "remove" && typeof value === "string") {
+        const response = await leaveConfigService.removeBypassDate(projectId, policy._id, type._id, value);
+        applyResponse(response.config, response.warnings);
+        setToast({ type: "success", message: "Bypass date removed." });
+      }
+    } catch (error) {
+      const invalidRows = error instanceof ApiError ? error.details?.invalidRows : undefined;
+      const detail = Array.isArray(invalidRows) ? invalidRows.slice(0, 10).map((row) => `Row ${row.row}: ${(row.errors ?? []).join(", ")}`).join("; ") : "";
+      setToast({ type: "error", message: `${formatApiError(error, "Bypass-date operation failed")}${detail ? ` ${detail}` : ""}` });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function confirmReconcileCredits() {
     if (!config || reconcilePolicyIndex === null) return;
     const policy = config.policies[reconcilePolicyIndex];
@@ -1051,6 +1098,7 @@ export function LeaveConfigPage({
       )}
 
       {view.mode === "type" && currentPolicy && currentType && (
+        <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <LeaveTypeEditor
           leaveType={currentType}
           policyLeaveTypes={currentPolicy.leaveTypes}
@@ -1058,6 +1106,7 @@ export function LeaveConfigPage({
           designations={designations}
           genderUdfState={genderUdfState}
           showValidation={validationErrors.length > 0}
+          onBypassAction={handleBypassAction}
           onBack={() => setView({ mode: "policy", policyIndex: view.policyIndex })}
           onChange={(nextType) =>
             updateConfig((current) => ({
@@ -1075,6 +1124,7 @@ export function LeaveConfigPage({
             }))
           }
         />
+        </fieldset>
       )}
 
       {dirty && (
@@ -1913,6 +1963,7 @@ function LeaveTypeEditor({
   designations,
   genderUdfState,
   showValidation = false,
+  onBypassAction,
   onBack,
   onChange,
 }: {
@@ -1923,6 +1974,7 @@ function LeaveTypeEditor({
   genderUdfState: GenderUdfState;
   /** True after a failed save, so inline errors show. */
   showValidation?: boolean;
+  onBypassAction: (action: "upload" | "template" | "remove", value?: File | string) => Promise<void>;
   onBack: () => void;
   onChange: (leaveType: LeaveTypeConfig) => void;
 }) {
@@ -2743,6 +2795,8 @@ function LeaveTypeEditor({
         </div>
       </section>
 
+      <LeaveAutoApprovalEditor leaveType={leaveType} onChange={onChange} onAction={onBypassAction} />
+
       <section className="leave-section">
         <SectionHeader
           title="8. Approval Workflow"
@@ -2939,30 +2993,6 @@ function LeaveTypeEditor({
   );
 }
 
-function SectionHeader({
-  icon,
-  title,
-  description,
-  action,
-}: {
-  icon?: ReactNode;
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="leave-section-header">
-      <div className="leave-section-title-wrap">
-        {icon && <div className="leave-section-icon">{icon}</div>}
-        <div>
-          <h2>{title}</h2>
-          <p>{description}</p>
-        </div>
-      </div>
-      {action}
-    </div>
-  );
-}
 
 function CollapsibleSection({
   icon,
@@ -3068,32 +3098,6 @@ function ApprovalHandoff({
   );
 }
 
-function ToggleRow({
-  title,
-  description,
-  checked,
-  onChange,
-}: {
-  title: string;
-  description?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="leave-toggle-row">
-      <span>
-        <strong>{title}</strong>
-        {description && <small>{description}</small>}
-      </span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <i aria-hidden />
-    </label>
-  );
-}
 
 function ClosingDateEditor({
   title,

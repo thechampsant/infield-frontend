@@ -50,6 +50,11 @@ export interface HolidayGroupingField {
 
 export interface LeaveTypeConfig {
   [key: string]: unknown;
+  autoApprovalRules?: {
+    enabled: boolean;
+    monthlyThresholdDays: number;
+    bypassDates: string[];
+  };
   _id?: string;
   name: string;
   shortCode: string;
@@ -548,6 +553,13 @@ export function normalizeLeaveType(value: unknown): LeaveTypeConfig {
     ...raw,
     _id: text(raw._id) || text(raw.id) || undefined,
     name: text(raw.name) || "Leave Type",
+    ...(raw.autoApprovalRules && typeof raw.autoApprovalRules === "object" && !Array.isArray(raw.autoApprovalRules) ? {
+      autoApprovalRules: {
+        enabled: bool(record(raw.autoApprovalRules).enabled),
+        monthlyThresholdDays: num(record(raw.autoApprovalRules).monthlyThresholdDays, 0),
+        bypassDates: stringArray(record(raw.autoApprovalRules).bypassDates),
+      },
+    } : {}),
     shortCode: text(raw.shortCode) || "LT",
     colour: normalizeHexColour(raw.colour),
     isCustom: bool(raw.isCustom),
@@ -1160,6 +1172,27 @@ export const leaveConfigService = {
     return apiClient.getBlob(
       `${BASE}/${projectId}/policies/${policyId}/holidays/template`,
     );
+  },
+
+  async uploadBypassDates(projectId: string, policyId: string, leaveTypeId: string, file: File): Promise<HolidayUploadResponse> {
+    if (USE_MOCK_API) throw new Error("Bypass-date uploads require a connected backend.");
+    const form = new FormData();
+    form.append("file", file);
+    const raw = await apiClient.postFormData<unknown>(
+      `${BASE}/${projectId}/policies/${policyId}/leave-types/${leaveTypeId}/bypass-dates/upload`, form);
+    return normalizeUploadResponse(raw, projectId);
+  },
+
+  async removeBypassDate(projectId: string, policyId: string, leaveTypeId: string, date: string): Promise<LeaveConfigResponse> {
+    if (USE_MOCK_API) throw new Error("Bypass-date changes require a connected backend.");
+    const raw = await apiClient.delete<unknown>(
+      `${BASE}/${projectId}/policies/${policyId}/leave-types/${leaveTypeId}/bypass-dates/${encodeURIComponent(date)}`);
+    return normalizeResponse(raw, projectId);
+  },
+
+  async downloadBypassTemplate(projectId: string, policyId: string, leaveTypeId: string): Promise<Blob> {
+    if (USE_MOCK_API) return new Blob(["Date\n"], { type: "text/csv" });
+    return apiClient.getBlob(`${BASE}/${projectId}/policies/${policyId}/leave-types/${leaveTypeId}/bypass-dates/template`);
   },
 
   async reconcileCredits(
