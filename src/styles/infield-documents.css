@@ -236,6 +236,173 @@
   font-size: 13px;
 }
 
+/* Category manager */
+.documents-page dialog.doc-categories-modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(464px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  color: var(--text, #102033);
+}
+
+.documents-page .doc-categories-modal::backdrop {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.doc-categories-modal > form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+}
+
+.documents-page .doc-categories-modal .doc-modal-head {
+  flex-shrink: 0;
+  padding: 18px 22px 10px;
+  border: 0;
+}
+
+.documents-page .doc-categories-modal .doc-modal-head h3 {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.documents-page .doc-categories-modal .doc-modal-head p {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--text-mid, #3a5272);
+}
+
+.doc-categories-body {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0 22px 16px;
+  overflow-y: auto;
+  border: 0;
+}
+
+.doc-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc-category-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px 30px;
+  align-items: start;
+  gap: 8px;
+}
+
+.doc-categories-modal .doc-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.doc-categories-modal .doc-input {
+  min-height: 40px;
+  padding: 10px 12px;
+  border-color: #e4e9ee;
+  border-radius: 10px;
+  background: #f7fafc;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.doc-category-count {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  color: var(--muted, #6b7c93);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.doc-category-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted, #6b7c93);
+  cursor: pointer;
+}
+
+.doc-category-remove:hover:not(:disabled) {
+  background: var(--red-light, #fff0ef);
+  color: var(--red, #e8382d);
+}
+
+.doc-category-remove:disabled {
+  color: #ced9e3;
+  cursor: not-allowed;
+}
+
+.doc-category-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.documents-page .doc-category-add .doc-btn {
+  min-height: 40px;
+}
+
+.doc-categories-help {
+  margin: 10px 0 0;
+  color: var(--muted, #6b7c93);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.doc-categories-error {
+  margin: 0;
+  padding: 0 22px 12px;
+}
+
+.doc-categories-footer {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 22px;
+  border-top: 1px solid #e9eef3;
+  background: #f7fafc;
+}
+
+.documents-page .doc-categories-footer .doc-btn {
+  min-height: 32px;
+}
+
+@media (max-width: 380px) {
+  .doc-category-row {
+    grid-template-columns: minmax(0, 1fr) 72px 26px;
+    gap: 4px;
+  }
+
+  .doc-category-count {
+    font-size: 9px;
+  }
+}
+
 /* ─── Designation Selector ────────────────────────────────── */
 
 .doc-designation-selector {

@@ -103,7 +103,7 @@ export type UploadDocumentInput = UploadDocumentMetadata & (
 /** Updates a single designation row; versions and assignments are server-owned. */
 export interface UpdateDocumentInput {
   title: string;
-  category: string;
+  targetModule: string;
   description: string | null;
   fromDate: string | null;
   toDate: string | null;

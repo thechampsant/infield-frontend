@@ -11,16 +11,17 @@ import { documentFileAccept, getDocumentUrl, parseYouTubeUrl, validateDocumentDe
 interface Props {
   document: DocumentRecord;
   designations: Designation[];
+  categories: string[];
   onSave: (input: UpdateDocumentInput) => Promise<void>;
   onCancel: () => void;
 }
 
-export function EditDocumentModal({ document: doc, designations, onSave, onCancel }: Props) {
+export function EditDocumentModal({ document: doc, designations, categories, onSave, onCancel }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const savingRef = useRef(false);
   const [values, setValues] = useState(() => ({
     title: doc.title,
-    category: doc.category ?? "",
+    targetModule: doc.targetModule,
     description: doc.description ?? "",
     fromDate: doc.fromDate?.slice(0, 10) ?? "",
     toDate: doc.toDate?.slice(0, 10) ?? "",
@@ -65,7 +66,7 @@ export function EditDocumentModal({ document: doc, designations, onSave, onCance
     return () => { cancelled = true; };
   }, [doc, assignmentAttempt]);
 
-  const errors = validateDocumentDetails(values);
+  const errors = validateDocumentDetails(values, categories);
   const youtubeError = doc.documentType === "YouTube" ? validateYouTubeUrl(values.youtubeUrl) : null;
   const youtubeDetails = doc.documentType === "YouTube" ? parseYouTubeUrl(values.youtubeUrl) : null;
   const currentUrl = getDocumentUrl(doc);
@@ -80,7 +81,7 @@ export function EditDocumentModal({ document: doc, designations, onSave, onCance
     try {
       await onSave({
         title: values.title.trim(),
-        category: values.category.trim(),
+        targetModule: values.targetModule,
         description: values.description.trim() || null,
         fromDate: values.fromDate || null,
         toDate: values.toDate || null,
@@ -130,8 +131,12 @@ export function EditDocumentModal({ document: doc, designations, onSave, onCance
             </div>
             <div className="doc-field">
               <label className="doc-label" htmlFor="doc-edit-category">Category <span className="doc-required">*</span></label>
-              <input id="doc-edit-category" className="doc-input" value={values.category} aria-invalid={Boolean(errors.category)} aria-describedby={errors.category ? "doc-edit-category-error" : undefined} onChange={(event) => setValues({ ...values, category: event.target.value })} />
-              {errors.category && <span id="doc-edit-category-error" className="doc-field-error">{errors.category}</span>}
+              <select id="doc-edit-category" className="doc-select" value={values.targetModule} aria-invalid={Boolean(errors.targetModule)} aria-describedby={errors.targetModule ? "doc-edit-category-error" : undefined} onChange={(event) => setValues({ ...values, targetModule: event.target.value })}>
+                <option value="">Select category...</option>
+                {values.targetModule && !categories.includes(values.targetModule) && <option value={values.targetModule} disabled>{values.targetModule} (unavailable)</option>}
+                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+              {errors.targetModule && <span id="doc-edit-category-error" className="doc-field-error">{errors.targetModule}</span>}
             </div>
           </div>
           <div className="doc-field">

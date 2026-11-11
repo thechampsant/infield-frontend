@@ -126,7 +126,6 @@ export function DocumentsTable({
               <thead>
                 <tr>
                   <th>Title</th>
-                  <th>Category</th>
                   <th>Type</th>
                   <th>Category</th>
                   <th>Designation</th>
@@ -142,7 +141,6 @@ export function DocumentsTable({
                 {documents.map((doc) => (
                   <tr key={doc._id}>
                     <td className="doc-cell-title">{doc.title}</td>
-                    <td>{doc.category || "—"}</td>
                     <td>{doc.documentType === "YouTube" ? "YouTube Link" : doc.documentType}</td>
                     <td>{doc.targetModule}</td>
                     <td>

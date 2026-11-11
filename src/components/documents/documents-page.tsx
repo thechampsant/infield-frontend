@@ -391,6 +391,7 @@ export function DocumentsPage({
           key={editingDocument._id}
           document={editingDocument}
           designations={designations}
+          categories={activeModuleNames}
           onSave={handleEditSave}
           onCancel={() => setEditingDocument(null)}
         />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { documentsService, type ResourceCategories, type SaveResourceCategoriesInput } from "@/lib/api/documents-service";
 import { formatApiError } from "@/lib/api/get-api-error-message";
 import { CATEGORY_NAME_MAX_LENGTH, categoryNameError } from "@/lib/resource-categories";
@@ -82,11 +82,10 @@ export function ManageCategoriesModal({ projectId, onClose, onSaved }: Props) {
   }
 
   return (
-    <dialog ref={dialogRef} className="doc-modal doc-categories-modal" aria-labelledby="doc-categories-title" onCancel={(event) => { event.preventDefault(); if (!savingRef.current) onClose(); }}>
+    <dialog ref={dialogRef} className="doc-modal doc-categories-modal" aria-labelledby="doc-categories-title" aria-describedby="doc-categories-description" onCancel={(event) => { event.preventDefault(); if (!savingRef.current) onClose(); }}>
       <form onSubmit={save} noValidate>
         <div className="doc-modal-head">
-          <div><h3 id="doc-categories-title">Manage categories</h3><p>Organize this project’s resources. Names can have up to 24 characters.</p></div>
-          <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" aria-label="Close categories" disabled={saving} onClick={onClose}><X size={16} /></button>
+          <div><h3 id="doc-categories-title">Manage categories</h3><p id="doc-categories-description">Each category shows as a tab in the app once it has an active document for that user&apos;s designation.</p></div>
         </div>
         <fieldset className="doc-categories-body" disabled={saving}>
           {loadError ? <div role="alert" className="doc-field-error">{loadError} <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" onClick={() => { setLoadError(null); setAttempt((value) => value + 1); }}>Retry</button></div> : !snapshot ? <p role="status">Loading categories…</p> : <>
@@ -100,7 +99,7 @@ export function ManageCategoriesModal({ projectId, onClose, onSaved }: Props) {
                     {errors[index] && <span className="doc-field-error" id={`category-error-${index}`}>{errors[index]}</span>}
                   </div>
                   <span className="doc-category-count">{row.documentCount} {row.documentCount === 1 ? "document" : "documents"}</span>
-                  <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" disabled={row.documentCount > 0} title={row.documentCount > 0 ? "Categories with documents cannot be removed" : `Remove ${row.name}`} aria-label={`Remove ${row.name || `category ${index + 1}`}`} onClick={() => setRows((previous) => previous.filter((item) => item.key !== row.key))}><Trash2 size={14} /> Remove</button>
+                  <button type="button" className="doc-category-remove" disabled={row.documentCount > 0} title={row.documentCount > 0 ? "Categories with documents cannot be removed" : `Remove ${row.name}`} aria-label={`Remove ${row.name || `category ${index + 1}`}`} onClick={() => setRows((previous) => previous.filter((item) => item.key !== row.key))}><Trash2 size={14} /></button>
                 </div>
               ))}
             </div>
@@ -110,8 +109,9 @@ export function ManageCategoriesModal({ projectId, onClose, onSaved }: Props) {
                 <input id="doc-new-category" className="doc-input" value={newName} maxLength={CATEGORY_NAME_MAX_LENGTH} placeholder="For example, Cooking" aria-invalid={Boolean(addError)} aria-describedby={addError ? "doc-category-add-error" : undefined} onChange={(event) => { setNewName(event.target.value); setAddError(null); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCategory(); } }} />
                 {addError && <span id="doc-category-add-error" className="doc-field-error" role="alert">{addError}</span>}
               </div>
-              <button type="button" className="doc-btn doc-btn-secondary" onClick={addCategory}><Plus size={14} /> Add category</button>
+              <button type="button" className="doc-btn doc-btn-secondary" onClick={addCategory}>Add</button>
             </div>
+            <p className="doc-categories-help">A category with documents can&apos;t be removed, but it can be renamed. If all its documents are inactive, its tab hides from the app.</p>
           </>}
         </fieldset>
         {saveError && <p className="doc-categories-error doc-field-error" role="alert">{saveError}</p>}

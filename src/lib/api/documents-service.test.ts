@@ -7,12 +7,14 @@ vi.mock("./api-client", async (importOriginal) => ({
   apiClient: { get: vi.fn(), patch: vi.fn(), patchFormData: vi.fn(), postFormData: vi.fn() },
 }));
 afterEach(() => vi.clearAllMocks());
-const metadata: UpdateDocumentInput = { title: "Safety", category: "Training", description: null, fromDate: null, toDate: null, acknowledgementRequired: false, alsoAssignTo: ["designation-2"] };
+const metadata: UpdateDocumentInput = { title: "Safety", targetModule: "Training", description: null, fromDate: null, toDate: null, acknowledgementRequired: false, alsoAssignTo: ["designation-2"] };
 
 describe("document editing API boundary", () => {
   it("sends metadata and explicit clears without a file, version or status mutation", async () => {
     await documentsService.updateDocument("doc/1", metadata);
     expect(apiClient.patch).toHaveBeenCalledWith("/api/v1/documents/doc%2F1", metadata);
+    expect(vi.mocked(apiClient.patch).mock.calls[0][1]).toMatchObject({ targetModule: "Training" });
+    expect(vi.mocked(apiClient.patch).mock.calls[0][1]).not.toHaveProperty("category");
     expect(apiClient.patchFormData).not.toHaveBeenCalled();
     expect(apiClient.postFormData).not.toHaveBeenCalled();
   });
