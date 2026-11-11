@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileUp, FolderOpen, Smartphone, Settings2 } from "lucide-react";
 import {
@@ -14,12 +14,14 @@ import {
   type DocumentRecord,
   type DocumentTargetModule,
   type DocumentsListResponse,
+  type UpdateDocumentInput,
 } from "@/lib/api";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { DesignationSelector } from "./designation-selector";
 import { DesignationCard } from "./designation-card";
 import { DocumentsTable } from "./documents-table";
+import { EditDocumentModal } from "./edit-document-modal";
 import { ManageCategoriesModal } from "./manage-categories-modal";
 import type { ResourceCategories, SaveResourceCategoriesInput } from "@/lib/api/documents-service";
 
@@ -55,6 +57,11 @@ export function DocumentsPage({
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [managingCategories, setManagingCategories] = useState(false);
   const [categoryRenames, setCategoryRenames] = useState<Record<string, string>>({});
+  const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
+  const [editingDocument, setEditingDocument] = useState<DocumentRecord | null>(null);
+  const [query, setQuery] = useState({ page: 1, fromDate: "", toDate: "" });
+  const requestIdRef = useRef(0);
+  const pageSize = 50;
   const [ackReport, setAckReport] = useState<DocumentAcknowledgementReport | null>(null);
   const [loadingAckReport, setLoadingAckReport] = useState(false);
   const [appModuleName, setAppModuleName] = useState("");
@@ -69,7 +76,7 @@ export function DocumentsPage({
     designationService
       .listByProject(projectId)
       .then(setDesignations)
-      .catch(() => setDesignations([]));
+      .catch((error) => setToast({ message: formatApiError(error), type: "error" }));
 
     documentsService
       .getCategories(projectId)
@@ -94,31 +101,43 @@ export function DocumentsPage({
   // ─── Load documents ───────────────────────────────────────────
 
   const loadDocuments = useCallback(
-    async (fromDate?: string, toDate?: string) => {
+    async () => {
       if (!projectId) return;
+      const requestId = ++requestIdRef.current;
       setLoadingDocs(true);
+      setDocumentLoadError(null);
       try {
         const result = await documentsService.listDocuments({
           projectId,
-          fromDate: fromDate || undefined,
-          toDate: toDate || undefined,
-          page: 1,
-          limit: 50,
+          fromDate: query.fromDate || undefined,
+          toDate: query.toDate || undefined,
+          page: query.page,
+          limit: pageSize,
         });
+        if (requestId !== requestIdRef.current) return;
+        const lastPage = Math.max(1, Math.ceil(result.total / pageSize));
+        if (query.page > lastPage) {
+          setQuery((previous) => ({ ...previous, page: lastPage }));
+          return;
+        }
         setDocuments(result);
       } catch (err) {
-        setToast({ message: formatApiError(err), type: "error" });
+        if (requestId === requestIdRef.current) {
+          setDocuments(null);
+          setDocumentLoadError(formatApiError(err));
+        }
       } finally {
-        setLoadingDocs(false);
+        if (requestId === requestIdRef.current) setLoadingDocs(false);
       }
     },
-    [projectId],
+    [projectId, query],
   );
 
   useEffect(() => {
-    // Refresh the external document list when the project changes.
+    // Fetch the external list when the applied filters or page change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDocuments();
+    return () => { requestIdRef.current += 1; };
   }, [loadDocuments]);
 
   // ─── Handlers ─────────────────────────────────────────────────
@@ -129,9 +148,9 @@ export function DocumentsPage({
       setSelectedDesignationIds((prev) =>
         prev.filter((id) => id !== designationId),
       );
-      loadDocuments(filterFromDate, filterToDate);
+      loadDocuments();
     },
-    [loadDocuments, filterFromDate, filterToDate],
+    [loadDocuments],
   );
 
   const handleUploadError = useCallback((errorMessage: string) => {
@@ -143,23 +162,31 @@ export function DocumentsPage({
       try {
         await documentsService.updateDocumentStatus(docId, newStatus);
         setToast({ message: "Status updated", type: "success" });
-        loadDocuments(filterFromDate, filterToDate);
+        loadDocuments();
       } catch (err) {
         setToast({ message: formatApiError(err), type: "error" });
       }
     },
-    [loadDocuments, filterFromDate, filterToDate],
+    [loadDocuments],
   );
 
   const handleFilterLoad = useCallback(() => {
-    loadDocuments(filterFromDate, filterToDate);
-  }, [loadDocuments, filterFromDate, filterToDate]);
+    setQuery({ page: 1, fromDate: filterFromDate, toDate: filterToDate });
+  }, [filterFromDate, filterToDate]);
 
   const handleFilterClear = useCallback(() => {
     setFilterFromDate("");
     setFilterToDate("");
-    loadDocuments();
-  }, [loadDocuments]);
+    setQuery({ page: 1, fromDate: "", toDate: "" });
+  }, []);
+
+  const handleEditSave = async (input: UpdateDocumentInput) => {
+    if (!editingDocument) return;
+    await documentsService.updateDocument(editingDocument._id, input);
+    setEditingDocument(null);
+    setToast({ message: "Document saved successfully", type: "success" });
+    await loadDocuments();
+  };
 
   const handleViewAcknowledgements = useCallback(async (doc: DocumentRecord) => {
     setLoadingAckReport(true);
@@ -181,7 +208,7 @@ export function DocumentsPage({
     setCategoryRenames(Object.fromEntries(renamed));
     setManagingCategories(false);
     setToast({ message: "Categories saved", type: "success" });
-    loadDocuments(filterFromDate, filterToDate);
+    loadDocuments();
   };
 
   const handleSaveAppModuleName = useCallback(async () => {
@@ -330,6 +357,13 @@ export function DocumentsPage({
           Documents Management
         </h2>
 
+        {documentLoadError && (
+          <div className="doc-info-banner" role="alert">
+            Could not load documents: {documentLoadError}
+            <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" onClick={() => loadDocuments()}>Retry</button>
+            {query.page > 1 && <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" onClick={() => setQuery((previous) => ({ ...previous, page: previous.page - 1 }))}>Previous page</button>}
+          </div>
+        )}
         <DocumentsTable
           documents={documents?.data ?? []}
           total={documents?.total ?? 0}
@@ -343,10 +377,24 @@ export function DocumentsPage({
           onFilterClear={handleFilterClear}
           onStatusToggle={handleStatusToggle}
           onViewAcknowledgements={handleViewAcknowledgements}
+          onEdit={setEditingDocument}
+          page={query.page}
+          pageSize={pageSize}
+          onPageChange={(page) => setQuery((previous) => ({ ...previous, page }))}
         />
       </section>
 
       {managingCategories && <ManageCategoriesModal projectId={projectId} onClose={() => setManagingCategories(false)} onSaved={handleCategoriesSaved} />}
+
+      {editingDocument && (
+        <EditDocumentModal
+          key={editingDocument._id}
+          document={editingDocument}
+          designations={designations}
+          onSave={handleEditSave}
+          onCancel={() => setEditingDocument(null)}
+        />
+      )}
 
       {(ackReport || loadingAckReport) && (
         <div className="doc-modal-backdrop" role="presentation">

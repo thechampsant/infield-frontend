@@ -228,7 +228,15 @@ class ApiClient {
     return response.blob();
   }
 
-  async postFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+  postFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+    return this.sendFormData<T>(endpoint, formData, "POST");
+  }
+
+  patchFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+    return this.sendFormData<T>(endpoint, formData, "PATCH");
+  }
+
+  private async sendFormData<T>(endpoint: string, formData: FormData, method: "POST" | "PATCH"): Promise<T> {
     const headers: HeadersInit = {};
     if (this.accessToken) {
       (headers as Record<string, string>)["Authorization"] =
@@ -236,7 +244,7 @@ class ApiClient {
     }
     // Do NOT set Content-Type — browser sets it with boundary for multipart
     const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
-      method: "POST",
+      method,
       headers,
       body: formData,
       credentials: "include",
