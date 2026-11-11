@@ -76,15 +76,9 @@ export function DesignationCard({
     () =>
       state.title.trim() !== "" &&
       state.documentType !== "" &&
-<<<<<<< HEAD
-      state.targetModule !== "" &&
-      (state.documentType === "YouTube" ? Boolean(parseYouTubeUrl(state.youtubeUrl)) : state.file !== null),
-    [state.title, state.documentType, state.targetModule, state.file, state.youtubeUrl],
-=======
       targetModules.includes(state.targetModule) &&
       state.file !== null,
     [state.title, state.documentType, state.targetModule, state.file, targetModules],
->>>>>>> main
   );
 
   const hasValidDates = useMemo(() => {

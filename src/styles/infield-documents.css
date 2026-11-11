@@ -765,7 +765,6 @@
   }
 }
 
-<<<<<<< HEAD
 /* Edit document and additional designation assignments */
 .documents-page dialog.doc-edit-modal {
   position: fixed;
@@ -773,31 +772,10 @@
   margin: auto;
   width: min(920px, calc(100vw - 32px));
   max-height: min(720px, calc(100dvh - 32px));
-=======
-/* Project resource categories */
-.doc-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.doc-section-head .doc-section-title { margin-bottom: 0; }
-
-.documents-page dialog.doc-categories-modal {
-  position: fixed;
-  inset: 0;
-  margin: auto;
-  width: min(760px, calc(100vw - 32px));
-  max-height: min(760px, calc(100dvh - 32px));
->>>>>>> main
   padding: 0;
   color: var(--text, #102033);
 }
 
-<<<<<<< HEAD
 .documents-page dialog.doc-edit-modal::backdrop {
   background: rgba(15, 23, 42, 0.45);
 }
@@ -873,23 +851,4 @@
   gap: 12px;
   margin-top: 16px;
   font-size: 13px;
-=======
-.documents-page dialog.doc-categories-modal::backdrop { background: rgba(15, 23, 42, 0.45); }
-.doc-categories-body { border: 0; min-width: 0; margin: 0; padding: 20px; }
-.doc-category-list { display: flex; flex-direction: column; gap: 16px; }
-.doc-category-row { display: grid; grid-template-columns: minmax(0, 1fr) 100px auto; align-items: start; gap: 12px; }
-.doc-category-row > .doc-btn { margin-top: 22px; }
-.doc-category-count { margin-top: 30px; font-size: 12px; color: var(--muted, #6b7c93); }
-.doc-category-add { display: flex; align-items: flex-start; gap: 12px; padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--border, #dde6f0); }
-.doc-category-add .doc-field { flex: 1; min-width: 0; }
-.doc-category-add > .doc-btn { margin-top: 22px; }
-.doc-categories-footer { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 10px; padding: 16px 20px; border-top: 1px solid var(--border, #dde6f0); background: #fff; }
-.doc-categories-error { padding: 0 20px; }
-@media (max-width: 540px) {
-  .doc-category-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .doc-category-row .doc-field { grid-column: 1 / -1; }
-  .doc-category-count, .doc-category-row > .doc-btn { margin-top: 0; }
-  .doc-category-add { flex-direction: column; align-items: stretch; }
-  .doc-category-add > .doc-btn { margin-top: 0; }
->>>>>>> main
 }

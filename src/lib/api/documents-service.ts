@@ -65,29 +65,7 @@ export interface DocumentTargetModuleConfig {
   modules: DocumentTargetModule[];
 }
 
-<<<<<<< HEAD
 interface UploadDocumentMetadata {
-=======
-export interface ResourceCategory {
-  name: string;
-  documentCount: number;
-  isActive: boolean;
-}
-
-export interface ResourceCategories {
-  projectId: string;
-  revision: number;
-  categories: ResourceCategory[];
-}
-
-export interface SaveResourceCategoriesInput {
-  projectId: string;
-  revision: number;
-  categories: { name: string; originalName?: string; isActive: boolean }[];
-}
-
-export interface UploadDocumentInput {
->>>>>>> main
   title: string;
   documentType: DocumentType;
   targetModule: string;
