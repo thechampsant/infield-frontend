@@ -65,6 +65,24 @@ export interface DocumentTargetModuleConfig {
   modules: DocumentTargetModule[];
 }
 
+export interface ResourceCategory {
+  name: string;
+  documentCount: number;
+  isActive: boolean;
+}
+
+export interface ResourceCategories {
+  projectId: string;
+  revision: number;
+  categories: ResourceCategory[];
+}
+
+export interface SaveResourceCategoriesInput {
+  projectId: string;
+  revision: number;
+  categories: { name: string; originalName?: string; isActive: boolean }[];
+}
+
 interface UploadDocumentMetadata {
   title: string;
   documentType: DocumentType;

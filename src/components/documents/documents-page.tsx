@@ -22,6 +22,8 @@ import { DesignationSelector } from "./designation-selector";
 import { DesignationCard } from "./designation-card";
 import { DocumentsTable } from "./documents-table";
 import { EditDocumentModal } from "./edit-document-modal";
+import { ManageCategoriesModal } from "./manage-categories-modal";
+import type { ResourceCategories, SaveResourceCategoriesInput } from "@/lib/api/documents-service";
 
 const RESOURCES_MODULE_KEY = "resources";
 const DEFAULT_APP_MODULE_NAME = "Resources";
@@ -53,6 +55,8 @@ export function DocumentsPage({
   const [filterFromDate, setFilterFromDate] = useState("");
   const [filterToDate, setFilterToDate] = useState("");
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [managingCategories, setManagingCategories] = useState(false);
+  const [categoryRenames, setCategoryRenames] = useState<Record<string, string>>({});
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
   const [editingDocument, setEditingDocument] = useState<DocumentRecord | null>(null);
   const [query, setQuery] = useState({ page: 1, fromDate: "", toDate: "" });
@@ -204,7 +208,7 @@ export function DocumentsPage({
     setCategoryRenames(Object.fromEntries(renamed));
     setManagingCategories(false);
     setToast({ message: "Categories saved", type: "success" });
-    loadDocuments(filterFromDate, filterToDate);
+    loadDocuments();
   };
 
   const handleSaveAppModuleName = useCallback(async () => {
@@ -379,6 +383,8 @@ export function DocumentsPage({
           onPageChange={(page) => setQuery((previous) => ({ ...previous, page }))}
         />
       </section>
+
+      {managingCategories && <ManageCategoriesModal projectId={projectId} onClose={() => setManagingCategories(false)} onSaved={handleCategoriesSaved} />}
 
       {editingDocument && (
         <EditDocumentModal
