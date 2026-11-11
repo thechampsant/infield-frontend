@@ -58,6 +58,24 @@ export interface DocumentTargetModuleConfig {
   modules: DocumentTargetModule[];
 }
 
+export interface ResourceCategory {
+  name: string;
+  documentCount: number;
+  isActive: boolean;
+}
+
+export interface ResourceCategories {
+  projectId: string;
+  revision: number;
+  categories: ResourceCategory[];
+}
+
+export interface SaveResourceCategoriesInput {
+  projectId: string;
+  revision: number;
+  categories: { name: string; originalName?: string; isActive: boolean }[];
+}
+
 export interface UploadDocumentInput {
   title: string;
   documentType: DocumentType;
@@ -118,6 +136,14 @@ export interface DocumentsFilterParams {
 // ─────────────────────────────────────────────────────────────
 
 export const documentsService = {
+  async getCategories(projectId: string): Promise<ResourceCategories> {
+    return apiClient.get<ResourceCategories>(`${CONFIG_BASE}/categories?projectId=${encodeURIComponent(projectId)}`);
+  },
+
+  async saveCategories(input: SaveResourceCategoriesInput): Promise<ResourceCategories> {
+    return apiClient.put<ResourceCategories>(`${CONFIG_BASE}/categories`, input);
+  },
+
   // ─── Target Module Config ────────────────────────────────────
 
   /**

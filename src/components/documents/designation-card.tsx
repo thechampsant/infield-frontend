@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Upload, X } from "lucide-react";
 import {
   documentsService,
@@ -23,6 +23,7 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 interface Props {
   designation: Designation;
   targetModules: string[];
+  categoryRenames: Record<string, string>;
   projectId: string;
   onUploadSuccess: () => void;
   onUploadError: (message: string) => void;
@@ -53,6 +54,7 @@ const INITIAL_STATE: CardState = {
 export function DesignationCard({
   designation,
   targetModules,
+  categoryRenames,
   projectId,
   onUploadSuccess,
   onUploadError,
@@ -61,13 +63,21 @@ export function DesignationCard({
   const [state, setState] = useState<CardState>(INITIAL_STATE);
   const [uploading, setUploading] = useState(false);
 
+  useEffect(() => {
+    // Keep a partially completed upload attached to its renamed saved category.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setState((previous) => categoryRenames[previous.targetModule]
+      ? { ...previous, targetModule: categoryRenames[previous.targetModule] }
+      : previous);
+  }, [categoryRenames]);
+
   const isReady = useMemo(
     () =>
       state.title.trim() !== "" &&
       state.documentType !== "" &&
-      state.targetModule !== "" &&
+      targetModules.includes(state.targetModule) &&
       state.file !== null,
-    [state.title, state.documentType, state.targetModule, state.file],
+    [state.title, state.documentType, state.targetModule, state.file, targetModules],
   );
 
   const hasValidDates = useMemo(() => {
@@ -119,7 +129,7 @@ export function DesignationCard({
     } finally {
       setUploading(false);
     }
-  }, [canUpload, state, designation.id, onUploadSuccess, onUploadError]);
+  }, [canUpload, state, designation.id, projectId, onUploadSuccess, onUploadError]);
 
   return (
     <div className="doc-card">
@@ -161,7 +171,7 @@ export function DesignationCard({
             />
           </div>
 
-          {/* Document Type + Target Module row */}
+          {/* Document Type + Category row */}
           <div className="doc-field-row">
             <div className="doc-field">
               <label className="doc-label">
@@ -188,7 +198,7 @@ export function DesignationCard({
 
             <div className="doc-field">
               <label className="doc-label">
-                Target Module <span className="doc-required">*</span>
+                Category <span className="doc-required">*</span>
               </label>
               <select
                 className="doc-select"
@@ -200,7 +210,7 @@ export function DesignationCard({
                   }))
                 }
               >
-                <option value="">Select module...</option>
+                <option value="">Select category...</option>
                 {targetModules.map((m) => (
                   <option key={m} value={m}>
                     {m}
