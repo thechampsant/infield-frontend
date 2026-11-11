@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileUp, FolderOpen, Smartphone } from "lucide-react";
+import { ArrowLeft, FileUp, FolderOpen, Smartphone, Settings2 } from "lucide-react";
 import {
   documentsService,
   designationService,
@@ -75,9 +75,9 @@ export function DocumentsPage({
       .catch((error) => setToast({ message: formatApiError(error), type: "error" }));
 
     documentsService
-      .getTargetModules(projectId)
-      .then((config) => setTargetModules(config.modules ?? []))
-      .catch(() => setTargetModules([]));
+      .getCategories(projectId)
+      .then((config) => setTargetModules(config.categories))
+      .catch((error) => setToast({ message: formatApiError(error), type: "error" }));
 
     featureConfigService
       .getRawByProject(projectId)
@@ -196,6 +196,17 @@ export function DocumentsPage({
     }
   }, []);
 
+  const handleCategoriesSaved = (result: ResourceCategories, categories: SaveResourceCategoriesInput["categories"]) => {
+    setTargetModules(result.categories);
+    // Update the current table immediately, then fetch the persisted document values.
+    const renamed = new Map(categories.filter((category) => category.originalName).map((category) => [category.originalName!, category.name]));
+    setDocuments((previous) => previous ? { ...previous, data: previous.data.map((document) => ({ ...document, targetModule: renamed.get(document.targetModule) ?? document.targetModule })) } : previous);
+    setCategoryRenames(Object.fromEntries(renamed));
+    setManagingCategories(false);
+    setToast({ message: "Categories saved", type: "success" });
+    loadDocuments(filterFromDate, filterToDate);
+  };
+
   const handleSaveAppModuleName = useCallback(async () => {
     if (!projectId) return;
     setSavingAppModuleName(true);
@@ -304,10 +315,10 @@ export function DocumentsPage({
 
       {/* Section 1: Upload Documents */}
       <section className="doc-section">
-        <h2 className="doc-section-title">
-          <FileUp size={16} />
-          Upload Documents
-        </h2>
+        <div className="doc-section-head">
+          <h2 className="doc-section-title"><FileUp size={16} /> Upload Documents</h2>
+          <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" onClick={() => setManagingCategories(true)}><Settings2 size={14} /> Manage categories</button>
+        </div>
 
         <DesignationSelector
           designations={designations}
@@ -327,6 +338,7 @@ export function DocumentsPage({
             key={designation.id}
             designation={designation}
             targetModules={activeModuleNames}
+            categoryRenames={categoryRenames}
             projectId={projectId}
             onUploadSuccess={() => handleUploadSuccess(designation.id)}
             onUploadError={handleUploadError}

@@ -128,7 +128,7 @@ export function DocumentsTable({
                   <th>Title</th>
                   <th>Category</th>
                   <th>Type</th>
-                  <th>Target Module</th>
+                  <th>Category</th>
                   <th>Designation</th>
                   <th>Timeline</th>
                   <th>Size</th>
