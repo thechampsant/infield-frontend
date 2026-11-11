@@ -31,6 +31,7 @@ export default function DocumentsModulePage() {
 
   return (
     <DocumentsPage
+      key={projectId}
       projectId={projectId}
       projectName={projectName}
       accountCode={accountCode}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileUp, FolderOpen, Smartphone } from "lucide-react";
+import { ArrowLeft, FileUp, FolderOpen, Smartphone, Settings2 } from "lucide-react";
 import {
   documentsService,
   designationService,
@@ -20,6 +20,8 @@ import { projectAdminBase } from "@/lib/nav/nav";
 import { DesignationSelector } from "./designation-selector";
 import { DesignationCard } from "./designation-card";
 import { DocumentsTable } from "./documents-table";
+import { ManageCategoriesModal } from "./manage-categories-modal";
+import type { ResourceCategories, SaveResourceCategoriesInput } from "@/lib/api/documents-service";
 
 const RESOURCES_MODULE_KEY = "resources";
 const DEFAULT_APP_MODULE_NAME = "Resources";
@@ -51,6 +53,8 @@ export function DocumentsPage({
   const [filterFromDate, setFilterFromDate] = useState("");
   const [filterToDate, setFilterToDate] = useState("");
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [managingCategories, setManagingCategories] = useState(false);
+  const [categoryRenames, setCategoryRenames] = useState<Record<string, string>>({});
   const [ackReport, setAckReport] = useState<DocumentAcknowledgementReport | null>(null);
   const [loadingAckReport, setLoadingAckReport] = useState(false);
   const [appModuleName, setAppModuleName] = useState("");
@@ -68,9 +72,9 @@ export function DocumentsPage({
       .catch(() => setDesignations([]));
 
     documentsService
-      .getTargetModules(projectId)
-      .then((config) => setTargetModules(config.modules ?? []))
-      .catch(() => setTargetModules([]));
+      .getCategories(projectId)
+      .then((config) => setTargetModules(config.categories))
+      .catch((error) => setToast({ message: formatApiError(error), type: "error" }));
 
     featureConfigService
       .getRawByProject(projectId)
@@ -112,6 +116,8 @@ export function DocumentsPage({
   );
 
   useEffect(() => {
+    // Refresh the external document list when the project changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDocuments();
   }, [loadDocuments]);
 
@@ -166,6 +172,17 @@ export function DocumentsPage({
       setLoadingAckReport(false);
     }
   }, []);
+
+  const handleCategoriesSaved = (result: ResourceCategories, categories: SaveResourceCategoriesInput["categories"]) => {
+    setTargetModules(result.categories);
+    // Update the current table immediately, then fetch the persisted document values.
+    const renamed = new Map(categories.filter((category) => category.originalName).map((category) => [category.originalName!, category.name]));
+    setDocuments((previous) => previous ? { ...previous, data: previous.data.map((document) => ({ ...document, targetModule: renamed.get(document.targetModule) ?? document.targetModule })) } : previous);
+    setCategoryRenames(Object.fromEntries(renamed));
+    setManagingCategories(false);
+    setToast({ message: "Categories saved", type: "success" });
+    loadDocuments(filterFromDate, filterToDate);
+  };
 
   const handleSaveAppModuleName = useCallback(async () => {
     if (!projectId) return;
@@ -275,10 +292,10 @@ export function DocumentsPage({
 
       {/* Section 1: Upload Documents */}
       <section className="doc-section">
-        <h2 className="doc-section-title">
-          <FileUp size={16} />
-          Upload Documents
-        </h2>
+        <div className="doc-section-head">
+          <h2 className="doc-section-title"><FileUp size={16} /> Upload Documents</h2>
+          <button type="button" className="doc-btn doc-btn-secondary doc-btn-sm" onClick={() => setManagingCategories(true)}><Settings2 size={14} /> Manage categories</button>
+        </div>
 
         <DesignationSelector
           designations={designations}
@@ -298,6 +315,7 @@ export function DocumentsPage({
             key={designation.id}
             designation={designation}
             targetModules={activeModuleNames}
+            categoryRenames={categoryRenames}
             projectId={projectId}
             onUploadSuccess={() => handleUploadSuccess(designation.id)}
             onUploadError={handleUploadError}
@@ -327,6 +345,8 @@ export function DocumentsPage({
           onViewAcknowledgements={handleViewAcknowledgements}
         />
       </section>
+
+      {managingCategories && <ManageCategoriesModal projectId={projectId} onClose={() => setManagingCategories(false)} onSaved={handleCategoriesSaved} />}
 
       {(ackReport || loadingAckReport) && (
         <div className="doc-modal-backdrop" role="presentation">
