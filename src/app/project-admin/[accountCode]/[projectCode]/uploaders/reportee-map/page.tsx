@@ -1,5 +1,7 @@
 "use client";
 
+import { formatReporteeUploadResult } from "@/lib/api/reportee-upload-result";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "@/lib/api";
 import {
@@ -145,7 +147,7 @@ export default function ReporteeMapPage() {
       }
       if (result.invalidCount > 0) {
         setError(
-          `Upload completed: ${result.successCount} managers processed, ${result.invalidCount} rows had errors.`,
+          formatReporteeUploadResult(result),
         );
       }
     } catch (err) {
@@ -239,13 +241,13 @@ export default function ReporteeMapPage() {
         <ol style={{ margin: "8px 0 0", paddingLeft: 20 }}>
           <li>Use Assign to map reportees on-screen, or download the template for bulk edits</li>
           <li>Fill in <code>managerEmployeeId</code> and <code>reporteeEmployeeId</code> — one manager→reportee pair per row (e.g. A→B on one row, A→C on the next)</li>
-          <li>Upload the file — reportees will be added to each manager&apos;s existing team after validation</li>
+          <li>Upload the file — each employee’s existing manager mapping will be replaced after validation</li>
         </ol>
         <p style={{ margin: "8px 0 0", fontSize: 13 }}>
           Note: Do not put multiple reportees in one cell. Reportees must have a lower designation level than their manager.
-          Each upload only adds reportees; existing mappings are kept.
+          Only employees specified in the upload are updated; other team members are kept.
           To remove a reportee, use Edit on the manager&apos;s row, or set No manager in Users → Edit.
-          An employee already mapped to another manager is rejected until that mapping is removed. Rows with an empty reportee cell are rejected.
+          An existing manager is automatically replaced. Assigning the same employee to different managers in one file rejects all assignments for that employee. Valid entries are processed even when other entries fail. Rows with an empty reportee cell are rejected.
           Inactive users are accepted and appear in red on Template, Export, and this table.
           Deactivating a user still clears their mapping. Live team reports still ignore inactive users.
         </p>
@@ -275,7 +277,7 @@ export default function ReporteeMapPage() {
             marginBottom: 16,
           }}
         >
-          Upload completed: {uploadResult.successCount} managers processed.
+          {formatReporteeUploadResult(uploadResult)}
         </div>
       )}
 
