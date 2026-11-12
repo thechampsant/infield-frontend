@@ -47,6 +47,9 @@ export interface UserReporteeMappingListResult {
 }
 
 export interface ReporteeBulkMappingResult {
+  createdCount?: number;
+  replacedCount?: number;
+  unchangedCount?: number;
   total: number;
   successCount: number;
   invalidCount: number;
