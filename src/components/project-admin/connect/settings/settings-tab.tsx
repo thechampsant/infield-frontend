@@ -3,7 +3,7 @@
 import React from "react";
 import type { AuditEntry } from "@/types/project-admin";
 import { ShieldCheck, Lock } from "lucide-react";
-import ConnectConfigurationAuditHistory from "./ConnectConfigurationAuditHistory";
+import ConnectConfigurationAuditHistory from "../ConnectConfigurationAuditHistory";
 
 export interface SettingsTabProps {
   projectName: string;

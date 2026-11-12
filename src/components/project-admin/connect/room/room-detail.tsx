@@ -8,6 +8,7 @@ import {
   Send,
   UserMinus,
   Loader2,
+  X,
 } from "lucide-react";
 import type { ChatRoom, RoomMember, RoomMessage, RoomSubTab } from "@/components/project-admin/connect/types";
 import { RoomSettingsTab } from "./room-settings-tab";
@@ -22,7 +23,7 @@ export interface RoomDetailProps {
   onDeleteMessage: (msgId: string) => void | Promise<void>;
   onAddMember: () => void;
   onRemoveMember: (memberId: string) => void | Promise<void>;
-  onSimulateExit?: (memberId: string) => void | Promise<void>;
+  onSimulateExit?: (memberId: string) => void | boolean | Promise<void | boolean>;
   onRenameRoom: (name: string) => void | Promise<void>;
   onDeleteRoom: (roomId: string) => void | Promise<void>;
 }
@@ -44,6 +45,7 @@ export function RoomDetail({
   const [inputMessage, setInputMessage] = useState("");
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
+  const [memberToExit, setMemberToExit] = useState<RoomMember | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,13 +60,14 @@ export function RoomDetail({
     await onSendMessage(trimmed);
   }
 
-  async function runMemberAction(memberId: string, action: () => void | Promise<void>) {
+  async function runMemberAction(memberId: string, action: () => void | boolean | Promise<void | boolean>): Promise<boolean> {
     setBusyMemberId(memberId);
     setMemberActionError(null);
     try {
-      await action();
+      return (await action()) !== false;
     } catch (error) {
       setMemberActionError(error instanceof Error ? error.message : "Could not update this room member.");
+      return false;
     } finally {
       setBusyMemberId(null);
     }
@@ -272,7 +275,10 @@ export function RoomDetail({
 
                   <button
                     type="button"
-                    onClick={() => runMemberAction(member.id, () => onSimulateExit?.(member.id))}
+                    onClick={() => {
+                      setMemberActionError(null);
+                      setMemberToExit(member);
+                    }}
                     disabled={busyMemberId !== null}
                     className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50/40 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Simulates deactivation in the Users master"
@@ -283,6 +289,66 @@ export function RoomDetail({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {memberToExit && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="simulate-exit-title"
+          className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={(event) => {
+            if (busyMemberId === null && event.target === event.currentTarget) setMemberToExit(null);
+          }}
+        >
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-6 pt-5 pb-4 flex items-start justify-between">
+              <h3 id="simulate-exit-title" className="text-base font-bold text-slate-900">
+                Deactivate {memberToExit.name}?
+              </h3>
+              <button
+                type="button"
+                onClick={() => setMemberToExit(null)}
+                disabled={busyMemberId !== null}
+                aria-label="Close deactivation dialog"
+                className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="px-6 pb-5 text-sm leading-5 text-slate-600">
+              This simulates an exit in the Users master. {memberToExit.name} loses app access and is removed from their active rooms; past messages show as &quot;Former member&quot;.
+            </p>
+            {memberActionError && (
+              <p role="alert" className="px-6 pb-4 text-xs font-medium text-red-600">{memberActionError}</p>
+            )}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMemberToExit(null)}
+                disabled={busyMemberId !== null}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busyMemberId !== null}
+                onClick={async () => {
+                  const didExit = await runMemberAction(
+                    memberToExit.id,
+                    () => onSimulateExit?.(memberToExit.id),
+                  );
+                  if (didExit) setMemberToExit(null);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+              >
+                {busyMemberId === memberToExit.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Deactivate user
+              </button>
+            </div>
           </div>
         </div>
       )}

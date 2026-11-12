@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Plus, Info, Loader2, AlertCircle } from "lucide-react";
-import type { WallPost } from "./types";
+import type { WallPost } from "../types";
 import {
   WallPostCard,
   WallComposerModal,
@@ -11,7 +11,7 @@ import {
   type WallPostFormValues,
   type UnseenUserRow,
   exportUnseenUsersToCsv,
-} from "./wall";
+} from ".";
 import { connectWallService } from "@/lib/api/connect-wall-service";
 
 export interface WallTabProps {

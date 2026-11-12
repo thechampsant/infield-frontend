@@ -13,11 +13,10 @@ import type {
   WallVideoMetadata,
   ConnectTab,
 } from "./types";
-import { INITIAL_WALL_POSTS } from "./mock-data";
-import { WallTab } from "./wall-tab";
+import { WallTab } from "./wall/wall-tab";
 import type { WallPostFormValues, UnseenUserRow } from "./wall";
 import { ChatRoomsTab } from "./room";
-import { SettingsTab } from "./settings-tab";
+import { SettingsTab } from "./settings/settings-tab";
 import { NewPostModal } from "./modals/new-post-modal";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { AlertCircle, SlidersHorizontal } from "lucide-react";
@@ -106,8 +105,7 @@ export function ConnectPage({ tab }: { tab: "wall" | "room" | "setting" }) {
       } catch (err) {
         if (cancelled) return;
         console.warn("Could not fetch Wall posts from backend, using default feed", err);
-        // In offline / mock test environment, preserve initial test posts
-        setWallPosts(INITIAL_WALL_POSTS);
+        setWallPosts([]);
       } finally {
         if (!cancelled) setLoadingWall(false);
       }

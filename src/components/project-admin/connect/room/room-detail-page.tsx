@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle, ChevronLeft } from "lucide-react";
 import type {
@@ -19,8 +19,7 @@ import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { connectWallService } from "@/lib/api/connect-wall-service";
 import type { ProjectUser } from "@/types/project-admin";
-import { projectUsersService } from "@/lib/api/project-users-service";
-import { deactivateProjectUser } from "@/lib/project-admin/user-deactivation";
+import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 
 export interface RoomDetailPageProps {
   roomId: string;
@@ -45,6 +44,27 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+
+  const handleMembershipRefresh = useCallback((details: RoomDetails, refreshedMessages: RoomMessage[]) => {
+    setMembers(details.members);
+    setMessages(refreshedMessages);
+    setRoom((prev) => prev ? {
+      ...prev,
+      id: details.roomId,
+      _id: details.roomId,
+      name: details.name,
+      initials: getRoomInitials(details.name),
+      memberCount: details.memberCount,
+    } : prev);
+  }, []);
+
+  const roomMembership = useRoomMembership({
+    roomId,
+    projectId,
+    accountId,
+    onRoomRefreshed: handleMembershipRefresh,
+    onEligibleUsersRefreshed: setEligibleUsers,
+  });
 
   useEffect(() => {
     if (!projectId) return;
@@ -196,75 +216,18 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAddMember(users: ProjectUser[]) {
-    const addMemberUserIds = users.map((user) => user.backendId || user.id);
-    await connectRoomService.manageMembers(roomId, { addMemberUserIds }, projectId, accountId);
+    await roomMembership.addMembers(users.map((user) => user.backendId || user.id));
     setIsAddMemberModalOpen(false);
-
-    try {
-      const details = await connectRoomService.getRoomDetails(roomId, projectId, accountId);
-      setMembers(details.members);
-      setRoom((prev) => prev ? {
-        ...prev,
-        id: details.roomId,
-        _id: details.roomId,
-        name: details.name,
-        initials: getRoomInitials(details.name),
-        memberCount: details.memberCount,
-      } : prev);
-    } catch (err) {
-      console.warn("Members were added, but refreshing room details failed", err);
-    }
-    try {
-      await connectRoomService.listRooms(projectId, true, accountId);
-    } catch (err) {
-      console.warn("Members were added, but refreshing the room list failed", err);
-    }
-  }
-
-  async function refreshRoomMembership() {
-    const details = await connectRoomService.getRoomDetails(roomId, projectId, accountId);
-    setMembers(details.members);
-    setRoom((prev) => prev ? {
-      ...prev,
-      id: details.roomId,
-      _id: details.roomId,
-      name: details.name,
-      initials: getRoomInitials(details.name),
-      memberCount: details.memberCount,
-    } : prev);
-    try {
-      await connectRoomService.listRooms(projectId, true, accountId);
-    } catch (err) {
-      console.warn("Room membership changed, but refreshing the room list failed", err);
-    }
   }
 
   async function handleRemoveMember(memberId: string) {
-    await connectRoomService.manageMembers(roomId, { removeMemberUserIds: [memberId] }, projectId, accountId);
-    await refreshRoomMembership();
+    await roomMembership.removeMember(memberId);
   }
 
   async function handleSimulateExit(memberId: string) {
     const member = members.find((candidate) => candidate.id === memberId);
     if (!member) throw new Error("Room member could not be found.");
-
-    const impact = await projectUsersService.getDeactivationImpact(memberId).catch(() => null);
-    if (impact?.canDeactivate === false) {
-      window.alert(impact.message || `${member.name} cannot be deactivated right now.`);
-      return;
-    }
-    const confirmation = `Deactivate ${member.name} in the Users master? This also removes their active room memberships.${impact?.message ? `\n\n${impact.message}` : ""}`;
-    if (!window.confirm(confirmation)) return;
-
-    const didDeactivate = await deactivateProjectUser(memberId, (message) => window.alert(message));
-    if (!didDeactivate) return;
-
-    connectWallService.clearUsersCache(projectId);
-    const [usersResult] = await Promise.all([
-      connectWallService.getActiveProjectUsers(projectId || "", true),
-      refreshRoomMembership(),
-    ]);
-    setEligibleUsers(usersResult.data);
+    await roomMembership.simulateExit(memberId, member.name);
   }
 
   if (isLoading) {

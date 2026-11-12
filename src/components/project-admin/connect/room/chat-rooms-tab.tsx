@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Info, Loader2 } from "lucide-react";
 import type {
@@ -16,9 +16,7 @@ import { RoomDetail } from "./room-detail";
 import { initials } from "./room-service";
 import type { CreateRoomFormValues } from "./room-schema";
 import { AddMemberModal } from "@/components/project-admin/connect/modals/add-member-modal";
-import { projectUsersService } from "@/lib/api/project-users-service";
-import { deactivateProjectUser } from "@/lib/project-admin/user-deactivation";
-import { connectWallService } from "@/lib/api/connect-wall-service";
+import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 
 function useSafeRouter() {
   try {
@@ -69,6 +67,29 @@ export function ChatRoomsTab({
 
   useEffect(() => setActiveEligibleUsers(eligibleUsers), [eligibleUsers]);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
+
+  const handleMembershipRefresh = useCallback((details: RoomDetails, refreshedMessages: RoomMessage[], refreshedRooms?: ChatRoom[]) => {
+    setMembers(details.members);
+    setMessages(refreshedMessages);
+    setRooms((prev) => {
+      const source = refreshedRooms && refreshedRooms.some((room) => (room._id || room.id) === selectedRoomId)
+        ? refreshedRooms
+        : prev;
+      return source.map((room) =>
+        (room._id || room.id) === selectedRoomId
+          ? { ...room, name: details.name, memberCount: details.memberCount }
+          : room,
+      );
+    });
+  }, [selectedRoomId]);
+
+  const roomMembership = useRoomMembership({
+    roomId: selectedRoomId,
+    projectId,
+    accountId,
+    onRoomRefreshed: handleMembershipRefresh,
+    onEligibleUsersRefreshed: setActiveEligibleUsers,
+  });
 
   // 1. Dynamic fetch of Chat Rooms list (cached & deduplicated)
   useEffect(() => {
@@ -223,73 +244,18 @@ export function ChatRoomsTab({
 
   // Add Member Handler
   async function handleAddMember(users: ProjectUser[]) {
-    if (!selectedRoomId) throw new Error("Select a room before adding members.");
-    const addMemberUserIds = users.map((user) => user.backendId || user.id);
-    await connectRoomService.manageMembers(selectedRoomId, { addMemberUserIds }, projectId, accountId);
+    await roomMembership.addMembers(users.map((user) => user.backendId || user.id));
     setIsAddMemberModalOpen(false);
-
-    try {
-      const details = await connectRoomService.getRoomDetails(selectedRoomId, projectId, accountId);
-      setMembers(details.members);
-      setRooms((prev) => prev.map((room) =>
-        (room._id || room.id) === selectedRoomId
-          ? { ...room, name: details.name, memberCount: details.memberCount }
-          : room,
-      ));
-    } catch (err) {
-      console.warn("Members were added, but refreshing room details failed", err);
-    }
-    try {
-      const refreshedRooms = await connectRoomService.listRooms(projectId, true, accountId);
-      setRooms(refreshedRooms);
-    } catch (err) {
-      console.warn("Members were added, but refreshing the room list failed", err);
-    }
-  }
-
-  async function refreshSelectedRoomMembers() {
-    if (!selectedRoomId) return;
-    const details = await connectRoomService.getRoomDetails(selectedRoomId, projectId, accountId);
-    setMembers(details.members);
-    setRooms((prev) => prev.map((room) =>
-      (room._id || room.id) === selectedRoomId
-        ? { ...room, name: details.name, memberCount: details.memberCount }
-        : room,
-    ));
-    try {
-      const refreshedRooms = await connectRoomService.listRooms(projectId, true, accountId);
-      setRooms(refreshedRooms);
-    } catch (err) {
-      console.warn("Room membership changed, but refreshing the room list failed", err);
-    }
   }
 
   async function handleRemoveMember(memberId: string) {
-    if (!selectedRoomId) throw new Error("Select a room before removing members.");
-    await connectRoomService.manageMembers(selectedRoomId, { removeMemberUserIds: [memberId] }, projectId, accountId);
-    await refreshSelectedRoomMembers();
+    await roomMembership.removeMember(memberId);
   }
 
   async function handleSimulateExit(memberId: string) {
     const member = members.find((candidate) => candidate.id === memberId);
     if (!member) throw new Error("Room member could not be found.");
-    const impact = await projectUsersService.getDeactivationImpact(memberId).catch(() => null);
-    if (impact?.canDeactivate === false) {
-      window.alert(impact.message || `${member.name} cannot be deactivated right now.`);
-      return;
-    }
-    const confirmation = `Deactivate ${member.name} in the Users master? This also removes their active room memberships.${impact?.message ? `\n\n${impact.message}` : ""}`;
-    if (!window.confirm(confirmation)) return;
-    const didDeactivate = await deactivateProjectUser(memberId, (message) => window.alert(message));
-    if (didDeactivate) {
-      connectWallService.clearUsersCache(projectId);
-      await Promise.all([
-        refreshSelectedRoomMembers(),
-        connectWallService.getActiveProjectUsers(projectId || "", true).then((result) => {
-          setActiveEligibleUsers(result.data);
-        }),
-      ]);
-    }
+    await roomMembership.simulateExit(memberId, member.name);
   }
 
   // If a room is selected, render RoomDetail view

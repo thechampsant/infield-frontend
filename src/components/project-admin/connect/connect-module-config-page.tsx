@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useConnectSettings } from "@/hooks/use-connect-settings";
-import { SettingsTab } from "./settings-tab";
+import { SettingsTab } from "./settings/settings-tab";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { ExternalLink } from "lucide-react";
@@ -22,8 +22,8 @@ export function ConnectModuleConfigPage({
   const currentUserName =
     user
       ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-        user.email ||
-        "Project Admin"
+      user.email ||
+      "Project Admin"
       : "Project Admin";
 
   const effectiveProjectName = projectName || "Sample Retail Program";

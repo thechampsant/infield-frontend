@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { SettingsTab } from "./settings-tab";
+import { SettingsTab } from "./settings/settings-tab";
 import { connectConfigService } from "@/lib/api/connect-config-service";
 import { PROJECT_MODULE_CATALOG } from "@/lib/project-admin/module-catalog";
 

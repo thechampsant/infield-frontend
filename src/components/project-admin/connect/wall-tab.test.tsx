@@ -1,16 +1,15 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, vi } from "vitest";
-import { WallTab } from "./wall-tab";
+import { WallTab } from "./wall/wall-tab";
 import { WallPostCard } from "./wall/wall-post-card";
 import { WallComposerModal } from "./wall/wall-composer-modal";
 import { WallUnseenModal } from "./wall/wall-unseen-modal";
 import { WallDeleteModal } from "./wall/wall-delete-modal";
-import { INITIAL_WALL_POSTS } from "./mock-data";
 import type { WallPost } from "./types";
 
 describe("WallTab Component Suite", () => {
-  const defaultPosts: WallPost[] = INITIAL_WALL_POSTS;
+  const defaultPosts: WallPost[] = [];
   const userCount = 36;
 
   it("renders Wall subheader with total active user count and push notice", () => {
