@@ -7,10 +7,10 @@ import { X, Info, Loader2 } from "lucide-react";
 import {
   createRoomSchema,
   type CreateRoomFormValues,
-} from "./room-schema";
-import { plural, initials } from "./room-service";
+} from "../room/room-schema";
 import type { ProjectUser } from "@/types/project-admin";
-import { MemberUserPicker } from "./member-user-picker";
+import { MemberUserPicker } from "../room/member-user-picker";
+import { plural } from "../utils";
 
 export interface CreateRoomModalProps {
   isOpen: boolean;

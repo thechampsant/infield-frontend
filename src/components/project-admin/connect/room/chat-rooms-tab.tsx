@@ -9,7 +9,7 @@ import type {
 import type { ProjectUser } from "@/types/project-admin";
 import { connectRoomService } from "@/lib/api/connect-room-service";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
-import { CreateRoomModal } from "./create-room-modal";
+import { CreateRoomModal } from "../modals/create-room-modal";
 import type { CreateRoomFormValues } from "./room-schema";
 
 function useSafeRouter() {

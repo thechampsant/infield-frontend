@@ -8,12 +8,12 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ accountCode: "acc", projectCode: "prj", roomId: "room-123" }),
 }));
 
-import { CreateRoomModal } from "./create-room-modal";
-import { RoomSettingsTab } from "./room-settings-tab";
-import { ChatRoomsTab } from "./chat-rooms-tab";
-import { RoomDeleteModal } from "./room-delete-modal";
-import { RoomDetail } from "./room-detail";
-import { RoomDetailPage } from "./room-detail-page";
+import { CreateRoomModal } from "../modals/create-room-modal";
+import { RoomSettingsTab } from "../room/room-settings-tab";
+import { ChatRoomsTab } from "../room/chat-rooms-tab";
+import { RoomDeleteModal } from "../modals/room-delete-modal";
+import { RoomDetail } from "../room/room-detail";
+import { RoomDetailPage } from "../room/room-detail-page";
 import type { ChatRoom, RoomMember, RoomMessage } from "@/components/project-admin/connect/types";
 import type { ProjectUser } from "@/types/project-admin";
 

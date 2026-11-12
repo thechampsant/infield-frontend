@@ -12,7 +12,6 @@ import {
   connectRoomService,
   getRoomInitials,
 } from "@/lib/api/connect-room-service";
-import { initials } from "./room-service";
 import { RoomDetail } from "./room-detail";
 import { AddMemberModal } from "@/components/project-admin/connect/modals/add-member-modal";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";

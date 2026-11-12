@@ -3,10 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, vi } from "vitest";
 import { WallTab } from "../wall/wall-tab";
 import { WallPostCard } from "../wall/wall-post-card";
-import { WallComposerModal } from "../wall/wall-composer-modal";
-import { WallUnseenModal } from "../wall/wall-unseen-modal";
-import { WallDeleteModal } from "../wall/wall-delete-modal";
+import { WallUnseenModal } from "../modals/wall-unseen-modal";
+import { WallDeleteModal } from "../modals/wall-delete-modal";
 import type { WallPost } from "../types";
+import { WallComposerModal } from "../modals/wall-composer-modal";
 
 describe("WallTab Component Suite", () => {
   const defaultPosts: WallPost[] = [];

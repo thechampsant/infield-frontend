@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ChatRoom, RoomMember, RoomMessage, RoomSubTab } from "@/components/project-admin/connect/types";
 import { RoomSettingsTab } from "./room-settings-tab";
-import { plural } from "./room-service";
+import { plural } from "../utils";
 
 export interface RoomDetailProps {
   room: ChatRoom;
@@ -108,9 +108,8 @@ export function RoomDetail({
             role="tab"
             aria-selected={roomSubTab === "messages"}
             onClick={() => setRoomSubTab("messages")}
-            className={`connect-subtab-item ${
-              roomSubTab === "messages" ? "connect-subtab-item--active" : ""
-            }`}
+            className={`connect-subtab-item ${roomSubTab === "messages" ? "connect-subtab-item--active" : ""
+              }`}
           >
             Messages
           </button>
@@ -119,9 +118,8 @@ export function RoomDetail({
             role="tab"
             aria-selected={roomSubTab === "members"}
             onClick={() => setRoomSubTab("members")}
-            className={`connect-subtab-item ${
-              roomSubTab === "members" ? "connect-subtab-item--active" : ""
-            }`}
+            className={`connect-subtab-item ${roomSubTab === "members" ? "connect-subtab-item--active" : ""
+              }`}
           >
             Members
           </button>
@@ -130,9 +128,8 @@ export function RoomDetail({
             role="tab"
             aria-selected={roomSubTab === "room-settings"}
             onClick={() => setRoomSubTab("room-settings")}
-            className={`connect-subtab-item ${
-              roomSubTab === "room-settings" ? "connect-subtab-item--active" : ""
-            }`}
+            className={`connect-subtab-item ${roomSubTab === "room-settings" ? "connect-subtab-item--active" : ""
+              }`}
           >
             Room settings
           </button>

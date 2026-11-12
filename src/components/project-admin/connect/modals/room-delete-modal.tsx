@@ -2,8 +2,8 @@
 
 import React from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { plural } from "./room-service";
 import type { ChatRoom } from "@/components/project-admin/connect/types";
+import { plural } from "../utils";
 
 export interface RoomDeleteModalProps {
   isOpen: boolean;

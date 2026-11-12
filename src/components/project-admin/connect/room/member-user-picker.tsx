@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import type { ProjectUser } from "@/types/project-admin";
-import { getInitialsColor, initials } from "./room-service";
+import { getInitialsColor, initials } from "../utils";
 
 interface MemberUserPickerProps {
   users: ProjectUser[];

@@ -5,7 +5,6 @@ import { Plus, Info, Loader2, AlertCircle } from "lucide-react";
 import type { WallPost } from "../types";
 import {
   WallPostCard,
-  WallComposerModal,
   WallUnseenModal,
   WallDeleteModal,
   type WallPostFormValues,
@@ -13,6 +12,7 @@ import {
   exportUnseenUsersToCsv,
 } from ".";
 import { connectWallService } from "@/lib/api/connect-wall-service";
+import { WallComposerModal } from "../modals/wall-composer-modal";
 
 export interface WallTabProps {
   posts: WallPost[];

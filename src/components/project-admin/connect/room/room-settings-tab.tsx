@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Trash2, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { renameRoomSchema, type RenameRoomFormValues } from "./room-schema";
-import { RoomDeleteModal } from "./room-delete-modal";
+import { RoomDeleteModal } from "../modals/room-delete-modal";
 import type { ChatRoom } from "@/components/project-admin/connect/types";
 
 export interface RoomSettingsTabProps {

@@ -1,3 +1,45 @@
 {
-    "typescript.autoClosingTags": false
+    "kiroAgent.configureMCP": "Disabled",
+    "files.associations": {
+        "*.env": "dotenv",
+        "*.env.*": "dotenv",
+        ".env": "dotenv",
+        ".env.*": "dotenv"
+    },
+    "typescript.autoClosingTags": false,
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "never",
+        "source.fixAll.eslint": "never",
+        "source.organizeImports": "never"
+    },
+    "[typescript]": {
+        "editor.formatOnSave": false
+    },
+    "[typescriptreact]": {
+        "editor.formatOnSave": false
+    },
+    "[javascript]": {
+        "editor.formatOnSave": false
+    },
+    "[javascriptreact]": {
+        "editor.formatOnSave": false
+    },
+    "[json]": {
+        "editor.formatOnSave": false
+    },
+    "[jsonc]": {
+        "editor.formatOnSave": false
+    },
+    "[css]": {
+        "editor.formatOnSave": false
+    },
+    "[scss]": {
+        "editor.formatOnSave": false
+    },
+    "[html]": {
+        "editor.formatOnSave": false
+    }
 }

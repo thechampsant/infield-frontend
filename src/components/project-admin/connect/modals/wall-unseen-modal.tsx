@@ -3,7 +3,8 @@
 import React from "react";
 import { X, Download } from "lucide-react";
 import type { WallPost } from "../types";
-import { exportUnseenUsersToCsv, type UnseenUserRow } from "./wall-service";
+import { exportUnseenUsersToCsv, type UnseenUserRow } from "../wall/wall-service";
+import { initials, getInitialsColor } from "../utils";
 
 export interface WallUnseenModalProps {
   post: WallPost | null;
@@ -12,42 +13,6 @@ export interface WallUnseenModalProps {
   onDownload?: (post: WallPost, users: UnseenUserRow[]) => void | Promise<void>;
 }
 
-// Exact seed people from prototype matching the screenshot
-const PROTOTYPE_SAMPLE_UNSEEN_USERS: UnseenUserRow[] = [
-  { id: "u29", name: "Priya Venkatesh", desig: "Brand Ambassador", store: "Chennai – T. Nagar" },
-  { id: "u30", name: "Arun Kumar", desig: "Brand Ambassador", store: "Chennai – Velachery" },
-  { id: "am1", name: "Arjun Mehta", desig: "Area Manager", store: "West area office" },
-  { id: "am2", name: "Kavya Rao", desig: "Area Manager", store: "South area office" },
-  { id: "am3", name: "Rohit Bansal", desig: "Area Manager", store: "North area office" },
-  { id: "am4", name: "Lakshmi Iyer", desig: "Area Manager", store: "South-East area office" },
-  { id: "cm1", name: "Sameer Kapoor", desig: "Cluster Manager", store: "Cluster office" },
-  { id: "t1", name: "Neha Joshi", desig: "Trainer", store: "Training hub, Mumbai" },
-];
-
-// Color mapping for avatar initials matching the screenshot
-const AV_COLORS = [
-  "#5b5bd6", // Purple / Indigo (PV)
-  "#1d4ed8", // Deep blue (AK)
-  "#1e293b", // Dark navy (AM)
-  "#0284c7", // Sky blue (KR)
-  "#b45309", // Amber brown (RB)
-  "#0d9488", // Teal
-  "#c2410c", // Rust orange
-];
-
-function getAvatarColor(idOrName: string): string {
-  if (idOrName === "u29" || idOrName.includes("Priya")) return "#5b5bd6";
-  if (idOrName === "u30" || idOrName.includes("Arun")) return "#1d4ed8";
-  if (idOrName === "am1" || idOrName.includes("Arjun")) return "#1e293b";
-  if (idOrName === "am2" || idOrName.includes("Kavya")) return "#0284c7";
-  if (idOrName === "am3" || idOrName.includes("Rohit")) return "#b45309";
-
-  let h = 0;
-  for (const c of idOrName) {
-    h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  }
-  return AV_COLORS[h % AV_COLORS.length];
-}
 
 function getInitials(name: string): string {
   if (!name) return "?";
@@ -75,7 +40,7 @@ export function WallUnseenModal({
   const rawList =
     unseenUsers && unseenUsers.length > 0
       ? unseenUsers.slice(0, unseenCount)
-      : PROTOTYPE_SAMPLE_UNSEEN_USERS.slice(0, Math.min(PROTOTYPE_SAMPLE_UNSEEN_USERS.length, unseenCount));
+      : [];
 
   function handleDownload() {
     if (!post) return;
@@ -138,11 +103,10 @@ export function WallUnseenModal({
                   >
                     {/* Circle avatar with bold white initials */}
                     <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs"
-                      style={{ backgroundColor: getAvatarColor(user.id || user.name) }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs ${getInitialsColor(user.id || user.name)}`}
                       aria-hidden="true"
                     >
-                      {getInitials(user.name)}
+                      {initials(user.name)}
                     </div>
 
                     {/* Name & Subtitle */}
