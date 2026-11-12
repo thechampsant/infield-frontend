@@ -1,22 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Info, Loader2 } from "lucide-react";
 import type {
   ChatRoom,
-  RoomMember,
-  RoomMessage,
 } from "@/components/project-admin/connect/types";
 import type { ProjectUser } from "@/types/project-admin";
 import { connectRoomService } from "@/lib/api/connect-room-service";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 import { CreateRoomModal } from "./create-room-modal";
-import { RoomDetail } from "./room-detail";
-import { initials } from "./room-service";
 import type { CreateRoomFormValues } from "./room-schema";
-import { AddMemberModal } from "@/components/project-admin/connect/modals/add-member-modal";
-import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 
 function useSafeRouter() {
   try {
@@ -32,7 +26,6 @@ export interface ChatRoomsTabProps {
   eligibleUsers?: ProjectUser[];
   initialRooms?: ChatRoom[];
   rooms?: ChatRoom[];
-  onSelectRoom?: (roomId: string) => void;
 }
 
 export function ChatRoomsTab({
@@ -41,7 +34,6 @@ export function ChatRoomsTab({
   eligibleUsers = [],
   initialRooms,
   rooms: propRooms,
-  onSelectRoom,
 }: ChatRoomsTabProps) {
   const router = useSafeRouter();
   const projectContext = useOptionalProjectContext();
@@ -53,43 +45,9 @@ export function ChatRoomsTab({
   const [rooms, setRooms] = useState<ChatRoom[]>(() => propRooms || initialRooms || []);
   const [isLoading, setIsLoading] = useState<boolean>(() => Boolean(projectId));
 
-  // Selected room navigation state
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
-  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
-
-  // Room members and messages state
-  const [members, setMembers] = useState<RoomMember[]>([]);
-  const [activeEligibleUsers, setActiveEligibleUsers] = useState(eligibleUsers);
-
-  useEffect(() => setActiveEligibleUsers(eligibleUsers), [eligibleUsers]);
-  const [messages, setMessages] = useState<RoomMessage[]>([]);
-
-  const handleMembershipRefresh = useCallback((details: RoomDetails, refreshedMessages: RoomMessage[], refreshedRooms?: ChatRoom[]) => {
-    setMembers(details.members);
-    setMessages(refreshedMessages);
-    setRooms((prev) => {
-      const source = refreshedRooms && refreshedRooms.some((room) => (room._id || room.id) === selectedRoomId)
-        ? refreshedRooms
-        : prev;
-      return source.map((room) =>
-        (room._id || room.id) === selectedRoomId
-          ? { ...room, name: details.name, memberCount: details.memberCount }
-          : room,
-      );
-    });
-  }, [selectedRoomId]);
-
-  const roomMembership = useRoomMembership({
-    roomId: selectedRoomId,
-    projectId,
-    accountId,
-    onRoomRefreshed: handleMembershipRefresh,
-    onEligibleUsersRefreshed: setActiveEligibleUsers,
-  });
 
   // 1. Dynamic fetch of Chat Rooms list (cached & deduplicated)
   useEffect(() => {
@@ -122,19 +80,13 @@ export function ChatRoomsTab({
     };
   }, [projectId, accountId, initialRooms]);
 
-  // Selected room object
-  const selectedRoom = rooms.find((r) => (r._id || r.id) === selectedRoomId);
-
-  // Room Selection Handler — navigates to /connect/room/:id
+  // Room details live at the dedicated /connect/room/:id route.
   function handleSelectRoom(roomId: string) {
-    if (onSelectRoom) {
-      onSelectRoom(roomId);
-    }
-    if (accountCode && projectCode && router) {
-      router.push(`/project-admin/${accountCode}/${projectCode}/connect/room/${roomId}`);
+    if (!accountCode || !projectCode || !router) {
+      console.warn("Cannot open room details without project route context.");
       return;
     }
-    setSelectedRoomId(roomId);
+    router.push(`/project-admin/${accountCode}/${projectCode}/connect/room/${roomId}`);
   }
 
   // Create Room Handler
@@ -160,133 +112,6 @@ export function ChatRoomsTab({
     } finally {
       setIsCreatingRoom(false);
     }
-  }
-
-  // Rename Room Handler
-  async function handleRenameRoom(newName: string) {
-    if (!selectedRoomId) return;
-    try {
-      await connectRoomService.renameRoom(selectedRoomId, newName, projectId, accountId);
-    } catch (err) {
-      console.warn("Backend rename room failed, updating locally", err);
-    } finally {
-      setRooms((prev) =>
-        prev.map((r) =>
-          r.id === selectedRoomId || r._id === selectedRoomId
-            ? { ...r, name: newName, initials: initials(newName) }
-            : r,
-        ),
-      );
-    }
-  }
-
-  // Delete Room Handler
-  async function handleDeleteRoom(roomId: string) {
-    try {
-      await connectRoomService.deleteRoom(roomId, projectId, accountId);
-    } catch (err) {
-      console.warn("Backend delete room failed, removing locally", err);
-    } finally {
-      setRooms((prev) => prev.filter((r) => r.id !== roomId && r._id !== roomId));
-      setSelectedRoomId(null);
-    }
-  }
-
-  // Send Message Handler
-  async function handleSendMessage(content: string) {
-    const clientMessageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const newMsg: RoomMessage = {
-      id: clientMessageId,
-      senderName: "Program Team",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      content,
-      initials: "PT",
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-
-    if (selectedRoomId) {
-      setRooms((prev) =>
-        prev.map((r) =>
-          r._id === selectedRoomId
-            ? { ...r, messageCount: r.messageCount + 1, lastActivity: "Just now" }
-            : r,
-        ),
-      );
-
-      try {
-        await connectRoomService.sendMessage(selectedRoomId, content, clientMessageId);
-      } catch (err) {
-        console.warn("Backend send message failed", err);
-      }
-    }
-  }
-
-  // Delete Message Handler
-  async function handleDeleteMessage(msgId: string) {
-    setMessages((prev) => prev.filter((m) => m.id !== msgId));
-    if (selectedRoomId) {
-      setRooms((prev) =>
-        prev.map((r) =>
-          r._id === selectedRoomId
-            ? { ...r, messageCount: Math.max(0, r.messageCount - 1) }
-            : r,
-        ),
-      );
-
-      try {
-        await connectRoomService.deleteMessage(selectedRoomId, msgId);
-      } catch (err) {
-        console.warn("Backend delete message failed", err);
-      }
-    }
-  }
-
-  // Add Member Handler
-  async function handleAddMember(users: ProjectUser[]) {
-    await roomMembership.addMembers(users.map((user) => user.backendId || user.id));
-    setIsAddMemberModalOpen(false);
-  }
-
-  async function handleRemoveMember(memberId: string) {
-    await roomMembership.removeMember(memberId);
-  }
-
-  async function handleSimulateExit(memberId: string) {
-    const member = members.find((candidate) => candidate.id === memberId);
-    if (!member) throw new Error("Room member could not be found.");
-    await roomMembership.simulateExit(memberId, member.name);
-  }
-
-  // If a room is selected, render RoomDetail view
-  if (selectedRoomId !== null && selectedRoom) {
-    return (
-      <div>
-        <RoomDetail
-          room={selectedRoom}
-          onBack={() => setSelectedRoomId(null)}
-          messages={messages}
-          members={members}
-          onSendMessage={handleSendMessage}
-          onDeleteMessage={handleDeleteMessage}
-          onAddMember={() => setIsAddMemberModalOpen(true)}
-          onRemoveMember={handleRemoveMember}
-          onSimulateExit={handleSimulateExit}
-          onRenameRoom={handleRenameRoom}
-          onDeleteRoom={handleDeleteRoom}
-        />
-
-        <AddMemberModal
-          isOpen={isAddMemberModalOpen}
-          onClose={() => setIsAddMemberModalOpen(false)}
-          onSubmit={handleAddMember}
-          eligibleUsers={activeEligibleUsers}
-          existingMemberIds={members.map((member) => member.id)}
-          memberCount={selectedRoom?.memberCount ?? members.length}
-          roomName={selectedRoom?.name}
-        />
-      </div>
-    );
   }
 
   return (

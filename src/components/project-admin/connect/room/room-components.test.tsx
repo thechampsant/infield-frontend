@@ -170,7 +170,6 @@ describe("Room Components Suite", () => {
         <ChatRoomsTab
           rooms={[MOCK_ROOM]}
           roomsEnabled={true}
-          onSelectRoom={vi.fn()}
         />,
       );
 
@@ -188,7 +187,6 @@ describe("Room Components Suite", () => {
         <ChatRoomsTab
           rooms={[]}
           roomsEnabled={false}
-          onSelectRoom={vi.fn()}
         />,
       );
 
