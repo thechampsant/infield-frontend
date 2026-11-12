@@ -87,11 +87,10 @@ export function RoomSettingsTab({
       {feedback && (
         <div
           role="alert"
-          className={`mt-4 p-3 rounded-lg border text-xs font-medium flex items-center gap-2 ${
-            feedback.type === "success"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-red-50 border-red-200 text-red-800"
-          }`}
+          className={`mt-4 p-3 rounded-lg border text-xs font-medium flex items-center gap-2 ${feedback.type === "success"
+            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+            : "bg-red-50 border-red-200 text-red-800"
+            }`}
         >
           {feedback.type === "success" ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
@@ -123,11 +122,10 @@ export function RoomSettingsTab({
             defaultValue={room.name}
             {...register("name")}
             disabled={isSaving || isDeleting}
-            className={`w-full border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden transition-colors ${
-              errors.name
-                ? "border-red-400 bg-red-50/20 focus:border-red-500"
-                : "border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            }`}
+            className={`w-full border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden transition-colors ${errors.name
+              ? "border-red-400 bg-red-50/20 focus:border-red-500"
+              : "border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              }`}
           />
           {errors.name && (
             <p className="text-xs text-red-600 font-medium mt-1">
@@ -141,7 +139,7 @@ export function RoomSettingsTab({
             type="button"
             onClick={() => setShowDeleteModal(true)}
             disabled={isSaving || isDeleting}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50/60 border border-transparent rounded-lg transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50/60 border border-red-400 rounded-lg transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Delete room</span>
