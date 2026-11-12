@@ -1,7 +1,7 @@
 "use client";
 
-import { ConnectPage } from "@/components/project-admin/connect/page";
+import { ConnectSettingsPage } from "@/components/project-admin/connect/settings/settings-page";
 
 export default function ConnectSettingRoute() {
-  return <ConnectPage tab="setting" />;
+  return <ConnectSettingsPage />;
 }

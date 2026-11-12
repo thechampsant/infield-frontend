@@ -1,7 +1,7 @@
 "use client";
 
-import { ConnectPage } from "@/components/project-admin/connect/page";
+import { ConnectWallPage } from "@/components/project-admin/connect/wall/wall-page";
 
 export default function ConnectWallRoute() {
-  return <ConnectPage tab="wall" />;
+  return <ConnectWallPage />;
 }

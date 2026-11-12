@@ -1,7 +1,7 @@
 "use client";
 
-import { ConnectPage } from "@/components/project-admin/connect/page";
+import { ConnectRoomPage } from "@/components/project-admin/connect/room/room-page";
 
 export default function ConnectRoomRoute() {
-  return <ConnectPage tab="room" />;
+  return <ConnectRoomPage />;
 }

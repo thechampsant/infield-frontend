@@ -1,12 +1,12 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, vi } from "vitest";
-import { WallTab } from "./wall/wall-tab";
-import { WallPostCard } from "./wall/wall-post-card";
-import { WallComposerModal } from "./wall/wall-composer-modal";
-import { WallUnseenModal } from "./wall/wall-unseen-modal";
-import { WallDeleteModal } from "./wall/wall-delete-modal";
-import type { WallPost } from "./types";
+import { WallTab } from "../wall/wall-tab";
+import { WallPostCard } from "../wall/wall-post-card";
+import { WallComposerModal } from "../wall/wall-composer-modal";
+import { WallUnseenModal } from "../wall/wall-unseen-modal";
+import { WallDeleteModal } from "../wall/wall-delete-modal";
+import type { WallPost } from "../types";
 
 describe("WallTab Component Suite", () => {
   const defaultPosts: WallPost[] = [];
