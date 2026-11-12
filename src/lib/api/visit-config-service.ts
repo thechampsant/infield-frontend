@@ -54,6 +54,7 @@ export interface VisitApprovalLevel {
 }
 
 export interface VisitApprovalWorkflowConfig {
+  maximumResubmissionAttempts?: number;
   isEnabled: boolean;
   notifyApproverOnRoute?: boolean;
   levels: VisitApprovalLevel[];
@@ -251,6 +252,7 @@ export function normalizeVisitConfig(
     daySummaryEnabled: bool(raw.daySummaryEnabled),
     blockVisitAfterAttendanceCheckout: bool(raw.blockVisitAfterAttendanceCheckout),
     approvalWorkflow: {
+      maximumResubmissionAttempts: num(approvalWorkflow.maximumResubmissionAttempts, 0),
       isEnabled: bool(approvalWorkflow.isEnabled),
       notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
       rejectionReasons: normalizeRejectionReasonsDto(approvalWorkflow.rejectionReasons),

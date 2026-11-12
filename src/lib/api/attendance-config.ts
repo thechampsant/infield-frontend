@@ -1,3 +1,4 @@
+import { parseResubmissionAttempts } from "@/lib/approval/resubmission-attempts";
 /**
  * Attendance configuration service (INF2-1536).
  *
@@ -136,6 +137,7 @@ export interface RegularizationReasonOptionDto {
 }
 
 export interface RegularizationConfigDto {
+  maximumResubmissionAttempts?: number;
   isEnabled: boolean;
   windowType: RegWindowType;
   timeWindowDays: number;
@@ -334,6 +336,7 @@ export interface AttendanceConfigForm {
   regDateTo: number;
   regMaxRequestsEnabled: boolean;
   regMaxRequestCount: number;
+  regMaximumResubmissionAttempts: string;
   regApprovalEnabled: boolean;
   regNotifyApproverOnRoute: boolean;
   approvalLevels: ApprovalLevelForm[];
@@ -483,6 +486,7 @@ export const DEFAULT_CONFIG_FORM: AttendanceConfigForm = {
   regDateTo: 16,
   regMaxRequestsEnabled: false,
   regMaxRequestCount: 5,
+  regMaximumResubmissionAttempts: "0",
   regApprovalEnabled: true,
   regNotifyApproverOnRoute: false,
   approvalLevels: [],
@@ -716,6 +720,7 @@ export function docToForm(doc: AttendanceConfigDoc | null): AttendanceConfigForm
     regTminusDays: reg?.timeWindowDays ?? DEFAULT_CONFIG_FORM.regTminusDays,
     regDateFrom: reg?.startDayOfMonth ?? DEFAULT_CONFIG_FORM.regDateFrom,
     regDateTo: reg?.endDayOfMonth ?? DEFAULT_CONFIG_FORM.regDateTo,
+    regMaximumResubmissionAttempts: String(reg?.maximumResubmissionAttempts ?? 0),
     regMaxRequestsEnabled: Boolean(reg?.isMaxRequestsEnabled),
     regMaxRequestCount: reg?.maxRequestsLimit ?? DEFAULT_CONFIG_FORM.regMaxRequestCount,
     regApprovalEnabled: reg?.isApprovalFlowEnabled ?? DEFAULT_CONFIG_FORM.regApprovalEnabled,
@@ -812,6 +817,7 @@ export function formToDto(form: AttendanceConfigForm): AttendanceConfigDto {
     autoCheckOutTime: form.autoCheckoutTime,
     regularization: {
       isEnabled: form.regularizationEnabled,
+      maximumResubmissionAttempts: parseResubmissionAttempts(form.regMaximumResubmissionAttempts),
       windowType: form.regWindowType,
       timeWindowDays: form.regTminusDays,
       startDayOfMonth: form.regDateFrom,

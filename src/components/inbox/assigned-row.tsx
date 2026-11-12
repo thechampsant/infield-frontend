@@ -13,6 +13,7 @@ import {
   type InboxItemWithMetadata,
 } from "@/lib/api/inbox-service";
 import { DetailFields } from "./detail-fields";
+import { inboxSubmissionFields } from "@/lib/inbox-resubmission";
 import { TriCheckbox } from "./tri-checkbox";
 import { formatDate, initials, statusClass, statusLabel, timeAgo } from "./inbox-format";
 
@@ -146,7 +147,7 @@ export function AssignedRow({
               </div>
             ) : (
               <DetailFields
-                fields={meta.fields ?? []}
+                fields={inboxSubmissionFields(meta.fields ?? [], item.moduleData)}
                 attachments={details?.attachments}
                 onOpenAttachment={onOpenAttachment}
                 history={details?.approvalHistory}

@@ -7,6 +7,7 @@ import type {
   InboxDisplayField,
   InboxDisplaySection,
 } from "@/lib/api/inbox-items-service";
+import { isVisibleInboxField } from "@/lib/inbox-resubmission";
 
 // ─── Time ago ─────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ export function capitalize(str: string): string {
 // ─── Humanize keys (camelCase / snake_case → Title Case) ───────────────────
 
 export function humanizeKey(key: string): string {
+  if (key === "reApplied") return "Re-Applied";
   return key
     .replace(/_/g, " ")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -137,7 +139,7 @@ export function resolveFields(
 
   // No field sections → fallback: raw moduleData
   if (fieldSections.length === 0) {
-    return Object.entries(moduleData).map(([key, value], idx) => {
+    return Object.entries(moduleData).filter(([key, value]) => isVisibleInboxField(key, value)).map(([key, value], idx) => {
       const dataType = guessDataType(value);
       return {
         fieldKey: key,
@@ -153,6 +155,7 @@ export function resolveFields(
   // Flatten defined fields
   const definedFields: InboxDisplayField[] = fieldSections
     .flatMap((s) => s.fields ?? [])
+    .filter(field => isVisibleInboxField(field.fieldKey, moduleData[field.fieldKey]))
     .slice()
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
@@ -178,6 +181,7 @@ export function resolveFields(
 
   // Append fallback fields for extra moduleData keys
   Object.entries(moduleData).forEach(([key, value]) => {
+    if (!isVisibleInboxField(key, value)) return;
     if (definedKeys.has(key)) return;
     const dataType = guessDataType(value);
     resolved.push({

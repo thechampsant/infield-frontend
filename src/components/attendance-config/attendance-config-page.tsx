@@ -25,6 +25,7 @@ import {
   type AttendanceConfigForm,
 } from "@/lib/api/attendance-config";
 import { ApiError } from "@/lib/api/api-client";
+import { resubmissionAttemptsError } from "@/lib/approval/resubmission-attempts";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { AttendanceConfigEdit } from "./attendance-config-edit";
 import { AttendanceFormBuilder } from "./attendance-form-builder";
@@ -895,6 +896,8 @@ function labelForFormType(formType: AttendanceFormType): string {
 
 function validateConfig(form: AttendanceConfigForm): Record<string, string> {
   const errors: Record<string, string> = {};
+  const retryError = resubmissionAttemptsError(form.regMaximumResubmissionAttempts);
+  if (retryError) errors.regMaximumResubmissionAttempts = retryError;
 
   if (form.types.some((t) => t.geoFenced)) {
     if (form.geoFenceRadius < 10 || form.geoFenceRadius > 5000) {
