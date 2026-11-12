@@ -17,6 +17,10 @@ import { RoomDetail } from "./room-detail";
 import { AddMemberModal } from "@/components/project-admin/connect/modals/add-member-modal";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 import { projectAdminBase } from "@/lib/nav/nav";
+import { connectWallService } from "@/lib/api/connect-wall-service";
+import type { ProjectUser } from "@/types/project-admin";
+import { projectUsersService } from "@/lib/api/project-users-service";
+import { deactivateProjectUser } from "@/lib/project-admin/user-deactivation";
 
 export interface RoomDetailPageProps {
   roomId: string;
@@ -36,10 +40,20 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 
   const [room, setRoom] = useState<ChatRoom | null>(null);
   const [members, setMembers] = useState<RoomMember[]>([]);
+  const [eligibleUsers, setEligibleUsers] = useState<ProjectUser[]>([]);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    connectWallService.getActiveProjectUsers(projectId).then((result) => {
+      if (!cancelled) setEligibleUsers(result.data);
+    }).catch((err) => console.warn("Could not fetch project users for room members", err));
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   // Fetch real room details & real messages
   useEffect(() => {
@@ -181,27 +195,76 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     }
   }
 
-  function handleAddMember(name: string, location: string) {
-    const initialsStr = initials(name);
-    const newMem: RoomMember = {
-      id: `mem-${Date.now()}`,
-      initials: initialsStr,
-      name,
-      role: "Brand Ambassador",
-      location: location || "Project Member",
-      hasDemoPhone: false,
-      avatarColorClass: "bg-teal-700",
-    };
-    setMembers((prev) => [newMem, ...prev]);
-    setRoom((prev) => (prev ? { ...prev, memberCount: prev.memberCount + 1 } : null));
+  async function handleAddMember(users: ProjectUser[]) {
+    const addMemberUserIds = users.map((user) => user.backendId || user.id);
+    await connectRoomService.manageMembers(roomId, { addMemberUserIds }, projectId, accountId);
     setIsAddMemberModalOpen(false);
+
+    try {
+      const details = await connectRoomService.getRoomDetails(roomId, projectId, accountId);
+      setMembers(details.members);
+      setRoom((prev) => prev ? {
+        ...prev,
+        id: details.roomId,
+        _id: details.roomId,
+        name: details.name,
+        initials: getRoomInitials(details.name),
+        memberCount: details.memberCount,
+      } : prev);
+    } catch (err) {
+      console.warn("Members were added, but refreshing room details failed", err);
+    }
+    try {
+      await connectRoomService.listRooms(projectId, true, accountId);
+    } catch (err) {
+      console.warn("Members were added, but refreshing the room list failed", err);
+    }
   }
 
-  function handleRemoveMember(memberId: string) {
-    setMembers((prev) => prev.filter((m) => m.id !== memberId));
-    setRoom((prev) =>
-      prev ? { ...prev, memberCount: Math.max(1, prev.memberCount - 1) } : null,
-    );
+  async function refreshRoomMembership() {
+    const details = await connectRoomService.getRoomDetails(roomId, projectId, accountId);
+    setMembers(details.members);
+    setRoom((prev) => prev ? {
+      ...prev,
+      id: details.roomId,
+      _id: details.roomId,
+      name: details.name,
+      initials: getRoomInitials(details.name),
+      memberCount: details.memberCount,
+    } : prev);
+    try {
+      await connectRoomService.listRooms(projectId, true, accountId);
+    } catch (err) {
+      console.warn("Room membership changed, but refreshing the room list failed", err);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    await connectRoomService.manageMembers(roomId, { removeMemberUserIds: [memberId] }, projectId, accountId);
+    await refreshRoomMembership();
+  }
+
+  async function handleSimulateExit(memberId: string) {
+    const member = members.find((candidate) => candidate.id === memberId);
+    if (!member) throw new Error("Room member could not be found.");
+
+    const impact = await projectUsersService.getDeactivationImpact(memberId).catch(() => null);
+    if (impact?.canDeactivate === false) {
+      window.alert(impact.message || `${member.name} cannot be deactivated right now.`);
+      return;
+    }
+    const confirmation = `Deactivate ${member.name} in the Users master? This also removes their active room memberships.${impact?.message ? `\n\n${impact.message}` : ""}`;
+    if (!window.confirm(confirmation)) return;
+
+    const didDeactivate = await deactivateProjectUser(memberId, (message) => window.alert(message));
+    if (!didDeactivate) return;
+
+    connectWallService.clearUsersCache(projectId);
+    const [usersResult] = await Promise.all([
+      connectWallService.getActiveProjectUsers(projectId || "", true),
+      refreshRoomMembership(),
+    ]);
+    setEligibleUsers(usersResult.data);
   }
 
   if (isLoading) {
@@ -246,6 +309,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         onDeleteMessage={handleDeleteMessage}
         onAddMember={() => setIsAddMemberModalOpen(true)}
         onRemoveMember={handleRemoveMember}
+        onSimulateExit={handleSimulateExit}
         onRenameRoom={handleRenameRoom}
         onDeleteRoom={handleDeleteRoom}
       />
@@ -254,6 +318,10 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         isOpen={isAddMemberModalOpen}
         onClose={() => setIsAddMemberModalOpen(false)}
         onSubmit={handleAddMember}
+        eligibleUsers={eligibleUsers}
+        existingMemberIds={members.map((member) => member.id)}
+        memberCount={room?.memberCount ?? members.length}
+        roomName={room?.name}
       />
     </div>
   );

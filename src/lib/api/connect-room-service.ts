@@ -5,6 +5,7 @@
 
 import { apiClient } from "./api-client";
 import type { ChatRoom, RoomMember, RoomMessage } from "@/components/project-admin/connect/types";
+import { getInitialsColor } from "@/components/project-admin/connect/room/room-service";
 
 export const ROOMS_BASE = "/api/v1/connect/rooms";
 
@@ -345,7 +346,6 @@ export const connectRoomService = {
 
     const rawMembers = res.members || [];
     const members: RoomMember[] = rawMembers.map((m, index) => {
-      const colors = ["bg-blue-900", "bg-emerald-600", "bg-indigo-600", "bg-sky-600", "bg-amber-700"];
       return {
         id: m.userId,
         initials: getRoomInitials(m.name),
@@ -353,7 +353,7 @@ export const connectRoomService = {
         role: m.designation || "Brand Ambassador",
         location: m.employeeCode ? `Emp ${m.employeeCode}` : "Project Member",
         hasDemoPhone: index === 0,
-        avatarColorClass: colors[index % colors.length],
+        avatarColorClass: getInitialsColor(m.userId || m.name),
       };
     });
 
@@ -499,4 +499,3 @@ export const connectRoomService = {
     roomsCache.delete(projectId);
   },
 };
-

@@ -16,6 +16,9 @@ import { RoomDetail } from "./room-detail";
 import { initials } from "./room-service";
 import type { CreateRoomFormValues } from "./room-schema";
 import { AddMemberModal } from "@/components/project-admin/connect/modals/add-member-modal";
+import { projectUsersService } from "@/lib/api/project-users-service";
+import { deactivateProjectUser } from "@/lib/project-admin/user-deactivation";
+import { connectWallService } from "@/lib/api/connect-wall-service";
 
 function useSafeRouter() {
   try {
@@ -62,6 +65,9 @@ export function ChatRoomsTab({
 
   // Room members and messages state
   const [members, setMembers] = useState<RoomMember[]>([]);
+  const [activeEligibleUsers, setActiveEligibleUsers] = useState(eligibleUsers);
+
+  useEffect(() => setActiveEligibleUsers(eligibleUsers), [eligibleUsers]);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
 
   // 1. Dynamic fetch of Chat Rooms list (cached & deduplicated)
@@ -216,24 +222,74 @@ export function ChatRoomsTab({
   }
 
   // Add Member Handler
-  function handleAddMember(name: string, location: string) {
-    const initialsStr = initials(name);
-    const newMem: RoomMember = {
-      id: `mem-${Date.now()}`,
-      initials: initialsStr,
-      name,
-      role: "Brand Ambassador",
-      location,
-      hasDemoPhone: false,
-      avatarColorClass: "bg-purple-700",
-    };
-    setMembers((prev) => [newMem, ...prev]);
+  async function handleAddMember(users: ProjectUser[]) {
+    if (!selectedRoomId) throw new Error("Select a room before adding members.");
+    const addMemberUserIds = users.map((user) => user.backendId || user.id);
+    await connectRoomService.manageMembers(selectedRoomId, { addMemberUserIds }, projectId, accountId);
     setIsAddMemberModalOpen(false);
+
+    try {
+      const details = await connectRoomService.getRoomDetails(selectedRoomId, projectId, accountId);
+      setMembers(details.members);
+      setRooms((prev) => prev.map((room) =>
+        (room._id || room.id) === selectedRoomId
+          ? { ...room, name: details.name, memberCount: details.memberCount }
+          : room,
+      ));
+    } catch (err) {
+      console.warn("Members were added, but refreshing room details failed", err);
+    }
+    try {
+      const refreshedRooms = await connectRoomService.listRooms(projectId, true, accountId);
+      setRooms(refreshedRooms);
+    } catch (err) {
+      console.warn("Members were added, but refreshing the room list failed", err);
+    }
   }
 
-  // Remove Member Handler
-  function handleRemoveMember(memberId: string) {
-    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+  async function refreshSelectedRoomMembers() {
+    if (!selectedRoomId) return;
+    const details = await connectRoomService.getRoomDetails(selectedRoomId, projectId, accountId);
+    setMembers(details.members);
+    setRooms((prev) => prev.map((room) =>
+      (room._id || room.id) === selectedRoomId
+        ? { ...room, name: details.name, memberCount: details.memberCount }
+        : room,
+    ));
+    try {
+      const refreshedRooms = await connectRoomService.listRooms(projectId, true, accountId);
+      setRooms(refreshedRooms);
+    } catch (err) {
+      console.warn("Room membership changed, but refreshing the room list failed", err);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    if (!selectedRoomId) throw new Error("Select a room before removing members.");
+    await connectRoomService.manageMembers(selectedRoomId, { removeMemberUserIds: [memberId] }, projectId, accountId);
+    await refreshSelectedRoomMembers();
+  }
+
+  async function handleSimulateExit(memberId: string) {
+    const member = members.find((candidate) => candidate.id === memberId);
+    if (!member) throw new Error("Room member could not be found.");
+    const impact = await projectUsersService.getDeactivationImpact(memberId).catch(() => null);
+    if (impact?.canDeactivate === false) {
+      window.alert(impact.message || `${member.name} cannot be deactivated right now.`);
+      return;
+    }
+    const confirmation = `Deactivate ${member.name} in the Users master? This also removes their active room memberships.${impact?.message ? `\n\n${impact.message}` : ""}`;
+    if (!window.confirm(confirmation)) return;
+    const didDeactivate = await deactivateProjectUser(memberId, (message) => window.alert(message));
+    if (didDeactivate) {
+      connectWallService.clearUsersCache(projectId);
+      await Promise.all([
+        refreshSelectedRoomMembers(),
+        connectWallService.getActiveProjectUsers(projectId || "", true).then((result) => {
+          setActiveEligibleUsers(result.data);
+        }),
+      ]);
+    }
   }
 
   // If a room is selected, render RoomDetail view
@@ -249,6 +305,7 @@ export function ChatRoomsTab({
           onDeleteMessage={handleDeleteMessage}
           onAddMember={() => setIsAddMemberModalOpen(true)}
           onRemoveMember={handleRemoveMember}
+          onSimulateExit={handleSimulateExit}
           onRenameRoom={handleRenameRoom}
           onDeleteRoom={handleDeleteRoom}
         />
@@ -257,6 +314,10 @@ export function ChatRoomsTab({
           isOpen={isAddMemberModalOpen}
           onClose={() => setIsAddMemberModalOpen(false)}
           onSubmit={handleAddMember}
+          eligibleUsers={activeEligibleUsers}
+          existingMemberIds={members.map((member) => member.id)}
+          memberCount={selectedRoom?.memberCount ?? members.length}
+          roomName={selectedRoom?.name}
         />
       </div>
     );

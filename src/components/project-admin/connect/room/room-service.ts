@@ -39,3 +39,26 @@ export function initials(name: string): string {
   return ((parts[0][0] || "") + (parts[1][0] || "")).toUpperCase();
 }
 
+/** Shared palette for member initials and room member avatars. */
+export const INITIALS_COLORS = [
+  "bg-blue-600",
+  "bg-orange-700",
+  "bg-emerald-600",
+  "bg-indigo-600",
+  "bg-cyan-700",
+  "bg-rose-600",
+  "bg-amber-600",
+  "bg-violet-600",
+  "bg-teal-600",
+  "bg-slate-700",
+] as const;
+
+/** Assigns a stable, varied palette color from a user's identifier. */
+export function getInitialsColor(userId: string): string {
+  let hash = 0;
+  for (let index = 0; index < userId.length; index += 1) {
+    hash = (hash * 31 + userId.charCodeAt(index)) >>> 0;
+  }
+  return INITIALS_COLORS[hash % INITIALS_COLORS.length];
+}
+

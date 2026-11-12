@@ -7,6 +7,7 @@ import {
   Trash2,
   Send,
   UserMinus,
+  Loader2,
 } from "lucide-react";
 import type { ChatRoom, RoomMember, RoomMessage, RoomSubTab } from "@/components/project-admin/connect/types";
 import { RoomSettingsTab } from "./room-settings-tab";
@@ -21,6 +22,7 @@ export interface RoomDetailProps {
   onDeleteMessage: (msgId: string) => void | Promise<void>;
   onAddMember: () => void;
   onRemoveMember: (memberId: string) => void | Promise<void>;
+  onSimulateExit?: (memberId: string) => void | Promise<void>;
   onRenameRoom: (name: string) => void | Promise<void>;
   onDeleteRoom: (roomId: string) => void | Promise<void>;
 }
@@ -34,11 +36,14 @@ export function RoomDetail({
   onDeleteMessage,
   onAddMember,
   onRemoveMember,
+  onSimulateExit,
   onRenameRoom,
   onDeleteRoom,
 }: RoomDetailProps) {
   const [roomSubTab, setRoomSubTab] = useState<RoomSubTab>("messages");
   const [inputMessage, setInputMessage] = useState("");
+  const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
+  const [memberActionError, setMemberActionError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +56,18 @@ export function RoomDetail({
     if (!trimmed) return;
     setInputMessage("");
     await onSendMessage(trimmed);
+  }
+
+  async function runMemberAction(memberId: string, action: () => void | Promise<void>) {
+    setBusyMemberId(memberId);
+    setMemberActionError(null);
+    try {
+      await action();
+    } catch (error) {
+      setMemberActionError(error instanceof Error ? error.message : "Could not update this room member.");
+    } finally {
+      setBusyMemberId(null);
+    }
   }
 
   return (
@@ -213,6 +230,7 @@ export function RoomDetail({
           </div>
 
           <div className="divide-y divide-slate-100">
+            {memberActionError && <p role="alert" className="px-5 py-3 text-xs font-medium text-red-600">{memberActionError}</p>}
             {members.map((member) => (
               <div
                 key={member.id}
@@ -244,16 +262,19 @@ export function RoomDetail({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => onRemoveMember(member.id)}
-                    className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                    onClick={() => runMemberAction(member.id, () => onRemoveMember(member.id))}
+                    disabled={busyMemberId !== null || room.memberCount <= 2}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
+                    {busyMemberId === member.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Remove
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => onRemoveMember(member.id)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50/40 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                    onClick={() => runMemberAction(member.id, () => onSimulateExit?.(member.id))}
+                    disabled={busyMemberId !== null}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50/40 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Simulates deactivation in the Users master"
                   >
                     <UserMinus className="w-3.5 h-3.5" />
