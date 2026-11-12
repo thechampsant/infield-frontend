@@ -4,14 +4,8 @@ import React, { useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Image as ImageIcon, Video, Users, Play, AlertCircle } from "lucide-react";
-import {
-  wallPostFormSchema,
-  MAX_POST_TEXT_LENGTH,
-  MAX_POST_IMAGES,
-  MAX_VIDEO_SIZE_BYTES,
-  type WallPostFormValues,
-} from "./wall-schema";
-import { plural } from "./wall-service";
+import { plural } from "../utils";
+import { MAX_POST_IMAGES, MAX_POST_TEXT_LENGTH, MAX_VIDEO_SIZE_BYTES, wallPostFormSchema, WallPostFormValues } from "../wall";
 
 interface WallComposerModalProps {
   isOpen: boolean;

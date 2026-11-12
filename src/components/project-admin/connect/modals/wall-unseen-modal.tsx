@@ -3,7 +3,7 @@
 import React from "react";
 import { X, Download } from "lucide-react";
 import type { WallPost } from "../types";
-import { exportUnseenUsersToCsv, type UnseenUserRow } from "../wall/wall-service";
+import { exportUnseenUsersToCsv, type UnseenUserRow } from "../utils";
 import { initials, getInitialsColor } from "../utils";
 
 export interface WallUnseenModalProps {

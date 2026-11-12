@@ -8,9 +8,10 @@ import { connectWallService } from "@/lib/api/connect-wall-service";
 import type { ProjectUser } from "@/types/project-admin";
 import type { WallImageMetadata, WallPost, WallVideoMetadata } from "../types";
 import { WallTab } from "./wall-tab";
-import type { WallPostFormValues, UnseenUserRow } from ".";
 import { ConnectStatusBanner } from "../connect-status-banner";
 import { projectAdminBase } from "@/lib/nav/nav";
+import type { UnseenUserRow } from "../utils";
+import { WallPostFormValues } from "./wall-schema";
 
 export function ConnectWallPage() {
   const { projectName, projectId, accountCode, projectCode } = useProjectContext();

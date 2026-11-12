@@ -3,7 +3,7 @@
 import React from "react";
 import { Eye, Trash2, Users, Image as ImageIcon, Video } from "lucide-react";
 import type { WallPost } from "../types";
-import { calculateReachPercentage, plural } from "./wall-service";
+import { calculateReachPercentage, plural } from "../utils";
 
 interface WallPostCardProps {
   post: WallPost;

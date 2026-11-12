@@ -8,11 +8,10 @@ import {
   WallUnseenModal,
   WallDeleteModal,
   type WallPostFormValues,
-  type UnseenUserRow,
-  exportUnseenUsersToCsv,
-} from ".";
+} from "./";
 import { connectWallService } from "@/lib/api/connect-wall-service";
 import { WallComposerModal } from "../modals/wall-composer-modal";
+import { exportUnseenUsersToCsv, UnseenUserRow } from "../utils";
 
 export interface WallTabProps {
   posts: WallPost[];
