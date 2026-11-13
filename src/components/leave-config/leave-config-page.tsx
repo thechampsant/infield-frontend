@@ -54,6 +54,8 @@ import {
 import { projectUsersService } from "@/lib/api/project-users-service";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
+import { ResubmissionAttemptsField } from "@/components/approval/resubmission-attempts-field";
+import { resubmissionAttemptsError } from "@/lib/approval/resubmission-attempts";
 import { validateRejectionReasons } from "@/lib/approval/rejection-reasons";
 import { LeaveAutoApprovalEditor } from "./leave-auto-approval-editor";
 import { SectionHeader, ToggleRow } from "./leave-config-controls";
@@ -105,6 +107,10 @@ type GenderUdfState =
   | { status: "ready"; options: string[] }
   | { status: "missing" }
   | { status: "load-error"; message: string };
+
+export function isLeaveConfigDirty(config: LeaveConfigDocument, saved: LeaveConfigDocument): boolean {
+  return JSON.stringify(config.policies) !== JSON.stringify(saved.policies);
+}
 
 function cloneConfig(config: LeaveConfigDocument): LeaveConfigDocument {
   return JSON.parse(JSON.stringify(config)) as LeaveConfigDocument;
@@ -193,6 +199,7 @@ function withDefaultApprover(leaveType: LeaveTypeConfig, approverRole: string | 
 function defaultPolicy(designations: Designation[]): LeavePolicy {
   return {
     name: "New Leave Policy",
+    maximumResubmissionAttempts: 0,
     applicableDesignations: [],
     visibility: {
       showLeaveBalance: true,
@@ -273,6 +280,8 @@ function validateConfig(config: LeaveConfigDocument): string[] {
   config.policies.forEach((policy, policyIndex) => {
     const policyLabel = policy.name.trim() || `Policy ${policyIndex + 1}`;
     if (!policy.name.trim()) errors.push(`${policyLabel}: policy name is required.`);
+    const retryError = resubmissionAttemptsError(policy.resubmissionAttemptsInput ?? policy.maximumResubmissionAttempts ?? 0);
+    if (retryError) errors.push(`${policyLabel}: ${retryError}`);
     if (!policy.applicableDesignations.length) {
       errors.push(`${policyLabel}: select at least one designation.`);
     }
@@ -485,7 +494,7 @@ export function LeaveConfigPage({
 
   const dirty = useMemo(() => {
     if (!config || !savedConfig) return false;
-    return JSON.stringify(config.policies) !== JSON.stringify(savedConfig.policies);
+    return isLeaveConfigDirty(config, savedConfig);
   }, [config, savedConfig]);
 
   const applyResponse = useCallback((nextConfig: LeaveConfigDocument, nextWarnings: string[]) => {
@@ -1139,7 +1148,9 @@ export function LeaveConfigPage({
               className="leave-secondary-btn"
               disabled={saving}
               onClick={() => {
-                if (savedConfig) setConfig(cloneConfig(savedConfig));
+                if (savedConfig) {
+                  setConfig(cloneConfig(savedConfig));
+                }
                 setValidationErrors([]);
               }}
             >
@@ -1622,6 +1633,11 @@ function PolicyEditor({
             </div>
           </div>
         </div>
+        <ResubmissionAttemptsField
+          value={policy.resubmissionAttemptsInput ?? String(policy.maximumResubmissionAttempts ?? 0)}
+          onChange={(value) => patch({ resubmissionAttemptsInput: value })}
+          hint="Shared across this policy's Leave types. Existing application deadlines apply."
+        />
       </CollapsibleSection>
 
       <CollapsibleSection

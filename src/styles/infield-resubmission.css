@@ -1,0 +1,83 @@
+/* Shares the configuration screens' typography, surfaces and field sizing. */
+.resubmission-setting {
+  --retry-text: var(--if2-text, #0c1929);
+  --retry-muted: var(--if2-text-muted, #7a95b5);
+  --retry-border: var(--if2-border, #dde6f0);
+  --retry-surface: var(--if2-surface, #fff);
+  --retry-blue: var(--if2-blue, #1e5fa8);
+  --retry-red: var(--if2-red, #e8382d);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--retry-border);
+  border-radius: 8px;
+  background: var(--retry-surface);
+  font-family: inherit;
+}
+
+.resubmission-setting__label {
+  display: block;
+  margin: 0;
+  color: var(--retry-text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.resubmission-setting__help {
+  max-width: 68ch;
+  margin: 4px 0 0;
+  color: var(--retry-muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.resubmission-setting__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resubmission-setting__input {
+  box-sizing: border-box;
+  width: 80px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--retry-border);
+  border-radius: 7px;
+  background: var(--retry-surface);
+  color: var(--retry-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.resubmission-setting__input:focus {
+  border-color: var(--retry-blue);
+  box-shadow: 0 0 0 3px rgba(30, 95, 168, 0.1);
+}
+
+.resubmission-setting__input[aria-invalid="true"] { border-color: var(--retry-red); }
+.resubmission-setting__input:disabled { opacity: 0.55; cursor: not-allowed; }
+.resubmission-setting__unit { color: var(--retry-muted); font-size: 10px; font-weight: 600; }
+.resubmission-setting__error { grid-column: 1 / -1; margin: 0; color: var(--retry-red); font-size: 10px; font-weight: 600; }
+
+.visit-config-details > .resubmission-setting { margin: 12px; }
+.leave-config-page .resubmission-setting {
+  --retry-text: var(--leave-text);
+  --retry-muted: var(--leave-muted);
+  --retry-border: var(--leave-border);
+  --retry-surface: var(--leave-surface);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+@media (max-width: 560px) {
+  .resubmission-setting { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}

@@ -21,6 +21,8 @@ import { projectAdminBase } from "@/lib/nav/nav";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ClaimsFormBuilderV2 } from "@/components/claims-config/claims-form-builder-v2";
+import { ResubmissionAttemptsField } from "@/components/approval/resubmission-attempts-field";
+import { parseResubmissionAttempts, resubmissionAttemptsError } from "@/lib/approval/resubmission-attempts";
 import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
 import {
   emptyRejectionReasons,
@@ -68,6 +70,7 @@ interface EditorState {
   daySummaryEnabled: boolean;
   blockVisitAfterAttendanceCheckout: boolean;
   approvalWorkflowEnabled: boolean;
+  maximumResubmissionAttempts: string;
   notifyApproverOnRoute: boolean;
   approvalLevels: VisitApprovalLevel[];
   rejectionReasons: RejectionReasonsForm;
@@ -95,6 +98,7 @@ const EMPTY_EDITOR: EditorState = {
   daySummaryEnabled: false,
   blockVisitAfterAttendanceCheckout: false,
   approvalWorkflowEnabled: false,
+  maximumResubmissionAttempts: "0",
   notifyApproverOnRoute: false,
   approvalLevels: [],
   rejectionReasons: emptyRejectionReasons(),
@@ -132,6 +136,7 @@ function toEditor(config: VisitConfigDocument): EditorState {
     daySummaryEnabled: config.daySummaryEnabled,
     blockVisitAfterAttendanceCheckout: config.blockVisitAfterAttendanceCheckout,
     approvalWorkflowEnabled: config.approvalWorkflow.isEnabled,
+    maximumResubmissionAttempts: String(config.approvalWorkflow.maximumResubmissionAttempts ?? 0),
     notifyApproverOnRoute: Boolean(config.approvalWorkflow.notifyApproverOnRoute),
     approvalLevels: config.approvalWorkflow.levels.map((level, index) => ({
       ...level,
@@ -149,12 +154,37 @@ function toEditor(config: VisitConfigDocument): EditorState {
   };
 }
 
+export function visitApprovalWorkflowForSave(editor: Pick<EditorState,
+  "maximumResubmissionAttempts" | "reimbursementEnabled" | "approvalWorkflowEnabled"
+  | "notifyApproverOnRoute" | "approvalLevels" | "rejectionReasons"
+>) {
+  return {
+    maximumResubmissionAttempts: parseResubmissionAttempts(editor.maximumResubmissionAttempts),
+    isEnabled: editor.reimbursementEnabled && editor.approvalWorkflowEnabled,
+    notifyApproverOnRoute: editor.notifyApproverOnRoute,
+    levels: editor.reimbursementEnabled && editor.approvalWorkflowEnabled
+      ? editor.approvalLevels.map((level, index) => ({
+          level: index + 1,
+          label: level.label?.trim() || undefined,
+          approverType: level.approverType ?? "direct_manager",
+          approverDesignationId: level.approverDesignationId || undefined,
+          autoAction: level.autoAction ?? "None",
+          autoActionDays: autoActionDaysForSave(level),
+        }))
+      : [],
+    // Always sent so both settings survive switching approval off and on.
+    rejectionReasons: rejectionReasonsToDto(editor.rejectionReasons),
+  };
+}
+
 function isPendingTab(tab: JourneyTabDocument): boolean {
   return tab.tabId.startsWith("pending_");
 }
 
 function validate(editor: EditorState): string[] {
   const errors: string[] = [];
+  const retryError = resubmissionAttemptsError(editor.maximumResubmissionAttempts);
+  if (retryError) errors.push(retryError);
   if (editor.designationIds.length === 0) errors.push("Select at least one designation.");
   if (editor.visitType === "store" && !editor.storeMappingMode) {
     errors.push("Select a store mapping method.");
@@ -549,22 +579,7 @@ export function VisitConfigPage({
       },
       daySummaryEnabled: editor.reimbursementEnabled && editor.daySummaryEnabled,
       blockVisitAfterAttendanceCheckout: editor.blockVisitAfterAttendanceCheckout,
-      approvalWorkflow: {
-        isEnabled: editor.reimbursementEnabled && editor.approvalWorkflowEnabled,
-        notifyApproverOnRoute: editor.notifyApproverOnRoute,
-        levels: editor.reimbursementEnabled && editor.approvalWorkflowEnabled
-          ? editor.approvalLevels.map((level, index) => ({
-              level: index + 1,
-              label: level.label?.trim() || undefined,
-              approverType: level.approverType ?? "direct_manager",
-              approverDesignationId: level.approverDesignationId || undefined,
-              autoAction: level.autoAction ?? "None",
-              autoActionDays: autoActionDaysForSave(level),
-            }))
-          : [],
-        // Always sent so the list survives switching approval off and on.
-        rejectionReasons: rejectionReasonsToDto(editor.rejectionReasons),
-      },
+      approvalWorkflow: visitApprovalWorkflowForSave(editor),
       claimDistanceCapping: {
         isEnabled: editor.reimbursementEnabled && editor.claimDistanceCappingEnabled,
         maxDistanceKm: Number(editor.claimMaxDistanceKm) || 0,
@@ -1094,6 +1109,12 @@ export function VisitConfigPage({
                         <small>Approval depends on Visit Day Summary being enabled.</small>
                       </span>
                     </label>
+                    <ResubmissionAttemptsField
+                      value={editor.maximumResubmissionAttempts}
+                      onChange={(value) => setEditor((current) => ({ ...current, maximumResubmissionAttempts: value }))}
+                      disabled={saving}
+                      hint="Visit Day Claims have no resubmission time limit."
+                    />
                     {editor.approvalWorkflowEnabled && !editor.daySummaryEnabled && (
                       <div className="visit-legacy-note">
                         Visit Day Summary should be enabled before enabling Visit day approval.

@@ -16,6 +16,7 @@ import "@/styles/infield-mood-checker.css";
 import "@/styles/infield-documents.css";
 import "@/styles/infield-custom-view.css";
 import "@/styles/infield-project-admin.css";
+import "@/styles/infield-resubmission.css";
 import "@/styles/infield-brand.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemeInitScript } from "@/components/theme/theme-init-script";

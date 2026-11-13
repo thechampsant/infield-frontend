@@ -85,3 +85,77 @@ describe("leave approval level take-over", () => {
     ]);
   });
 });
+
+describe("project-wide Leave retry limit API", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([0, 3])("sends %s alongside policies and reads it back", async (limit) => {
+    const put = vi.spyOn(apiClient, "put").mockResolvedValue({ config: {
+      projectId: "project", policies: [], maximumResubmissionAttempts: limit,
+    }, warnings: [] });
+    const result = await leaveConfigService.save("project", [], limit);
+    expect(put).toHaveBeenCalledWith("/api/v1/leave-config/project", { policies: [], maximumResubmissionAttempts: limit });
+    expect(result.config.maximumResubmissionAttempts).toBe(limit);
+  });
+
+  it("keeps older policies-only callers from resetting a saved limit", async () => {
+    const put = vi.spyOn(apiClient, "put").mockResolvedValue({ config: {
+      projectId: "project", policies: [], maximumResubmissionAttempts: 4,
+    } });
+    const result = await leaveConfigService.save("project", []);
+    expect(put).toHaveBeenCalledWith("/api/v1/leave-config/project", { policies: [] });
+    expect(result.config.maximumResubmissionAttempts).toBe(4);
+  });
+
+  it("defaults missing legacy response fields to zero", async () => {
+    vi.spyOn(apiClient, "get").mockResolvedValue({ config: { projectId: "project", policies: [] } });
+    expect((await leaveConfigService.get("project")).config.maximumResubmissionAttempts).toBe(0);
+  });
+
+  it("blocks invalid numeric limits before issuing a request", async () => {
+    const put = vi.spyOn(apiClient, "put");
+    await expect(leaveConfigService.save("project", [], -1)).rejects.toThrow();
+    await expect(leaveConfigService.save("project", [], 1.5)).rejects.toThrow();
+    expect(put).not.toHaveBeenCalled();
+  });
+});
+
+describe("policy-specific Leave retry limits", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const policy = (name: string, maximumResubmissionAttempts?: number) => ({
+    name, maximumResubmissionAttempts, applicableDesignations: [], visibility: {
+      showLeaveBalance: true, showTransactionHistory: true, showHolidayCalendar: true,
+    }, holidays: [], leaveTypes: [],
+  });
+
+  it("serializes separate numeric limits and strips raw editor input", async () => {
+    const put = vi.spyOn(apiClient, "put").mockImplementation(async (_path, body) => ({
+      config: { projectId: "project", ...body as object }, warnings: [],
+    }));
+    const result = await leaveConfigService.save("project", [
+      { ...policy("Field", 2), resubmissionAttemptsInput: "0" }, policy("Office", 4),
+    ]);
+    const payload = put.mock.calls[0][1] as { policies: Array<Record<string, unknown>> };
+    expect(payload.policies.map(item => item.maximumResubmissionAttempts)).toEqual([0, 4]);
+    expect(payload.policies.every(item => !("resubmissionAttemptsInput" in item))).toBe(true);
+    expect(payload).not.toHaveProperty("maximumResubmissionAttempts");
+    expect(result.config.policies.map(item => item.maximumResubmissionAttempts)).toEqual([0, 4]);
+  });
+
+  it("inherits a legacy root limit only for policies without an explicit value", async () => {
+    vi.spyOn(apiClient, "get").mockResolvedValue({ config: { projectId: "project",
+      maximumResubmissionAttempts: 3, policies: [policy("Field"), policy("Office", 0)] } });
+    const result = await leaveConfigService.get("project");
+    expect(result.config.policies.map(item => item.maximumResubmissionAttempts)).toEqual([3, 0]);
+  });
+
+  it("omits unsupplied policy values for compatibility and blocks invalid editor input", async () => {
+    const put = vi.spyOn(apiClient, "put").mockResolvedValue({ config: { projectId: "project", policies: [] } });
+    await leaveConfigService.save("project", [policy("Legacy")]);
+    expect((put.mock.calls[0][1] as { policies: object[] }).policies[0]).not.toHaveProperty("maximumResubmissionAttempts");
+    put.mockClear();
+    await expect(leaveConfigService.save("project", [{ ...policy("Field"), resubmissionAttemptsInput: "" }])).rejects.toThrow();
+    await expect(leaveConfigService.save("project", [{ ...policy("Field"), resubmissionAttemptsInput: "1.5" }])).rejects.toThrow();
+    expect(put).not.toHaveBeenCalled();
+  });
+});

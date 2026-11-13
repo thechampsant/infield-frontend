@@ -275,3 +275,22 @@ describe("night checkout buffer mapping", () => {
     expect(() => formToDto({ ...DEFAULT_CONFIG_FORM, nightCycleResetBufferMinutes: minutes })).toThrow();
   });
 });
+
+describe("Attendance additional-submission limit mapping", () => {
+  it("defaults older configurations to zero", () => {
+    expect(docToForm(null).regMaximumResubmissionAttempts).toBe("0");
+  });
+
+  it.each([0, 4])("round-trips %s independently of regularization/monthly toggles", (limit) => {
+    const loaded = docToForm({ regularization: { maximumResubmissionAttempts: limit } } as AttendanceConfigDoc);
+    expect(loaded.regMaximumResubmissionAttempts).toBe(String(limit));
+    const payload = formToDto({ ...loaded, regularizationEnabled: false, regMaxRequestsEnabled: false });
+    expect(payload.regularization.maximumResubmissionAttempts).toBe(limit);
+  });
+
+  it("rejects blank/fractional state rather than sending an implicit zero", () => {
+    for (const value of ["", "1.5"]) {
+      expect(() => formToDto({ ...DEFAULT_CONFIG_FORM, regMaximumResubmissionAttempts: value })).toThrow();
+    }
+  });
+});
