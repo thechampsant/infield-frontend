@@ -15,6 +15,8 @@ export interface ProjectModuleDefinition {
   comingSoon: boolean;
   /** Relative path under project-admin base, e.g. `modules/attendance` */
   configPath?: string;
+  /** Only show enable/disable, with no configuration action. */
+  toggleOnly?: boolean;
 }
 
 export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
@@ -138,5 +140,14 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     defaultEnabled: false,
     comingSoon: false,
     configPath: "modules/store-profile",
+  },
+  {
+    id: "helpdesk",
+    name: "Helpdesk",
+    description: "Enable Helpdesk for this project's mobile app.",
+    accent: "teal",
+    defaultEnabled: false,
+    comingSoon: false,
+    toggleOnly: true,
   },
 ];
