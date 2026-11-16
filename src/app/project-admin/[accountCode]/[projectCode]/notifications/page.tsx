@@ -1,16 +1,21 @@
-import { Bell } from "lucide-react";
-import { ComingSoonPanel } from "@/components/shell/coming-soon-panel";
+"use client";
+
+import { NotificationEnginePage } from "@/components/notification-engine/notification-engine-page";
+import { useProjectContext } from "@/lib/project-admin/project-context";
 
 export default function ProjectNotificationsPage() {
-  return (
-    <div className="if2-app">
-      <div className="stage">
-        <ComingSoonPanel
-          moduleName="Notifications"
-          icon={Bell}
-          description="Real-time push alerts for attendance misses, claim approvals, scheme launches, and task deadlines — configurable per role so your team gets only what matters."
-        />
+  const { projectId, loading, error } = useProjectContext();
+  if (loading)
+    return (
+      <div className="p-6" role="status">
+        Loading project…
       </div>
-    </div>
-  );
+    );
+  if (error || !projectId)
+    return (
+      <div className="p-6" role="alert">
+        {error ?? "Project not found"}
+      </div>
+    );
+  return <NotificationEnginePage key={projectId} projectId={projectId} />;
 }
