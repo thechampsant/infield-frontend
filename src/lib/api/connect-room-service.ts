@@ -3,9 +3,9 @@
  * Follows Infield Connect API Integration Guide (Sections 6, 7, 17.3).
  */
 
+import { getInitialsColor } from "@/components/project-admin/connect/utils";
 import { apiClient } from "./api-client";
 import type { ChatRoom, RoomMember, RoomMessage } from "@/components/project-admin/connect/types";
-import { getInitialsColor } from "@/components/project-admin/connect/room/room-service";
 
 export const ROOMS_BASE = "/api/v1/connect/rooms";
 
