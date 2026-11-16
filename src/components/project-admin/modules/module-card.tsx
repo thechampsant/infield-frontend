@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Clock,
   FolderOpen,
+  Headset,
   LayoutGrid,
   MapPin,
   Store,
@@ -20,6 +21,7 @@ import type { ModuleAccent } from "@/lib/project-admin/module-catalog";
 import type { ProjectModuleState } from "@/lib/api/feature-config-service";
 
 const ICONS: Record<string, LucideIcon> = {
+  helpdesk: Headset,
   "store-profile": Store,
   attendance: Clock,
   "mood-checker": Smile,
@@ -96,7 +98,7 @@ export function ModuleCard({
           <span className="pa-mod-toggle-label">{toggleLabel}</span>
         </label>
 
-        {!planned && (enabled || alwaysShowConfig) && (
+        {!planned && !definition.toggleOnly && (enabled || alwaysShowConfig) && (
           configHref ? (
             <Link href={configHref} className="pa-mod-config-btn">
               Go to Configuration
