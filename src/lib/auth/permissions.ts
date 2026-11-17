@@ -149,6 +149,7 @@ export function adminAccessAreaForPath(pathname: string): AdminAccessArea | null
   if (pathname.includes("/reports")) return "reports";
   if (
     pathname.includes("/modules") ||
+    pathname.includes("/notifications") ||
     pathname.includes("/master-data") ||
     pathname.includes("/configuration/module-toggles") ||
     pathname.includes("/configuration/attendance-rules")

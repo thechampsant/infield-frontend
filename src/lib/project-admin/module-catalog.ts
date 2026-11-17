@@ -80,10 +80,11 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
   {
     id: "notifications",
     name: "Notifications",
-    description: "Push notifications and announcements.",
+    description: "Configure targeted In-App, Push, and Pop-Up notifications.",
     accent: "amber",
     defaultEnabled: true,
     comingSoon: false,
+    configPath: "modules/notifications",
   },
   {
     id: "custom-view",
