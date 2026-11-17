@@ -46,7 +46,6 @@ const initialForm = (): CampaignInput => ({
   durationDays: 7,
   frequencyPerDay: 1,
 });
-const allowed = ["TL", "ISP", "ISD", "ASM"];
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Kolkata",
@@ -138,15 +137,7 @@ export function NotificationEnginePage({ projectId }: { projectId: string }) {
         if (cancelled) return;
         setDefaults(config);
         setSavedDefaults(config);
-        // Match the backend's code resolution and reject ambiguous designation codes.
-        setDesignations(
-          options.filter(
-            (d) =>
-              allowed.includes(codeOf(d)) &&
-              options.filter((other) => codeOf(other) === codeOf(d)).length ===
-                1,
-          ),
-        );
+        setDesignations(options);
       } catch (error) {
         if (!cancelled)
           setLoadError(
