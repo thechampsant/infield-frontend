@@ -126,10 +126,7 @@ export function NotificationDesignationPicker({
             );
           })}
           {!options.length && (
-            <p>
-              No eligible TL, ISP, ISD or ASM designations are configured for
-              this project.
-            </p>
+            <p>No designations are configured for this project.</p>
           )}
         </div>
       )}
