@@ -181,12 +181,10 @@ describe("shared web follow-up behavior", () => {
 
   it("debounces server search, keeps full counts, uses server pages and closes hidden periods", async () => {
     vi.useFakeTimers();
-    const getFollowUps = vi
-      .fn()
-      .mockResolvedValue({
-        ...list,
-        pagination: { ...list.pagination, hasNextPage: true },
-      });
+    const getFollowUps = vi.fn().mockResolvedValue({
+      ...list,
+      pagination: { ...list.pagination, hasNextPage: true },
+    });
     const store = new TeamFollowUpStore({ getFollowUps });
     store.configure({
       date: today.date,
@@ -275,6 +273,23 @@ describe("shared web follow-up behavior", () => {
     );
     expect(formUrl).toContain(`/team/forms/${form.sectionKey}/users`);
     expect(formUrl).not.toContain("page=");
+    expect(
+      new URL(formUrl!, "https://example.test").searchParams.get("scope"),
+    ).toBe("direct");
+    const submissionsUrl = recordDrillUrl(
+      { card: form, status: "total", formUserId: "reportee-one" },
+      { date: today.date },
+      "all",
+      2,
+      "Sam",
+    );
+    const submissions = new URL(submissionsUrl!, "https://example.test");
+    expect(submissions.pathname).toContain("/users/reportee-one/submissions");
+    expect(Object.fromEntries(submissions.searchParams)).toEqual({
+      date: today.date,
+      page: "2",
+      limit: "20",
+    });
     expect(
       recordDrillUrl(
         {

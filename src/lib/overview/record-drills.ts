@@ -33,8 +33,13 @@ export function recordDrillUrl(
   else if (["visit", "visits"].includes(card.sectionKey)) path = "team/visits";
   else if (card.sectionKey === "claims") path = "team/claims";
   else return null;
+  // A specific form user's route authorizes the path userId; its DTO has no scope.
   const params = new URLSearchParams(
-    reporteeId ? { userId: reporteeId } : { scope },
+    reporteeId
+      ? { userId: reporteeId }
+      : genericForm && formUserId
+        ? {}
+        : { scope },
   );
   Object.entries(period).forEach(([key, value]) =>
     params.set(key, String(value)),

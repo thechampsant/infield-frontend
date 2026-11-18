@@ -108,7 +108,7 @@ describe("Overview page access and navigation", () => {
         scope="direct"
         onOpenReportee={() => {}}
       >
-        <SummaryCards cards={cards} onOpenRecords={() => {}} />
+        <SummaryCards cards={cards} />
       </TeamFollowUpProvider>,
     );
     expect(html).not.toContain("Excluded");
@@ -117,7 +117,7 @@ describe("Overview page access and navigation", () => {
     expect(cards).toHaveLength(supported.modules.length + 7);
   });
 
-  it("keeps record status tiles and form header submission navigation in the reference card layout", () => {
+  it("shows filled counts read-only and exposes only follow-up controls on cards", () => {
     const fixture = fixtures.scenarios.find((s) => s.key === "today_direct")!;
     const summary = structuredClone(
       fixture.summary.data,
@@ -129,7 +129,7 @@ describe("Overview page access and navigation", () => {
         scope="direct"
         onOpenReportee={() => {}}
       >
-        <SummaryCards cards={summary.modules} onOpenRecords={() => {}} />
+        <SummaryCards cards={summary.modules} />
       </TeamFollowUpProvider>,
     );
     const articles = [...html.matchAll(/<article[\s\S]*?<\/article>/g)].map(
@@ -147,11 +147,15 @@ describe("Overview page access and navigation", () => {
           );
         }
       }
-      if (card.isFormBuilder)
-        expect(articles[index]).toMatch(
-          /<button[^>]*>[^<]*Daily Audit<\/button>/,
-        );
+      expect(articles[index]).toContain(`<h2>${card.label}</h2>`);
+      const buttons = [
+        ...articles[index].matchAll(/<button[\s\S]*?<\/button>/g),
+      ].map((match) => match[0]);
+      expect(buttons).toHaveLength(card.followUp?.listedCount ? 1 : 0);
+      for (const button of buttons)
+        expect(button).toContain(card.followUp!.label);
     });
+    expect(html).not.toContain("View submissions");
     expect(summary).toEqual(fixture.summary.data);
   });
 });

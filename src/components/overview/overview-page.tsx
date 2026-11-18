@@ -5,11 +5,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { canAccessOverview } from "@/lib/overview/access";
 import { webOverviewCards } from "@/lib/overview/cards";
 import { useOverviewResource } from "@/lib/overview/use-overview-resource";
-import {
-  recordDrillUrl,
-  type Period,
-  type RecordSelection,
-} from "@/lib/overview/record-drills";
+import type { Period } from "@/lib/overview/record-drills";
 import { istDay } from "@/lib/team-follow-ups/presentation";
 import type {
   TeamScope,
@@ -22,19 +18,16 @@ import {
   TeamFollowUpTable,
   useFollowUps,
 } from "@/components/team-follow-ups/team-follow-ups";
-import { RecordDrill } from "./record-drill";
 import styles from "./overview.module.css";
 
 export function SummaryCards({
   cards,
-  onOpenRecords,
   reporteeId,
 }: {
   cards: TeamSummaryCard[];
-  onOpenRecords: (selection: RecordSelection) => void;
   reporteeId?: string;
 }) {
-  const { store, state } = useFollowUps();
+  const { state } = useFollowUps();
   return (
     <div className={styles.grid}>
       {webOverviewCards(cards).map((card) => {
@@ -48,18 +41,6 @@ export function SummaryCards({
             : ClipboardList;
         const tiles =
           card.sales?.tiles ?? card.stock?.tiles ?? card.metrics ?? [];
-        const supported =
-          recordDrillUrl(
-            { card, status: "total", reporteeId },
-            { date: "2000-01-01" },
-            "direct",
-            1,
-            "",
-          ) !== null;
-        function open(status: string) {
-          store.close();
-          onOpenRecords({ card, status, reporteeId });
-        }
         const split = (card.sales?.tiles ?? card.stock?.tiles ?? []).filter(
           (t) => !["total", "zero_sales"].includes(t.key),
         );
@@ -85,54 +66,20 @@ export function SummaryCards({
                 {!submissionCard && !genericForm && (
                   <div className={styles.eyebrow}>Team activity</div>
                 )}
-                {supported ? (
-                  <button
-                    className={`btn ${styles.cardTitle}`}
-                    onClick={() =>
-                      open(
-                        card.sectionKey === "visit" ||
-                          card.sectionKey === "visits"
-                          ? "all"
-                          : card.sectionKey === "attendance"
-                            ? (tiles[0]?.key ?? "present")
-                            : "total",
-                      )
-                    }
-                  >
-                    {card.label}
-                    {!submissionCard && !genericForm && (
-                      <span aria-hidden="true">↗</span>
-                    )}
-                  </button>
-                ) : (
-                  <h2>{card.label}</h2>
-                )}
+                <h2>{card.label}</h2>
                 <p>{card.subtitle}</p>
               </div>
             </header>
             {!genericForm && (
               <div className={styles.metrics}>
-                {tiles.map((tile) =>
-                  supported ? (
-                    <button
-                      className="btn"
-                      key={tile.key}
-                      onClick={() => open(tile.key)}
-                    >
-                      <span>{tile.label}</span>
-                      <strong style={{ color: tile.colorHex }}>
-                        {tile.value}
-                      </strong>
-                    </button>
-                  ) : (
-                    <div key={tile.key}>
-                      <span>{tile.label}</span>
-                      <strong style={{ color: tile.colorHex }}>
-                        {tile.value}
-                      </strong>
-                    </div>
-                  ),
-                )}
+                {tiles.map((tile) => (
+                  <div key={tile.key}>
+                    <span>{tile.label}</span>
+                    <strong style={{ color: tile.colorHex }}>
+                      {tile.value}
+                    </strong>
+                  </div>
+                ))}
               </div>
             )}
             {sum > 0 && (
@@ -179,13 +126,11 @@ function ReporteeOverview({
   userId,
   name,
   period,
-  onOpenRecords,
   refreshRevision = 0,
 }: {
   userId: string;
   name: string;
   period: Period;
-  onOpenRecords: (selection: RecordSelection) => void;
   refreshRevision?: number;
 }) {
   const params = new URLSearchParams({ userId });
@@ -213,7 +158,6 @@ function ReporteeOverview({
       ) : (
         <SummaryCards
           cards={resource.data?.overview.sections ?? []}
-          onOpenRecords={onOpenRecords}
           reporteeId={userId}
         />
       )}
@@ -231,10 +175,9 @@ function OverviewContent() {
   const [date, setDate] = useState(today),
     [scope, setScope] = useState<TeamScope>("direct"),
     [revision, setRevision] = useState(0);
-  const [record, setRecord] = useState<RecordSelection | null>(null),
-    [reportee, setReportee] = useState<{ id: string; name: string } | null>(
-      null,
-    );
+  const [reportee, setReportee] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const period = { date };
   const params = new URLSearchParams({ scope });
   Object.entries(period).forEach(([key, value]) =>
@@ -251,9 +194,7 @@ function OverviewContent() {
         : null,
     [resource.data],
   );
-  const drillKey = `${JSON.stringify(period)}:${scope}:${record?.card.sectionKey}:${record?.status}:${record?.formUserId}:${record?.reporteeId}`;
   const openReportee = (id: string, name = "Reportee") => {
-    setRecord(null);
     setReportee({ id, name });
   };
   return (
@@ -268,7 +209,6 @@ function OverviewContent() {
           className={`btn ${styles.refresh}`}
           disabled={resource.loading}
           onClick={() => {
-            setRecord(null);
             setRevision((r) => r + 1);
           }}
         >
@@ -284,7 +224,6 @@ function OverviewContent() {
               aria-pressed={date === today}
               onClick={() => {
                 setDate(today);
-                setRecord(null);
               }}
             >
               Today
@@ -294,7 +233,6 @@ function OverviewContent() {
               aria-pressed={date === yesterday}
               onClick={() => {
                 setDate(yesterday);
-                setRecord(null);
               }}
             >
               Yesterday
@@ -307,7 +245,6 @@ function OverviewContent() {
                 aria-pressed={scope === "direct"}
                 onClick={() => {
                   setScope("direct");
-                  setRecord(null);
                 }}
               >
                 Direct
@@ -317,7 +254,6 @@ function OverviewContent() {
                 aria-pressed={scope === "all"}
                 onClick={() => {
                   setScope("all");
-                  setRecord(null);
                 }}
               >
                 + Sub
@@ -336,7 +272,6 @@ function OverviewContent() {
               onChange={(e) => {
                 if (!e.target.value) return;
                 setDate(e.target.value);
-                setRecord(null);
               }}
             />
           </label>
@@ -349,7 +284,6 @@ function OverviewContent() {
         refreshing={resource.loading}
         summaryError={resource.error ?? undefined}
         onOpenReportee={openReportee}
-        onOpenFollowUp={() => setRecord(null)}
       >
         {reportee ? (
           <>
@@ -357,7 +291,6 @@ function OverviewContent() {
               className={`btn ${styles.back}`}
               onClick={() => {
                 setReportee(null);
-                setRecord(null);
               }}
             >
               ← Back to team
@@ -367,7 +300,6 @@ function OverviewContent() {
               userId={reportee.id}
               name={reportee.name}
               period={period}
-              onOpenRecords={setRecord}
               refreshRevision={revision}
             />
           </>
@@ -396,20 +328,9 @@ function OverviewContent() {
               <h2>Your team</h2>
               <span>{String(summary.totalReportees ?? "")} reports</span>
             </div>
-            <SummaryCards cards={summary.modules} onOpenRecords={setRecord} />
+            <SummaryCards cards={summary.modules} />
             <TeamFollowUpTable />
           </>
-        )}
-        {record && !resource.loading && (
-          <RecordDrill
-            key={drillKey}
-            selection={record}
-            period={period}
-            scope={scope}
-            onClose={() => setRecord(null)}
-            onChange={setRecord}
-            onOpenReportee={openReportee}
-          />
         )}
       </TeamFollowUpProvider>
     </div>
