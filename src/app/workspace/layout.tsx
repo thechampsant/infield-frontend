@@ -9,6 +9,7 @@ import { managerNav } from "@/lib/nav/nav";
 import { useAuth } from "@/lib/auth/auth-context";
 import { fetchClientBrand } from "@/lib/api/shell-service";
 import { inboxService } from "@/lib/api/inbox-service";
+import { canAccessOverview } from "@/lib/overview/access";
 
 export default function WorkspaceLayout({
   children,
@@ -60,8 +61,8 @@ export default function WorkspaceLayout({
   }, []);
 
   const sections = useMemo(
-    () => managerNav(notificationCount),
-    [notificationCount],
+    () => managerNav(notificationCount, canAccessOverview(user)),
+    [notificationCount, user],
   );
 
   const displayName =
