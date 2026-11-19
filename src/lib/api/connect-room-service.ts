@@ -149,6 +149,13 @@ export interface RoomCacheEntry {
 
 const roomsCache = new Map<string, RoomCacheEntry>();
 const inFlightRooms = new Map<string, Promise<ChatRoom[]>>();
+const roomCacheVersions = new Map<string, number>();
+
+function invalidateRoomCache(cacheKey: string): void {
+  roomCacheVersions.set(cacheKey, (roomCacheVersions.get(cacheKey) || 0) + 1);
+  roomsCache.delete(cacheKey);
+  inFlightRooms.delete(cacheKey);
+}
 
 /**
  * Derives uppercase initials from a room or user name (e.g. "Mumbai South" -> "MS").
@@ -280,16 +287,23 @@ export const connectRoomService = {
       }
     }
 
+    const cacheVersion = roomCacheVersions.get(cacheKey) || 0;
     const fetchPromise = (async () => {
       try {
         const res = await apiClient.get<{ rooms?: ApiRoom[] } | ApiRoom[]>(ROOMS_BASE);
         const rawList = Array.isArray(res) ? res : res.rooms || [];
         const normalized = rawList.map(normalizeChatRoom);
 
-        roomsCache.set(cacheKey, { data: normalized, timestamp: Date.now() });
+        // A room read or send can invalidate this request while it is pending.
+        // Don't let a stale response repopulate the room-list cache afterward.
+        if ((roomCacheVersions.get(cacheKey) || 0) === cacheVersion) {
+          roomsCache.set(cacheKey, { data: normalized, timestamp: Date.now() });
+        }
         return normalized;
       } finally {
-        inFlightRooms.delete(cacheKey);
+        if ((roomCacheVersions.get(cacheKey) || 0) === cacheVersion) {
+          inFlightRooms.delete(cacheKey);
+        }
       }
     })();
 
@@ -472,6 +486,7 @@ export const connectRoomService = {
       nextCursor?: string | null;
       hasMore?: boolean;
     }>(`${ROOMS_BASE}/${roomId}/messages${qs}`);
+    invalidateRoomCache(options.projectId || "default");
 
     const rawMessages = res.messages || [];
     // The API returns newest-first for cursor pagination. Render a conversation
@@ -511,6 +526,7 @@ export const connectRoomService = {
     }
 
     const res = await apiClient.post<ApiMessage>(`${ROOMS_BASE}/${roomId}/messages`, body);
+    invalidateRoomCache(projectId || "default");
     return {
       id: res.messageId || res._id || res.id || `msg-${Date.now()}`,
       senderName: res.senderDisplayName || "Program Team",
@@ -584,9 +600,15 @@ export const connectRoomService = {
    */
   clearCache(projectId?: string): void {
     if (!projectId) {
-      roomsCache.clear();
+      const keys = new Set([
+        "default",
+        ...roomsCache.keys(),
+        ...inFlightRooms.keys(),
+        ...roomCacheVersions.keys(),
+      ]);
+      keys.forEach(invalidateRoomCache);
       return;
     }
-    roomsCache.delete(projectId);
+    invalidateRoomCache(projectId);
   },
 };
