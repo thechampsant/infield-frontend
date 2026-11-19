@@ -59,6 +59,7 @@ export interface ApiRoomMember {
   phoneNumber?: string;
   joinedAt?: string;
   isMuted?: boolean;
+  membershipSource?: 'rule' | 'hand';
 }
 
 export interface ApiRoomLastMessage {
@@ -86,6 +87,10 @@ export interface ApiRoom {
   createdAt?: string;
   updatedAt?: string;
   messageCount?: number;
+  membershipType?: 'fixed' | 'rule';
+  membershipSummary?: string;
+  waitingCount?: number;
+  needsAttention?: boolean;
 }
 
 export interface ApiMessage {
@@ -107,8 +112,27 @@ export interface ApiMessage {
 export interface CreateRoomInput {
   name: string;
   memberUserIds: string[];
+  membershipType?: 'fixed' | 'rule';
+  membershipRule?: MembershipRuleInput;
   projectId?: string;
   accountId?: string;
+}
+
+export interface MembershipRuleInput {
+  filters: Array<{ fieldKey: string; source: 'user' | 'store' | 'designation' | 'manager'; values: string[] }>;
+  reportingManagerIds: string[];
+  reportingScope: 'direct' | 'subtree';
+  includeReportingManagers: boolean;
+  addedByHandUserIds: string[];
+  keptOutByHandUserIds?: string[];
+}
+
+export interface MembershipRuleOption { value: string; count: number }
+export interface MembershipRuleOptions {
+  designation: { key: string; label: string; source: string; options: MembershipRuleOption[] };
+  managers: Array<{ userId: string; name: string; designation: string; count: number; left?: boolean }>;
+  storeFields: Array<{ key: string; label: string; source: string; options: MembershipRuleOption[] }>;
+  userFields: Array<{ key: string; label: string; source: string; options: MembershipRuleOption[] }>;
 }
 
 export interface EligibleMember {
@@ -211,6 +235,10 @@ export function normalizeChatRoom(raw: ApiRoom): ChatRoom {
     messageCount,
     lastActivity,
     tag: "Discussion",
+    membershipType: raw.membershipType || 'fixed',
+    membershipSummary: raw.membershipSummary,
+    waitingCount: raw.waitingCount || 0,
+    needsAttention: Boolean(raw.needsAttention),
   };
 }
 
@@ -277,6 +305,8 @@ export const connectRoomService = {
     const payload: Record<string, unknown> = {
       name: input.name.trim(),
       memberUserIds: input.memberUserIds,
+      membershipType: input.membershipType || 'fixed',
+      ...(input.membershipRule ? { membershipRule: input.membershipRule } : {}),
     };
     if (input.projectId) {
       payload.projectId = input.projectId;
@@ -285,6 +315,38 @@ export const connectRoomService = {
     const res = await apiClient.post<ApiRoom>(ROOMS_BASE, payload);
     this.clearCache(input.projectId);
     return normalizeChatRoom(res);
+  },
+
+  async getMembershipRuleOptions(roomId?: string): Promise<MembershipRuleOptions> {
+    return apiClient.get<MembershipRuleOptions>(`${ROOMS_BASE}/membership-rule/options${roomId ? `?roomId=${encodeURIComponent(roomId)}` : ""}`);
+  },
+
+  async previewMembershipRule(rule: MembershipRuleInput) {
+    return apiClient.post<{ count: number; userIds: string[]; users: Array<{ userId: string; name: string }> }>(`${ROOMS_BASE}/membership-rule/preview`, rule);
+  },
+
+  async getMembershipRule(roomId: string) {
+    return apiClient.get<MembershipRuleInput | null>(`${ROOMS_BASE}/${roomId}/membership-rule`);
+  },
+
+  async updateMembershipRule(roomId: string, rule: MembershipRuleInput) {
+    const result = await apiClient.put(`${ROOMS_BASE}/${roomId}/membership-rule`, rule);
+    this.clearCache();
+    return result;
+  },
+
+  async removeMembershipRule(roomId: string) {
+    const result = await apiClient.delete(`${ROOMS_BASE}/${roomId}/membership-rule`);
+    this.clearCache();
+    return result;
+  },
+
+  async allowBackByHand(roomId: string, userId: string) {
+    return apiClient.post(`${ROOMS_BASE}/${roomId}/membership-rule/allow-back/${userId}`, {});
+  },
+
+  async resolveHeldRemovals(roomId: string, decision: 'remove' | 'keep') {
+    return apiClient.patch(`${ROOMS_BASE}/${roomId}/membership-rule/held-removals`, { decision });
   },
 
   /**
@@ -334,14 +396,26 @@ export const connectRoomService = {
     name: string;
     memberCount: number;
     isLegalHold: boolean;
+    membershipType: 'fixed' | 'rule';
     members: RoomMember[];
+    keptOutByHand: Array<{ userId: string; name: string }>;
+    heldRemovals: Array<{ userId: string; name: string }>;
+    removalHoldReason: string | null;
+    waitingCount: number;
+    needsAttentionReasons: string[];
   }> {
     const res = await apiClient.get<{
       roomId: string;
       name: string;
       memberCount: number;
       isLegalHold?: boolean;
+      membershipType?: 'fixed' | 'rule';
       members?: ApiRoomMember[];
+      keptOutByHand?: Array<{ userId: string; name: string }>;
+      heldRemovals?: Array<{ userId: string; name: string }>;
+      removalHoldReason?: string | null;
+      waitingCount?: number;
+      needsAttentionReasons?: string[];
     }>(`${ROOMS_BASE}/${roomId}`);
 
     const rawMembers = res.members || [];
@@ -354,6 +428,7 @@ export const connectRoomService = {
         location: m.employeeCode ? `Emp ${m.employeeCode}` : "Project Member",
         hasDemoPhone: index === 0,
         avatarColorClass: getInitialsColor(m.userId || m.name),
+        membershipSource: m.membershipSource || 'hand',
       };
     });
 
@@ -364,7 +439,13 @@ export const connectRoomService = {
       name: res.name,
       memberCount: res.memberCount || members.length,
       isLegalHold: res.isLegalHold ?? false,
+      membershipType: res.membershipType || 'fixed',
       members,
+      keptOutByHand: res.keptOutByHand || [],
+      heldRemovals: res.heldRemovals || [],
+      removalHoldReason: res.removalHoldReason || null,
+      waitingCount: res.waitingCount || 0,
+      needsAttentionReasons: res.needsAttentionReasons || [],
     };
   },
 
@@ -393,12 +474,15 @@ export const connectRoomService = {
     }>(`${ROOMS_BASE}/${roomId}/messages${qs}`);
 
     const rawMessages = res.messages || [];
-    const messages: RoomMessage[] = rawMessages.map((m) => ({
+    // The API returns newest-first for cursor pagination. Render a conversation
+    // chronologically so the newest message sits at the bottom of the pane.
+    const messages: RoomMessage[] = [...rawMessages].reverse().map((m) => ({
       id: m.messageId || m._id || m.id || `msg-${Date.now()}`,
       senderName: m.senderDisplayName || (m.senderType === "ADMIN" ? "Program Team" : "Member"),
       timestamp: formatRoomDate(m.sentAt || m.createdAt),
       content: m.isRemoved ? "Removed by admin" : m.text,
       initials: getRoomInitials(m.senderDisplayName || "PT"),
+      isSystem: Boolean(m.isSystem || m.senderType === "SYSTEM"),
     }));
 
     return {
@@ -433,6 +517,7 @@ export const connectRoomService = {
       timestamp: formatRoomDate(res.sentAt || res.createdAt),
       content: res.isRemoved ? "Removed by admin" : res.text,
       initials: getRoomInitials(res.senderDisplayName || "PT"),
+      isSystem: Boolean(res.isSystem || res.senderType === "SYSTEM"),
     };
   },
 
@@ -486,6 +571,12 @@ export const connectRoomService = {
       `${ROOMS_BASE}/${roomId}/members`,
       payload,
     );
+  },
+
+  async addMembersByFilter(roomId: string, rule: MembershipRuleInput) {
+    const result = await apiClient.post(`${ROOMS_BASE}/${roomId}/members/add-by-filter`, rule);
+    this.clearCache();
+    return result;
   },
 
   /**

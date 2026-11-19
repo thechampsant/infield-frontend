@@ -13,6 +13,7 @@ import {
 import type { ChatRoom, RoomMember, RoomMessage, RoomSubTab } from "@/components/project-admin/connect/types";
 import { RoomSettingsTab } from "./room-settings-tab";
 import { plural } from "../utils";
+import type { MembershipRuleInput } from "@/lib/api/connect-room-service";
 
 export interface RoomDetailProps {
   room: ChatRoom;
@@ -26,6 +27,14 @@ export interface RoomDetailProps {
   onSimulateExit?: (memberId: string) => void | boolean | Promise<void | boolean>;
   onRenameRoom: (name: string) => void | Promise<void>;
   onDeleteRoom: (roomId: string) => void | Promise<void>;
+  membershipRule?: MembershipRuleInput | null;
+  onEditRule?: () => void;
+  keptOutByHand?: Array<{ userId: string; name: string }>;
+  onAllowBack?: (userId: string) => void | Promise<void>;
+  heldRemovals?: Array<{ userId: string; name: string }>;
+  removalHoldReason?: string | null;
+  waitingCount?: number;
+  onResolveHeldRemovals?: (decision: "remove" | "keep") => void | Promise<void>;
 }
 
 export function RoomDetail({
@@ -40,17 +49,27 @@ export function RoomDetail({
   onSimulateExit,
   onRenameRoom,
   onDeleteRoom,
+  membershipRule,
+  onEditRule,
+  keptOutByHand = [],
+  onAllowBack,
+  heldRemovals = [],
+  removalHoldReason,
+  waitingCount = 0,
+  onResolveHeldRemovals,
 }: RoomDetailProps) {
   const [roomSubTab, setRoomSubTab] = useState<RoomSubTab>("messages");
   const [inputMessage, setInputMessage] = useState("");
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
   const [memberToExit, setMemberToExit] = useState<RoomMember | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    if (roomSubTab === "messages" && messagesScrollRef.current) {
+      messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
+    }
+  }, [messages.length, roomSubTab]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -94,6 +113,7 @@ export function RoomDetail({
           <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-0.5">
             {room.tag || "Discussion"}
           </span>
+          <span className={`text-xs font-semibold rounded-full px-2.5 py-0.5 border ${room.membershipType === "rule" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-slate-600 bg-slate-100 border-slate-200"}`}>{room.membershipType === "rule" ? "Follows a rule" : "Fixed list"}</span>
           <span className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded-full px-2.5 py-0.5">
             {plural(room.memberCount, "member")}
           </span>
@@ -138,72 +158,58 @@ export function RoomDetail({
 
       {/* Sub-tab 1: Messages in Room */}
       {roomSubTab === "messages" && (
-        <div className="border border-slate-200 rounded-xl bg-white shadow-xs p-6 flex flex-col justify-between min-h-[460px]">
-          <div>
-            {/* System event notice */}
-            <div className="text-center my-3">
-              <span className="inline-block text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1">
-                Program Team created this room and added {room.memberCount} members · {room.lastActivity}
-              </span>
-            </div>
-
-            {/* Message items */}
-            <div className="space-y-4 mt-6">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className="flex items-start justify-between group hover:bg-slate-50/50 p-2 rounded-lg transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {msg.initials}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-slate-900">
-                          {msg.senderName}
-                        </span>
-                        <span className="text-[11px] text-slate-400">
-                          {msg.timestamp}
-                        </span>
-                      </div>
-                      <div className={`text-sm mt-1 ${msg.content === "Removed by admin" ? "text-slate-400 italic" : "text-slate-800"}`}>
-                        {msg.content}
-                      </div>
-                    </div>
+        <div className="flex h-[480px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+          <div ref={messagesScrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+            {messages.map((msg) => msg.isSystem ? (
+              <div key={msg.id} className="flex justify-center py-0.5">
+                <span className="max-w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-center text-[11px] text-slate-500">
+                  {msg.content} · {msg.timestamp}
+                </span>
+              </div>
+            ) : (
+              <div key={msg.id} className="group flex items-start justify-between gap-3 rounded-lg px-1 py-1 hover:bg-slate-50/60">
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white">
+                    {msg.initials}
                   </div>
-
-                  {msg.content !== "Removed by admin" && (
-                    <button
-                      type="button"
-                      onClick={() => onDeleteMessage(msg.id)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity p-1 cursor-pointer"
-                      title="Delete message for everyone"
-                      aria-label="Delete message for everyone"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-x-1.5">
+                      <span className="text-xs font-bold text-slate-900">{msg.senderName}</span>
+                      <span className="text-[11px] text-slate-500">{msg.timestamp}</span>
+                    </div>
+                    <p className={`mt-0.5 break-words text-[13px] ${msg.content === "Removed by admin" ? "italic text-slate-400" : "text-slate-700"}`}>
+                      {msg.content}
+                    </p>
+                  </div>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
+                {msg.content !== "Removed by admin" && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteMessage(msg.id)}
+                    className="shrink-0 p-1 text-slate-500 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                    title="Delete message for everyone"
+                    aria-label="Delete message for everyone"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
 
-          {/* Input Form */}
-          <form onSubmit={handleSend} className="mt-8 pt-4 border-t border-slate-100 flex items-center gap-2">
+          <form onSubmit={handleSend} className="flex items-center gap-2 border-t border-slate-200 bg-slate-50/70 px-3 py-2.5">
             <input
               type="text"
               maxLength={2000}
               placeholder={`Message ${room.name} as Program Team`}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-hidden focus:border-blue-500 transition-colors"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs transition-colors placeholder:text-slate-500 focus:border-blue-600 focus:outline-none"
             />
             <button
               type="submit"
               disabled={!inputMessage.trim()}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-slate-100 px-4 text-xs font-semibold text-slate-400 transition-colors enabled:bg-blue-600 enabled:text-white enabled:hover:bg-blue-700 disabled:cursor-not-allowed"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Send</span>
@@ -215,18 +221,24 @@ export function RoomDetail({
       {/* Sub-tab 2: Members in Room */}
       {roomSubTab === "members" && (
         <div className="border border-slate-200 rounded-xl bg-white shadow-xs overflow-hidden">
+          {room.membershipType === "rule" && <div className="border-b border-slate-100 p-4">
+            <div className="mb-2 flex items-center justify-between gap-2"><strong className="text-xs font-bold text-slate-800">Membership rule</strong><div className="flex gap-2"><button type="button" onClick={onEditRule} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">Edit rule</button><button type="button" onClick={onAddMember} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">＋ Add by hand</button></div></div>
+            <div className="flex flex-wrap gap-1.5">{membershipRule?.filters.flatMap((filter) => filter.values.map((value) => <span key={`${filter.source}-${filter.fieldKey}-${value}`} className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filter.source === "designation" ? value : `${filter.fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase())}: ${value}`}</span>))}{membershipRule?.reportingManagerIds.length ? <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{membershipRule.reportingManagerIds.length} reporting manager{membershipRule.reportingManagerIds.length > 1 ? "s" : ""} · {membershipRule.reportingScope === "subtree" ? "Including sub-team" : "Direct reports"}</span> : null}{membershipRule?.includeReportingManagers && <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">+ their managers</span>}</div>
+            <p className="mt-2 text-[11px] text-slate-500">People join and leave as the Users master changes. Hand-added people stay; people removed by hand stay out.</p>
+            {waitingCount > 0 && <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-[11px] text-amber-800">{waitingCount} people match and are waiting for a place. They join in order as places free up.</p>}
+            {heldRemovals.length > 0 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-bold text-amber-900">{heldRemovals.length} removals held</p><p className="mt-1 text-[11px] text-amber-800">{removalHoldReason}</p><div className="my-2 flex flex-wrap gap-1">{heldRemovals.map((person) => <span key={person.userId} className="rounded-full border border-amber-200 bg-white px-2 py-1 text-[10px] text-amber-900">{person.name} · Removal held</span>)}</div><div className="flex gap-2"><button type="button" onClick={() => onResolveHeldRemovals?.("remove")} className="rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white">Remove them</button><button type="button" onClick={() => onResolveHeldRemovals?.("keep")} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700">Keep them</button></div></div>}
+          </div>}
           <div className="p-4 flex items-center justify-between border-b border-slate-100 flex-wrap gap-2">
-            <p className="text-xs text-slate-500 font-medium">
-              Program Team manages every room. Members see messages from the day they join.
-            </p>
-            <button
+            <p className="text-xs text-slate-500 font-medium">Program Team manages every room. Members see messages from the day they join.</p>
+            {room.membershipType !== "rule" && <button type="button" onClick={onEditRule} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-blue-700">Add rule</button>}
+            {room.membershipType !== "rule" && <button
               type="button"
               onClick={onAddMember}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add members</span>
-            </button>
+            </button>}
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -252,6 +264,7 @@ export function RoomDetail({
                           Demo phone
                         </span>
                       )}
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${member.membershipSource === "rule" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{member.membershipSource === "rule" ? "By rule" : "Added by hand"}</span>
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
                       {member.role} · {member.location}
@@ -287,6 +300,46 @@ export function RoomDetail({
               </div>
             ))}
           </div>
+          {room.membershipType === "rule" && keptOutByHand.length > 0 && (
+            <div className="border-t border-slate-200 px-4 py-3">
+              <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                Kept out by hand · {keptOutByHand.length}
+              </h3>
+              <div className="divide-y divide-slate-100">
+                {keptOutByHand.map((person) => {
+                  const initials = person.name
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0])
+                    .join("")
+                    .toUpperCase();
+                  return (
+                    <div key={person.userId} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                          {initials || "?"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-slate-900">{person.name}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">Matches the rule, but the Admin removed them</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => runMemberAction(person.userId, () => onAllowBack?.(person.userId))}
+                        disabled={busyMemberId !== null}
+                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {busyMemberId === person.userId && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}
+                        Allow back
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

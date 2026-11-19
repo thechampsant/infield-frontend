@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Info, Loader2 } from "lucide-react";
@@ -11,6 +11,8 @@ import {
 import type { ProjectUser } from "@/types/project-admin";
 import { MemberUserPicker } from "../room/member-user-picker";
 import { plural } from "../utils";
+import { MembershipRuleBuilder } from "../room/membership-rule-builder";
+import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 
 export interface CreateRoomModalProps {
   isOpen: boolean;
@@ -18,6 +20,9 @@ export interface CreateRoomModalProps {
   onSubmit: (values: CreateRoomFormValues) => void | Promise<void>;
   eligibleUsers?: ProjectUser[];
   isSubmitting?: boolean;
+  projectId?: string;
+  ruleOptions?: MembershipRuleOptions | null;
+  error?: string | null;
 }
 
 export function CreateRoomModal({
@@ -26,6 +31,9 @@ export function CreateRoomModal({
   onSubmit,
   eligibleUsers = [],
   isSubmitting = false,
+  projectId,
+  ruleOptions,
+  error,
 }: CreateRoomModalProps) {
   const {
     register,
@@ -39,16 +47,22 @@ export function CreateRoomModal({
     defaultValues: {
       name: "",
       memberUserIds: [],
+      membershipType: "fixed",
+      membershipRule: undefined,
     },
   });
 
   const roomName = watch("name") || "";
   const selectedUserIds = watch("memberUserIds") || [];
+  const membershipType = watch("membershipType") || "fixed";
+  const membershipRule = watch("membershipRule");
+  const [fixedMode, setFixedMode] = useState<"pick" | "filter">("pick");
 
   // Reset form whenever modal opens or closes
   useEffect(() => {
     if (isOpen) {
-      reset({ name: "", memberUserIds: [] });
+      reset({ name: "", memberUserIds: [], membershipType: "fixed", membershipRule: undefined });
+      setFixedMode("pick");
     }
   }, [isOpen, reset]);
 
@@ -104,6 +118,7 @@ export function CreateRoomModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit(onFormSubmit)} className="mt-5 space-y-4">
+          {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
           {/* Room Name Field */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -136,8 +151,31 @@ export function CreateRoomModal({
             )}
           </div>
 
-          {/* Members Field */}
-          <div>
+          <div className="grid grid-cols-2 gap-2">
+            {(["rule", "fixed"] as const).map((kind) => <button key={kind} type="button" aria-pressed={membershipType === kind} onClick={() => {
+              setValue("membershipType", kind);
+              if (kind === "fixed") { setFixedMode("pick"); setValue("membershipRule", undefined); }
+              else if (!membershipRule) setValue("membershipRule", { filters: [], reportingManagerIds: [], reportingScope: "direct", includeReportingManagers: false, addedByHandUserIds: [], keptOutByHandUserIds: [] });
+            }} className={`rounded-xl border p-3 text-left ${membershipType === kind ? "border-blue-700 bg-blue-50" : "border-slate-200 bg-white"}`}>
+              <span className="block text-xs font-bold text-slate-900">{kind === "rule" ? "Follows a rule" : "Fixed list"}</span>
+              <span className="mt-0.5 block text-[11px] text-slate-500">{kind === "rule" ? "People join and leave as the Users master changes" : "Only the Admin changes members"}</span>
+            </button>)}
+          </div>
+
+          {membershipType === "fixed" && <div className="flex justify-end gap-1 rounded-lg bg-slate-100 p-1 text-[10px] font-semibold">
+            <button type="button" aria-pressed={fixedMode === "pick"} onClick={() => { setFixedMode("pick"); setValue("membershipRule", undefined); }} className={`rounded-md px-3 py-1.5 ${fixedMode === "pick" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}>Pick people</button>
+            <button type="button" aria-pressed={fixedMode === "filter"} onClick={() => { setFixedMode("filter"); if (!membershipRule) setValue("membershipRule", { filters: [], reportingManagerIds: [], reportingScope: "direct", includeReportingManagers: false, addedByHandUserIds: [], keptOutByHandUserIds: [] }); }} className={`rounded-md px-3 py-1.5 ${fixedMode === "filter" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}>Add by filter</button>
+          </div>}
+
+          {membershipType === "rule" || fixedMode === "filter" ? <MembershipRuleBuilder
+            projectId={projectId}
+            options={ruleOptions}
+            users={eligibleUsers}
+            value={membershipRule as MembershipRuleInput}
+            onChange={(rule) => setValue("membershipRule", rule)}
+            disabled={isSubmitting}
+          /> : <div>
+            {/* Members Field */}
             <label className="block text-[10px] font-bold tracking-[0.18em] text-slate-700 mb-2">
               Members
             </label>
@@ -152,7 +190,7 @@ export function CreateRoomModal({
             <div className="mt-2.5 space-y-2">
               <div className="text-[11px] text-slate-500 font-medium flex items-center justify-between">
                 <span>
-                  {plural(selectedUserIds.length, "member")} selected · 2 to 250
+                  {plural(selectedUserIds.length, "member")} selected · 2 to 1,000
                   per room
                 </span>
                 {selectedUserIds.length > 0 && (
@@ -208,7 +246,7 @@ export function CreateRoomModal({
                 </div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Modal Footer */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
@@ -229,8 +267,9 @@ export function CreateRoomModal({
                 disabled={
                   isSubmitting ||
                   !roomName.trim() ||
-                  selectedUserIds.length < 2 ||
-                  selectedUserIds.length > 250
+                  (membershipType === "fixed" && fixedMode === "pick" && selectedUserIds.length < 2) ||
+                  selectedUserIds.length > 1000 ||
+                  ((membershipType === "rule" || fixedMode === "filter") && !membershipRule?.filters.some((filter) => filter.values.length) && !membershipRule?.reportingManagerIds.length)
                 }
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#0b4ea2] hover:bg-[#093e82] disabled:bg-slate-200 disabled:text-slate-400 rounded-lg shadow-xs transition-colors cursor-pointer"
               >

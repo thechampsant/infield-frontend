@@ -19,6 +19,8 @@ import { projectAdminBase } from "@/lib/nav/nav";
 import { connectWallService } from "@/lib/api/connect-wall-service";
 import type { ProjectUser } from "@/types/project-admin";
 import { useRoomMembership, type RoomDetails } from "./use-room-membership";
+import { EditMembershipRuleModal } from "@/components/project-admin/connect/modals/edit-membership-rule-modal";
+import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 
 export interface RoomDetailPageProps {
   roomId: string;
@@ -43,9 +45,20 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [isEditRuleOpen, setIsEditRuleOpen] = useState(false);
+  const [membershipRule, setMembershipRule] = useState<MembershipRuleInput | null>(null);
+  const [ruleOptions, setRuleOptions] = useState<MembershipRuleOptions | null>(null);
+  const [keptOutByHand, setKeptOutByHand] = useState<Array<{ userId: string; name: string }>>([]);
+  const [heldRemovals, setHeldRemovals] = useState<Array<{ userId: string; name: string }>>([]);
+  const [removalHoldReason, setRemovalHoldReason] = useState<string | null>(null);
+  const [waitingCount, setWaitingCount] = useState(0);
 
   const handleMembershipRefresh = useCallback((details: RoomDetails, refreshedMessages: RoomMessage[]) => {
     setMembers(details.members);
+    setKeptOutByHand(details.keptOutByHand || []);
+    setHeldRemovals(details.heldRemovals || []);
+    setRemovalHoldReason(details.removalHoldReason || null);
+    setWaitingCount(details.waitingCount || 0);
     setMessages(refreshedMessages);
     setRoom((prev) => prev ? {
       ...prev,
@@ -54,6 +67,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
       name: details.name,
       initials: getRoomInitials(details.name),
       memberCount: details.memberCount,
+      membershipType: details.membershipType,
     } : prev);
   }, []);
 
@@ -73,6 +87,11 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     }).catch((err) => console.warn("Could not fetch project users for room members", err));
     return () => { cancelled = true; };
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    connectRoomService.getMembershipRuleOptions(roomId).then(setRuleOptions).catch(() => setRuleOptions(null));
+  }, [projectId, roomId]);
 
   // Fetch real room details & real messages
   useEffect(() => {
@@ -96,6 +115,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 
         let chatRoom: ChatRoom | null = null;
         let roomMembers: RoomMember[] = [];
+        let roomKeptOut: Array<{ userId: string; name: string }> = [];
+        let roomHeld: Array<{ userId: string; name: string }> = [];
         let roomMsgs: RoomMessage[] = [];
 
         if (detailsResult.status === "fulfilled") {
@@ -108,6 +129,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
             name: details.name,
             initials: getRoomInitials(details.name),
             memberCount: details.memberCount,
+            membershipType: details.membershipType,
             messageCount: msgsList.length,
             lastActivity:
               msgsList.length > 0
@@ -116,6 +138,16 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
             tag: "Discussion",
           };
           roomMembers = details.members || [];
+          roomKeptOut = details.keptOutByHand || [];
+          roomHeld = details.heldRemovals || [];
+          setRemovalHoldReason(details.removalHoldReason || null);
+          setWaitingCount(details.waitingCount || 0);
+          if (details.membershipType === "rule") {
+            const rule = await connectRoomService.getMembershipRule(roomId).catch(() => null);
+            if (!cancelled) setMembershipRule(rule as MembershipRuleInput | null);
+          } else {
+            setMembershipRule(null);
+          }
           roomMsgs = msgsList;
         } else {
           // If getRoomDetails was rejected, attempt lookup from listRooms
@@ -133,6 +165,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 
         setRoom(chatRoom);
         setMembers(roomMembers);
+        setKeptOutByHand(roomKeptOut);
+        setHeldRemovals(roomHeld);
         setMessages(roomMsgs);
       } catch (err) {
         if (cancelled) return;
@@ -190,6 +224,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       content,
       initials: "PT",
+      isSystem: false,
     };
 
     setMessages((prev) => [...prev, newMsg]);
@@ -219,8 +254,36 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     setIsAddMemberModalOpen(false);
   }
 
+  async function handleAddByFilter(rule: MembershipRuleInput) {
+    await connectRoomService.addMembersByFilter(roomId, rule);
+    await roomMembership.refreshRoom();
+  }
+
   async function handleRemoveMember(memberId: string) {
     await roomMembership.removeMember(memberId);
+  }
+
+  async function handleSaveRule(rule: MembershipRuleInput) {
+    await connectRoomService.updateMembershipRule(roomId, rule);
+    await roomMembership.refreshRoom();
+    setMembershipRule(await connectRoomService.getMembershipRule(roomId));
+  }
+
+  async function handleRemoveRule() {
+    await connectRoomService.removeMembershipRule(roomId);
+    setMembershipRule(null);
+    setRoom((prev) => prev ? { ...prev, membershipType: "fixed" } : prev);
+    await roomMembership.refreshRoom();
+  }
+
+  async function handleAllowBack(userId: string) {
+    await connectRoomService.allowBackByHand(roomId, userId);
+    await roomMembership.refreshRoom();
+  }
+
+  async function handleResolveHeldRemovals(decision: "remove" | "keep") {
+    await connectRoomService.resolveHeldRemovals(roomId, decision);
+    await roomMembership.refreshRoom();
   }
 
   async function handleSimulateExit(memberId: string) {
@@ -274,6 +337,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         onSimulateExit={handleSimulateExit}
         onRenameRoom={handleRenameRoom}
         onDeleteRoom={handleDeleteRoom}
+        membershipRule={membershipRule}
+        onEditRule={() => setIsEditRuleOpen(true)}
+        keptOutByHand={keptOutByHand}
+        onAllowBack={handleAllowBack}
+        heldRemovals={heldRemovals}
+        removalHoldReason={removalHoldReason}
+        waitingCount={waitingCount}
+        onResolveHeldRemovals={handleResolveHeldRemovals}
       />
 
       <AddMemberModal
@@ -284,6 +355,23 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         existingMemberIds={members.map((member) => member.id)}
         memberCount={room?.memberCount ?? members.length}
         roomName={room?.name}
+        membershipType={room?.membershipType || "fixed"}
+        projectId={projectId}
+        ruleOptions={ruleOptions}
+        onAddByFilter={handleAddByFilter}
+      />
+      <EditMembershipRuleModal
+        isOpen={isEditRuleOpen}
+        roomId={roomId}
+        roomName={room.name}
+        projectId={projectId}
+        options={ruleOptions}
+        users={eligibleUsers}
+        initialRule={membershipRule}
+        currentMemberIds={members.map((member) => member.id)}
+        onClose={() => setIsEditRuleOpen(false)}
+        onSave={handleSaveRule}
+        onRemoveRule={handleRemoveRule}
       />
     </div>
   );

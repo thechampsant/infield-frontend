@@ -20,7 +20,7 @@ export function MemberUserPicker({
   selectedUserIds,
   onSelectionChange,
   disabled = false,
-  selectionLimit = 250,
+  selectionLimit = 1000,
   searchPlaceholder = "Search by name, store or employee code",
   excludedUserIds = [],
 }: MemberUserPickerProps) {

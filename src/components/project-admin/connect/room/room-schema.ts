@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Validation schema for creating a chat room.
  * - Name: 1-50 characters, trimmed, required.
- * - MemberUserIds: 2-250 member user IDs, required.
+ * - MemberUserIds: at most 1,000 active user IDs; mode-specific minimum is checked by the UI and API.
  */
 export const createRoomSchema = z.object({
   name: z
@@ -13,8 +13,16 @@ export const createRoomSchema = z.object({
     .max(50, "Room name cannot exceed 50 characters."),
   memberUserIds: z
     .array(z.string())
-    .min(2, "Add at least 2 members.")
-    .max(250, "A room holds up to 250 members."),
+    .max(1000, "A room holds up to 1,000 members."),
+  membershipType: z.enum(["fixed", "rule"]),
+  membershipRule: z.object({
+    filters: z.array(z.object({ fieldKey: z.string(), source: z.enum(["user", "store", "designation", "manager"]), values: z.array(z.string()) })),
+    reportingManagerIds: z.array(z.string()),
+    reportingScope: z.enum(["direct", "subtree"]),
+    includeReportingManagers: z.boolean(),
+    addedByHandUserIds: z.array(z.string()),
+    keptOutByHandUserIds: z.array(z.string()).optional(),
+  }).optional(),
 });
 
 export type CreateRoomFormValues = z.infer<typeof createRoomSchema>;

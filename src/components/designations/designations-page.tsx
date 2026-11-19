@@ -107,7 +107,6 @@ export function DesignationsPage({ projectId, projectName }: Props) {
         return {
           projectId,
           name: item.name,
-          externalCode: item.name,
           roleId: item.roleId,
           permissions:
             item.permissions?.length

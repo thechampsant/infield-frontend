@@ -11,6 +11,7 @@ import { connectRoomService } from "@/lib/api/connect-room-service";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 import { CreateRoomModal } from "../modals/create-room-modal";
 import type { CreateRoomFormValues } from "./room-schema";
+import type { MembershipRuleOptions } from "@/lib/api/connect-room-service";
 
 function useSafeRouter() {
   try {
@@ -48,6 +49,8 @@ export function ChatRoomsTab({
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [ruleOptions, setRuleOptions] = useState<MembershipRuleOptions | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // 1. Dynamic fetch of Chat Rooms list (cached & deduplicated)
   useEffect(() => {
@@ -80,6 +83,11 @@ export function ChatRoomsTab({
     };
   }, [projectId, accountId, initialRooms]);
 
+  useEffect(() => {
+    if (!projectId) return;
+    connectRoomService.getMembershipRuleOptions().then(setRuleOptions).catch((error) => console.warn("Could not load membership rule options", error));
+  }, [projectId]);
+
   // Room details live at the dedicated /connect/room/:id route.
   function handleSelectRoom(roomId: string) {
     if (!accountCode || !projectCode || !router) {
@@ -93,9 +101,12 @@ export function ChatRoomsTab({
   async function handleCreateRoom(values: CreateRoomFormValues) {
     try {
       setIsCreatingRoom(true);
+      setCreateError(null);
       const created = await connectRoomService.createRoom({
         name: values.name,
         memberUserIds: values.memberUserIds,
+        membershipType: values.membershipType,
+        membershipRule: values.membershipRule,
         projectId,
         accountId,
       });
@@ -108,7 +119,7 @@ export function ChatRoomsTab({
         }
       }
     } catch (err) {
-      console.warn("Backend create room failed, falling back to local creation", err);
+      setCreateError(err instanceof Error ? err.message : "Could not create this room.");
     } finally {
       setIsCreatingRoom(false);
     }
@@ -180,10 +191,10 @@ export function ChatRoomsTab({
                   ROOM
                 </th>
                 <th className="py-3.5 px-5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-3/12">
-                  MEMBERS
+                  MEMBERSHIP
                 </th>
                 <th className="py-3.5 px-5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-2/12">
-                  MESSAGES
+                  MEMBERS
                 </th>
                 <th className="py-3.5 px-5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-2/12">
                   LAST ACTIVITY
@@ -218,6 +229,13 @@ export function ChatRoomsTab({
                   </td>
 
                   <td className="py-3.5 px-5">
+                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${room.membershipType === "rule" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-700"}`}>{room.membershipType === "rule" ? "Follows a rule" : "Fixed list"}</span>
+                    {room.membershipSummary && <p className="mt-1 text-[11px] text-slate-500">{room.membershipSummary}</p>}
+                    {room.needsAttention && <span className="mt-1 inline-block rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Needs attention</span>}
+                    {room.waitingCount ? <p className="mt-1 text-[11px] text-slate-500">{room.waitingCount} waiting for a place</p> : null}
+                  </td>
+
+                  <td className="py-3.5 px-5">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-slate-700">
                         {room.memberCount}
@@ -228,12 +246,6 @@ export function ChatRoomsTab({
                         </span>
                       )}
                     </div>
-                  </td>
-
-                  <td className="py-3.5 px-5">
-                    <span className="text-sm font-semibold text-slate-700">
-                      {room.messageCount}
-                    </span>
                   </td>
 
                   <td className="py-3.5 px-5">
@@ -256,6 +268,9 @@ export function ChatRoomsTab({
         onSubmit={handleCreateRoom}
         eligibleUsers={eligibleUsers}
         isSubmitting={isCreatingRoom}
+        projectId={projectId}
+        ruleOptions={ruleOptions}
+        error={createError}
       />
     </div>
   );
