@@ -193,6 +193,19 @@ describe("Room Components Suite", () => {
       expect(html).toContain("Chat rooms are switched off in Settings.");
       expect(html).toContain("disabled");
     });
+
+    it("deduplicates rooms sharing the same id without key collision warnings", () => {
+      const duplicateRoom = { ...MOCK_ROOM };
+      const html = renderToStaticMarkup(
+        <ChatRoomsTab
+          rooms={[MOCK_ROOM, duplicateRoom]}
+          roomsEnabled={true}
+        />,
+      );
+
+      const occurrences = (html.match(/Mumbai Squad/g) || []).length;
+      expect(occurrences).toBe(1);
+    });
   });
 
   describe("RoomDetail", () => {
@@ -220,6 +233,65 @@ describe("Room Components Suite", () => {
       expect(html).toContain("Members");
       expect(html).toContain("Room settings");
       expect(html).toContain("Welcome to the squad!");
+    });
+
+    it("renders 'Add rule' and 'Add members' at the header when room has no rule", () => {
+      const html = renderToStaticMarkup(
+        <RoomDetail
+          room={{ ...MOCK_ROOM, membershipType: "fixed" }}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          onEditRule={vi.fn()}
+          initialSubTab="members"
+        />,
+      );
+
+      expect(html).toContain("Add rule");
+      expect(html).toContain("Add members");
+      expect(html).not.toContain("Edit rule");
+      expect(html).not.toContain("Add by hand");
+      expect(html).not.toContain("Membership rule");
+    });
+
+    it("renders 'Edit rule' and 'Add by hand' at the same header when room follows a rule", () => {
+      const html = renderToStaticMarkup(
+        <RoomDetail
+          room={{ ...MOCK_ROOM, membershipType: "rule" }}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          onEditRule={vi.fn()}
+          membershipRule={{
+            filters: [{ source: "designation", fieldKey: "role", values: ["Promoter"] }],
+            reportingManagerIds: [],
+            reportingScope: "direct",
+            includeReportingManagers: false,
+            addedByHandUserIds: [],
+            keptOutByHandUserIds: [],
+          }}
+          initialSubTab="members"
+        />,
+      );
+
+      expect(html).toContain("Edit rule");
+      expect(html).toContain("Add by hand");
+      expect(html).not.toContain("Add rule");
+      expect(html).not.toContain("Add members");
+      expect(html).toContain("Membership rule");
+      expect(html).toContain("Promoter");
     });
   });
 

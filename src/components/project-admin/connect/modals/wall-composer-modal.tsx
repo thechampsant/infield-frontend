@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Image as ImageIcon, Video, Users, Play, AlertCircle } from "lucide-react";
@@ -22,6 +22,7 @@ export function WallComposerModal({
 }: WallComposerModalProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -53,9 +54,14 @@ export function WallComposerModal({
   }
 
   async function onFormSubmit(data: WallPostFormValues) {
-    await onSubmit(data);
-    reset();
-    onClose();
+    setSubmitError(null);
+    try {
+      await onSubmit(data);
+      reset();
+      onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Could not upload media and publish this post.");
+    }
   }
 
   function handleAddImageClick() {
@@ -167,7 +173,7 @@ export function WallComposerModal({
 
   // Combined error message if any
   const formError =
-    errors.text?.message ||
+    submitError || errors.text?.message ||
     errors.mediaType?.message ||
     errors.images?.message ||
     errors.video?.message;

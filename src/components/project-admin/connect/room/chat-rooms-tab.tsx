@@ -7,11 +7,16 @@ import type {
   ChatRoom,
 } from "@/components/project-admin/connect/types";
 import type { ProjectUser } from "@/types/project-admin";
-import { connectRoomService } from "@/lib/api/connect-room-service";
+import {
+  connectRoomService,
+  formatRoomDate,
+  getRoomInitials,
+} from "@/lib/api/connect-room-service";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 import { CreateRoomModal } from "../modals/create-room-modal";
 import type { CreateRoomFormValues } from "./room-schema";
 import type { MembershipRuleOptions } from "@/lib/api/connect-room-service";
+import { useRoomsListSocket } from "@/hooks/use-connect-socket";
 
 function useSafeRouter() {
   try {
@@ -19,6 +24,19 @@ function useSafeRouter() {
   } catch {
     return null;
   }
+}
+
+function dedupeRooms(list: ChatRoom[]): ChatRoom[] {
+  const seen = new Set<string>();
+  const result: ChatRoom[] = [];
+  for (const room of list) {
+    const id = room._id || room.id;
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      result.push(room);
+    }
+  }
+  return result;
 }
 
 export interface ChatRoomsTabProps {
@@ -43,7 +61,7 @@ export function ChatRoomsTab({
   const accountId = (projectContext as unknown as Record<string, string>)?.accountId;
 
   // Rooms state — purely dynamic, no fake INITIAL_ROOMS data
-  const [rooms, setRooms] = useState<ChatRoom[]>(() => propRooms || initialRooms || []);
+  const [rooms, setRooms] = useState<ChatRoom[]>(() => dedupeRooms(propRooms || initialRooms || []));
   const [isLoading, setIsLoading] = useState<boolean>(() => Boolean(projectId));
 
   // Modals state
@@ -67,11 +85,11 @@ export function ChatRoomsTab({
         }
         const data = await connectRoomService.listRooms(projectId, false, accountId);
         if (cancelled) return;
-        setRooms(data || []);
+        setRooms(dedupeRooms(data || []));
       } catch (err) {
         if (cancelled) return;
         console.warn("Could not fetch chat rooms from backend", err);
-        setRooms(initialRooms || []);
+        setRooms(dedupeRooms(initialRooms || []));
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -87,6 +105,51 @@ export function ChatRoomsTab({
     if (!projectId) return;
     connectRoomService.getMembershipRuleOptions().then(setRuleOptions).catch((error) => console.warn("Could not load membership rule options", error));
   }, [projectId]);
+
+  // 2. Real-time Socket.IO integration for rooms list (Guide Section 18.4 Scenario 2 & 3)
+  useRoomsListSocket({
+    onSummaryUpdated: (summary) => {
+      setRooms((prev) => {
+        const index = prev.findIndex(
+          (r) => (r.id && r.id === summary.roomId) || (r._id && r._id === summary.roomId),
+        );
+        if (index === -1) return prev;
+        const target = prev[index];
+        const lastTime = summary.lastMessageAt || summary.lastMessage?.sentAt;
+        const updated: ChatRoom = {
+          ...target,
+          lastActivity: formatRoomDate(lastTime),
+          messageCount: target.messageCount + 1,
+        };
+        // Reorder room to top of list smoothly and remove any duplicate occurrences
+        const remaining = prev.filter(
+          (r, i) => i !== index && (r._id || r.id) !== summary.roomId,
+        );
+        return [updated, ...remaining];
+      });
+    },
+    onRoomAdded: (newRoom) => {
+      setRooms((prev) => {
+        const newId = newRoom._id || newRoom.id;
+        if (!newId || prev.some((r) => (r._id || r.id) === newId)) {
+          return prev;
+        }
+        return [newRoom, ...prev];
+      });
+    },
+    onRoomUpdated: (update) => {
+      setRooms((prev) =>
+        prev.map((r) =>
+          (r.id && r.id === update.roomId) || (r._id && r._id === update.roomId)
+            ? { ...r, name: update.name, initials: getRoomInitials(update.name) }
+            : r,
+        ),
+      );
+    },
+    onRoomDeleted: (deletedRoomId) => {
+      setRooms((prev) => prev.filter((r) => (r._id || r.id) !== deletedRoomId));
+    },
+  });
 
   // Room details live at the dedicated /connect/room/:id route.
   function handleSelectRoom(roomId: string) {
@@ -112,7 +175,12 @@ export function ChatRoomsTab({
       });
       if (created) {
         const cId = created._id || created.id;
-        setRooms((prev) => [created, ...prev]);
+        setRooms((prev) => {
+          if (cId && prev.some((r) => (r._id || r.id) === cId)) {
+            return prev;
+          }
+          return [created, ...prev];
+        });
         setIsCreateModalOpen(false);
         if (cId) {
           handleSelectRoom(cId);
@@ -202,8 +270,8 @@ export function ChatRoomsTab({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rooms.map((room) => {
-                const rId = room._id || room.id || "";
+              {dedupeRooms(rooms).map((room, index) => {
+                const rId = room._id || room.id || `room-${index}`;
                 return (
                   <tr
                     key={rId}

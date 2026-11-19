@@ -104,6 +104,35 @@ export function ConnectWallPage() {
     }
 
     try {
+      if (mediaType === "IMAGES" && images?.length) {
+        const localImages = images.filter((image) => image.url.startsWith("blob:"));
+        if (localImages.length) {
+          const files = await Promise.all(localImages.map(async (image) => {
+            const response = await fetch(image.url);
+            if (!response.ok) throw new Error(`Could not read selected image ${image.name}`);
+            const blob = await response.blob();
+            return new File([blob], image.originalName || image.name, {
+              type: blob.type || "application/octet-stream",
+            });
+          }));
+          const uploadedImages = await connectWallService.uploadImages(files);
+          let uploadIndex = 0;
+          images = images.map((image) =>
+            image.url.startsWith("blob:") ? uploadedImages[uploadIndex++] : image,
+          );
+        }
+      }
+
+      if (mediaType === "VIDEO" && video?.url.startsWith("blob:")) {
+        const response = await fetch(video.url);
+        if (!response.ok) throw new Error(`Could not read selected video ${video.originalName || video.title}`);
+        const blob = await response.blob();
+        const file = new File([blob], video.originalName || `${video.title}.mp4`, {
+          type: blob.type || "video/mp4",
+        });
+        video = await connectWallService.uploadVideo(file, video.durationSeconds || 108);
+      }
+
       const created = await connectWallService.createPost({
         text,
         mediaType,
@@ -115,6 +144,7 @@ export function ConnectWallPage() {
       setPosts((current) => [{ ...created, totalUsers: effectiveUserCount }, ...current]);
     } catch (error) {
       console.warn("Backend Wall post creation failed", error);
+      throw error;
     }
   }
 

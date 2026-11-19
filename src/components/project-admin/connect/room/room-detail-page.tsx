@@ -21,6 +21,7 @@ import type { ProjectUser } from "@/types/project-admin";
 import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 import { EditMembershipRuleModal } from "@/components/project-admin/connect/modals/edit-membership-rule-modal";
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
+import { useRoomSocket } from "@/hooks/use-connect-socket";
 
 export interface RoomDetailPageProps {
   roomId: string;
@@ -184,6 +185,53 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     };
   }, [roomId, projectId, accountId]);
 
+  // Real-time Socket.IO integration (Infield Connect API Integration Guide Sections 8.4, 12, 18.4)
+  useRoomSocket({
+    roomId,
+    onNewMessage: (newMsg) => {
+      setMessages((prev) => {
+        // Deduplicate against optimistic local message (by id, clientMessageId or match)
+        const exists = prev.some(
+          (m) =>
+            m.id === newMsg.id ||
+            (m.id.startsWith("msg-") && m.content === newMsg.content && m.senderName === newMsg.senderName),
+        );
+        if (exists) {
+          return prev.map((m) =>
+            m.id === newMsg.id ||
+            (m.id.startsWith("msg-") && m.content === newMsg.content && m.senderName === newMsg.senderName)
+              ? newMsg
+              : m,
+          );
+        }
+        return [...prev, newMsg];
+      });
+      setRoom((prev) => (prev ? { ...prev, messageCount: prev.messageCount + 1 } : null));
+    },
+    onMessageDeleted: (deletedMsgId) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === deletedMsgId ? { ...m, content: "Removed by admin" } : m)),
+      );
+    },
+    onRoomUpdated: (newName) => {
+      setRoom((prev) =>
+        prev ? { ...prev, name: newName, initials: getRoomInitials(newName) } : null,
+      );
+    },
+    onRoomDeleted: () => {
+      setError("This chat room was deleted.");
+    },
+    onReconnect: () => {
+      // Reconcile missed messages through REST after socket reconnects
+      connectRoomService
+        .getMessages(roomId, { projectId, accountId })
+        .then((res) => {
+          setMessages(res.messages);
+        })
+        .catch(() => {});
+    },
+  });
+
   function handleBack() {
     if (roomsListHref) {
       router.push(roomsListHref);
@@ -231,7 +279,18 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     setRoom((prev) => (prev ? { ...prev, messageCount: prev.messageCount + 1 } : null));
 
     try {
-      await connectRoomService.sendMessage(roomId, content, clientMessageId, projectId, accountId);
+      const serverMsg = await connectRoomService.sendMessage(
+        roomId,
+        content,
+        clientMessageId,
+        projectId,
+        accountId,
+      );
+      if (serverMsg) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === clientMessageId ? serverMsg : m)),
+        );
+      }
     } catch (err) {
       console.warn("Server send message failed", err);
     }

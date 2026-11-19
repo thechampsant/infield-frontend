@@ -538,6 +538,20 @@ export const connectRoomService = {
   },
 
   /**
+   * Mark room as read.
+   * POST /api/v1/connect/rooms/:roomId/read
+   */
+  async markRead(
+    roomId: string,
+    lastReadMessageId?: string,
+  ): Promise<{ roomId: string; unreadCount: number }> {
+    return apiClient.post<{ roomId: string; unreadCount: number }>(
+      `${ROOMS_BASE}/${roomId}/read`,
+      lastReadMessageId ? { lastReadMessageId } : {},
+    );
+  },
+
+  /**
    * Delete an inappropriate message for everyone.
    * DELETE /api/v1/connect/rooms/:roomId/messages/:messageId
    */

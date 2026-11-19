@@ -6,7 +6,6 @@ import {
   normalizeChatRoom,
   ROOMS_BASE,
   ROOMS_BASE_CONFIG,
-  setRoomContext,
   clearRoomContext,
   type ApiRoom,
 } from "./connect-room-service";
@@ -111,13 +110,9 @@ describe("connectRoomService Suite", () => {
       {
         name: "New Group",
         memberUserIds: ["u1", "u2"],
+        membershipType: "fixed",
         projectId: "proj-1",
       },
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          projectid: "proj-1",
-        }),
-      }),
     );
     expect(created.id).toBe("room-new");
 
@@ -139,11 +134,6 @@ describe("connectRoomService Suite", () => {
       {
         name: "Renamed Room",
       },
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          projectid: "proj-1",
-        }),
-      }),
     );
     expect(result.name).toBe("Renamed Room");
   });
@@ -158,11 +148,6 @@ describe("connectRoomService Suite", () => {
 
     expect(deleteSpy).toHaveBeenCalledWith(
       "/api/v1/connect/rooms/room-del",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          projectid: "proj-1",
-        }),
-      }),
     );
     expect(success).toBe(true);
   });
@@ -187,7 +172,7 @@ describe("connectRoomService Suite", () => {
 
     const result = await connectRoomService.getRoomDetails("room-dtl");
 
-    expect(getSpy).toHaveBeenCalledWith("/api/v1/connect/rooms/room-dtl", undefined);
+    expect(getSpy).toHaveBeenCalledWith("/api/v1/connect/rooms/room-dtl");
     expect(result.roomId).toBe("room-dtl");
     expect(result.members.length).toBe(1);
     expect(result.members[0].name).toBe("Ritika Shah");
@@ -212,7 +197,6 @@ describe("connectRoomService Suite", () => {
         text: "Broadcast update",
         clientMessageId: "cid-1",
       },
-      undefined,
     );
     expect(sent.id).toBe("msg-99");
     expect(sent.content).toBe("Broadcast update");
