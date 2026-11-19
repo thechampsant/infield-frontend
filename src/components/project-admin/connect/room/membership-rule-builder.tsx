@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectUser } from "@/types/project-admin";
 import { connectRoomService, type MembershipRuleInput, type MembershipRuleOptions } from "@/lib/api/connect-room-service";
+import { MemberUserPicker } from "./member-user-picker";
 
 const emptyRule = (): MembershipRuleInput => ({ filters: [], reportingManagerIds: [], reportingScope: "direct", includeReportingManagers: false, addedByHandUserIds: [] });
 
@@ -26,7 +27,6 @@ export function MembershipRuleBuilder({
   showManualAdditions?: boolean;
 }) {
   const [preview, setPreview] = useState<{ count: number; userIds: string[]; users: Array<{ userId: string; name: string }> } | null>(null);
-  const [manualSearch, setManualSearch] = useState("");
   const rule = useMemo(() => ({
     ...emptyRule(), ...value,
     filters: value?.filters || [],
@@ -89,13 +89,12 @@ export function MembershipRuleBuilder({
     </div>
     {showManualAdditions && <div className="mt-3 border-t border-slate-200 pt-3">
       <h4 className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">Also add by hand (optional)</h4>
-      <input value={manualSearch} onChange={(event) => setManualSearch(event.target.value)} placeholder="Search by name, store or employee code" className="mb-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
-      <div className="max-h-40 overflow-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
-        {users.filter((user) => user.status !== "inactive" && (!manualSearch.trim() || [user.name, user.id, user.backendId, user.designation].some((part) => (part || "").toLocaleLowerCase().includes(manualSearch.toLocaleLowerCase())))).map((user) => {
-          const id = user.backendId || user.id;
-          return <label key={id} className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50"><input type="checkbox" checked={rule.addedByHandUserIds.includes(id)} onChange={() => onChange({ ...rule, addedByHandUserIds: rule.addedByHandUserIds.includes(id) ? rule.addedByHandUserIds.filter((item) => item !== id) : [...rule.addedByHandUserIds, id] })} /><span className="font-medium text-slate-800">{user.name}</span><span className="text-slate-500">{user.designation}</span></label>;
-        })}
-      </div>
+      <MemberUserPicker
+        users={users}
+        selectedUserIds={rule.addedByHandUserIds}
+        onSelectionChange={(ids) => onChange({ ...rule, addedByHandUserIds: ids })}
+        disabled={disabled}
+      />
       <p className="mt-2 text-[11px] text-slate-500">People added by hand stay even if they stop matching the rule.</p>
     </div>}
   </div>;
