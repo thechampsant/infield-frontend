@@ -135,7 +135,6 @@ export function DesignationFormModal({
       await onSubmit({
         projectId,
         name: formData.name.trim(),
-        externalCode: formData.name.trim(),
         roleId: formData.roleId,
         access: formData.access,
         permissions,

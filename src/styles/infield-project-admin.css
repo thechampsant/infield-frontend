@@ -213,6 +213,60 @@
   border-radius: 0 4px 4px 0;
 }
 
+/* Engagement Navigation (Connect module) */
+.pa-shell .pa-nav-group--engagement {
+  margin-top: 14px;
+  padding-top: 6px;
+}
+
+.pa-shell .pa-nav-link--engagement {
+  margin: 2px 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: all 0.15s ease;
+}
+
+.pa-shell .pa-nav-link--engagement:hover {
+  background: var(--surface2);
+}
+
+.pa-shell .pa-nav-link--engagement.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.pa-shell .pa-nav-link--engagement.active::before {
+  display: none;
+}
+
+.pa-shell .pa-drawer--collapsed .pa-nav-link--engagement {
+  margin: 2px 8px;
+  padding: 10px;
+  justify-content: center;
+}
+
+.pa-shell .pa-nav-link-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.pa-shell .pa-nav-badge-new {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 9999px;
+  background: #dcfce7;
+  color: #15803d;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
 .pa-shell .pa-drawer-footer {
   padding: 12px 16px;
   border-top: 1px solid var(--border);

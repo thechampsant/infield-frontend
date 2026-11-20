@@ -18,6 +18,7 @@ import "@/styles/infield-custom-view.css";
 import "@/styles/infield-project-admin.css";
 import "@/styles/infield-resubmission.css";
 import "@/styles/infield-brand.css";
+import "@/styles/infield-connect.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemeInitScript } from "@/components/theme/theme-init-script";
 import { AuthProvider } from "@/lib/auth/auth-context";

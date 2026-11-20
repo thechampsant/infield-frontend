@@ -87,6 +87,15 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     configPath: "modules/notifications",
   },
   {
+    id: "connect",
+    name: "Connect",
+    description: "Instantly connect with your team using instant messaging",
+    accent: "blue",
+    defaultEnabled: false,
+    comingSoon: false,
+    configPath: "modules/connect",
+  },
+  {
     id: "custom-view",
     name: "Custom View",
     description:
