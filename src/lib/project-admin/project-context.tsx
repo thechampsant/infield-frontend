@@ -73,7 +73,7 @@ export function ProjectContextProvider({
       } else if (found.accountCode || accountCode) {
         try {
           const code = found.accountCode || accountCode;
-          const accounts = await api.listAccounts({ pageSize: 200 });
+          const accounts = await api.listAccounts({ pageSize: 100 });
           const match = accounts.items.find((a) => a.code === code);
           if (match) setAccountName(match.name);
           else setAccountName(code);
@@ -128,4 +128,8 @@ export function useProjectContext(): ProjectContextValue {
     throw new Error("useProjectContext must be used within ProjectContextProvider");
   }
   return ctx;
+}
+
+export function useOptionalProjectContext(): ProjectContextValue | null {
+  return useContext(ProjectContext);
 }

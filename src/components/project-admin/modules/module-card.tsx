@@ -15,6 +15,7 @@ import {
   Target,
   TrendingUp,
   Wallet,
+  MessagesSquare,
   type LucideIcon,
 } from "lucide-react";
 import type { ModuleAccent } from "@/lib/project-admin/module-catalog";
@@ -34,6 +35,7 @@ const ICONS: Record<string, LucideIcon> = {
   sales: TrendingUp,
   stock: Boxes,
   "target-vs-achievement": Target,
+  connect: MessagesSquare,
 };
 
 const ACCENT_CLASS: Record<ModuleAccent, string> = {
@@ -104,13 +106,14 @@ export function ModuleCard({
               Go to Configuration
             </Link>
           ) : (
-            <button
-              type="button"
-              className="pa-mod-config-btn"
-              onClick={onConfigUnavailable}
-            >
-              Go to Configuration
-            </button>
+            null
+            // <button
+            //   type="button"
+            //   className="pa-mod-config-btn"
+            //   onClick={onConfigUnavailable}
+            // >
+            //   Go to Configuration
+            // </button>
           )
         )}
       </div>

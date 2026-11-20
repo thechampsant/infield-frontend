@@ -13,12 +13,14 @@ import {
   LayoutGrid,
   LayoutDashboard,
   RefreshCw,
+  MessagesSquare,
 } from "lucide-react";
 import { projectAdminBase, projectAdminDrawerNav } from "@/lib/nav/nav";
 import {
   dynamicMenuService,
   type DynamicMenuConfig,
 } from "@/lib/api/dynamic-menu-service";
+import { useConnectModuleEnabled } from "@/hooks/use-connect-module-enabled";
 import { useAuth } from "@/lib/auth/auth-context";
 import {
   canNavigateBackToProjects,
@@ -34,6 +36,7 @@ const ICONS = {
   pieChart: PieChart,
   refreshCw: RefreshCw,
   layoutDashboard: LayoutDashboard,
+  messagesSquare: MessagesSquare,
 } as const;
 
 export type PaProfile = {
@@ -73,20 +76,21 @@ export function ProjectAdminDrawer({
 
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
   const [hasSyncJobs, setHasSyncJobs] = useState(false);
+  const hasConnect = useConnectModuleEnabled(projectId);
 
   const navItems = hasSyncJobs
     ? baseNavItems.flatMap((item) =>
-        item.label === "Modules"
-          ? [
-              item,
-              {
-                label: "Sync Jobs",
-                href: `${projectAdminBase(accountCode, projectCode)}/sync-jobs`,
-                icon: "refreshCw" as const,
-              },
-            ]
-          : [item],
-      )
+      item.label === "Modules"
+        ? [
+          item,
+          {
+            label: "Sync Jobs",
+            href: `${projectAdminBase(accountCode, projectCode)}/sync-jobs`,
+            icon: "refreshCw" as const,
+          },
+        ]
+        : [item],
+    )
     : baseNavItems;
 
   useEffect(() => {
@@ -240,6 +244,27 @@ export function ProjectAdminDrawer({
               );
             })}
           </>
+        )}
+
+        {(
+          <div className="pa-nav-group pa-nav-group--engagement">
+            {expanded && <div className="pa-nav-section">Engagement</div>}
+            <Link
+              href={`${projectAdminBase(accountCode, projectCode)}/connect/wall`}
+              className={`pa-nav-link pa-nav-link--engagement${pathname.includes("/connect") ? " active" : ""}`}
+              title="Connect"
+            >
+              <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+                <MessagesSquare size={18} />
+              </span>
+              {expanded && (
+                <span className="pa-nav-link-content">
+                  <span>Connect</span>
+                  <span className="pa-nav-badge-new">NEW</span>
+                </span>
+              )}
+            </Link>
+          </div>
         )}
       </nav>
 
