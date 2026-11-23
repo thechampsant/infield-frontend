@@ -16,6 +16,7 @@ import type { ChatRoom, RoomMember, RoomMessage, RoomSubTab } from "@/components
 import { RoomSettingsTab } from "./room-settings-tab";
 import { plural } from "../utils";
 import type { MembershipRuleInput } from "@/lib/api/connect-room-service";
+import { If2Toast, type ToastState, type ToastPosition } from "@/components/accounts/if2-toast";
 
 export function dedupeMessages(messages: RoomMessage[]): RoomMessage[] {
   const seenIds = new Set<string>();
@@ -59,6 +60,9 @@ export interface RoomDetailProps {
   onResolveHeldRemovals?: (decision: "remove" | "keep") => void | Promise<void>;
   initialSubTab?: RoomSubTab;
   senderDisplayName?: string;
+  toast?: ToastState | null;
+  onDismissToast?: () => void;
+  toastPosition?: ToastPosition;
 }
 
 export function RoomDetail({
@@ -83,13 +87,27 @@ export function RoomDetail({
   onResolveHeldRemovals,
   initialSubTab = "messages",
   senderDisplayName = "Program Team",
+  toast: externalToast,
+  onDismissToast,
+  toastPosition = "center",
 }: RoomDetailProps) {
   const [roomSubTab, setRoomSubTab] = useState<RoomSubTab>(initialSubTab);
   const [inputMessage, setInputMessage] = useState("");
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
   const [memberToExit, setMemberToExit] = useState<RoomMember | null>(null);
+  const [internalToast, setInternalToast] = useState<ToastState | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+
+  const activeToast = externalToast || internalToast;
+  const handleDismissToast = () => {
+    setInternalToast(null);
+    onDismissToast?.();
+  };
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setInternalToast({ message, type });
+  };
 
   useEffect(() => {
     if (roomSubTab === "messages" && messagesScrollRef.current) {
@@ -395,7 +413,12 @@ export function RoomDetail({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => runMemberAction(member.id, () => onRemoveMember(member.id))}
+                    onClick={async () => {
+                      const success = await runMemberAction(member.id, () => onRemoveMember(member.id));
+                      if (success) {
+                        showToast(`${member.name} removed from ${room.name}`, "success");
+                      }
+                    }}
                     disabled={busyMemberId !== null || room.memberCount <= 2}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -447,9 +470,14 @@ export function RoomDetail({
                       </div>
                       <button
                         type="button"
-                        onClick={() => runMemberAction(person.userId, () => onAllowBack?.(person.userId))}
+                        onClick={async () => {
+                          const success = await runMemberAction(person.userId, () => onAllowBack?.(person.userId));
+                          if (success) {
+                            showToast(`${person.name} allowed back · rule rooms updated: ${room.name} (+1)`, "success");
+                          }
+                        }}
                         disabled={busyMemberId !== null}
-                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       >
                         {busyMemberId === person.userId && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}
                         Allow back
@@ -533,6 +561,9 @@ export function RoomDetail({
           onDeleteRoom={onDeleteRoom}
         />
       )}
+
+      {/* Toast notification for room member actions */}
+      <If2Toast toast={activeToast} onDismiss={handleDismissToast} position={toastPosition} className="bg-black! text-white!" />
     </div>
   );
 }

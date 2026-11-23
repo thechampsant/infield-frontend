@@ -286,7 +286,7 @@ export function SettingsTab({
       <ConnectConfigurationAuditHistory auditHistory={auditHistory} />
 
       {/* Toast notification for API errors / feedback */}
-      <If2Toast toast={activeToast} onDismiss={handleDismissToast} />
+      <If2Toast toast={activeToast} onDismiss={handleDismissToast} className="bg-black! text-white!" position="bottom-center" />
     </div>
   );
 }

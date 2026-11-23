@@ -701,6 +701,26 @@
   padding: var(--if2-sp-12) var(--if2-sp-16); border-radius: var(--if2-r-md);
   font-size: 12px; font-weight: 600; box-shadow: var(--if2-shadow-lg);
 }
+.if2-toast.center,
+.if2-toast.top-center,
+.if2-toast--center {
+  top: var(--if2-sp-24);
+  bottom: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  z-index: 100;
+  max-width: calc(100vw - 32px);
+}
+.if2-toast.bottom-center {
+  bottom: var(--if2-sp-24);
+  top: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  z-index: 100;
+  max-width: calc(100vw - 32px);
+}
 .if2-toast.success { background: var(--if2-teal-light); color: var(--if2-teal-dark); border: 1px solid rgba(0,168,122,.25); }
 .if2-toast.error   { background: var(--if2-red-light); color: var(--if2-red); border: 1px solid rgba(232,56,45,.25); }
 .if2-toast svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; flex-shrink: 0; }

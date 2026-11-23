@@ -23,6 +23,7 @@ import { EditMembershipRuleModal } from "@/components/project-admin/connect/moda
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomSocket } from "@/hooks/use-connect-socket";
 import { useAuth } from "@/lib/auth/auth-context";
+import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 
 export interface RoomDetailPageProps {
   roomId: string;
@@ -48,6 +49,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   const [room, setRoom] = useState<ChatRoom | null>(null);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [eligibleUsers, setEligibleUsers] = useState<ProjectUser[]>([]);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -328,15 +330,32 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   async function handleAddMember(users: ProjectUser[]) {
     await roomMembership.addMembers(users.map((user) => user.backendId || user.id));
     setIsAddMemberModalOpen(false);
+    const count = users.length;
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${count} ${count === 1 ? "member" : "members"} added to ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleAddByFilter(rule: MembershipRuleInput) {
     await connectRoomService.addMembersByFilter(roomId, rule);
     await roomMembership.refreshRoom();
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `Members added to ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleRemoveMember(memberId: string) {
+    const memberName = members.find((m) => m.id === memberId)?.name || "Member";
     await roomMembership.removeMember(memberId);
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${memberName} removed from ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleSaveRule(rule: MembershipRuleInput) {
@@ -353,8 +372,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAllowBack(userId: string) {
+    const personName = keptOutByHand.find((p) => p.userId === userId)?.name || "Member";
     await connectRoomService.allowBackByHand(roomId, userId);
     await roomMembership.refreshRoom();
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${personName} allowed back · rule rooms updated: ${roomName} (+1)`,
+      type: "success",
+    });
   }
 
   async function handleResolveHeldRemovals(decision: "remove" | "keep") {
@@ -395,6 +420,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
           <ChevronLeft className="w-4 h-4" />
           <span>Back to All rooms</span>
         </button>
+        <If2Toast toast={toast} onDismiss={() => setToast(null)} position="bottom-center" className="bg-black! text-white!" />
       </div>
     );
   }
@@ -422,6 +448,9 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         removalHoldReason={removalHoldReason}
         waitingCount={waitingCount}
         onResolveHeldRemovals={handleResolveHeldRemovals}
+        toast={toast}
+        onDismissToast={() => setToast(null)}
+        toastPosition="bottom-center"
       />
 
       <AddMemberModal

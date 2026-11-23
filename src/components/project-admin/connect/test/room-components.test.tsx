@@ -326,6 +326,62 @@ describe("Room Components Suite", () => {
       const occurrences = (html.match(/Testing deduplication/g) || []).length;
       expect(occurrences).toBe(1);
     });
+
+    it("renders toast notification when member added, removed, or allowed back", () => {
+      const htmlAdded = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          toast={{ message: `1 member added to ${MOCK_ROOM.name}`, type: "success" }}
+        />,
+      );
+      expect(htmlAdded).toContain("if2-toast success center");
+      expect(htmlAdded).toContain(`1 member added to ${MOCK_ROOM.name}`);
+
+      const htmlRemoved = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          toast={{ message: `Ritika Shah removed from ${MOCK_ROOM.name}`, type: "success" }}
+        />,
+      );
+      expect(htmlRemoved).toContain("if2-toast success center");
+      expect(htmlRemoved).toContain(`Ritika Shah removed from ${MOCK_ROOM.name}`);
+
+      const htmlAllowedBack = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          toast={{ message: `Imran Shaikh allowed back · rule rooms updated: ${MOCK_ROOM.name} (+1)`, type: "success" }}
+        />,
+      );
+      expect(htmlAllowedBack).toContain("if2-toast success center");
+      expect(htmlAllowedBack).toContain(`Imran Shaikh allowed back · rule rooms updated: ${MOCK_ROOM.name} (+1)`);
+    });
   });
 
   describe("RoomDetailPage", () => {
