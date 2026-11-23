@@ -17,6 +17,7 @@ import { RoomSettingsTab } from "./room-settings-tab";
 import { plural } from "../utils";
 import type { MembershipRuleInput } from "@/lib/api/connect-room-service";
 import { If2Toast, type ToastState, type ToastPosition } from "@/components/accounts/if2-toast";
+import { BaseModal } from "../modals/base-modal";
 
 export function dedupeMessages(messages: RoomMessage[]): RoomMessage[] {
   const seenIds = new Set<string>();
@@ -492,16 +493,14 @@ export function RoomDetail({
       )}
 
       {memberToExit && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="simulate-exit-title"
-          className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
-          onClick={(event) => {
-            if (busyMemberId === null && event.target === event.currentTarget) setMemberToExit(null);
-          }}
-        >
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden">
+        <BaseModal
+          isOpen={Boolean(memberToExit)}
+          onClose={() => setMemberToExit(null)}
+          maxWidth="xl"
+          zIndex="z-[60]"
+          ariaLabelledBy="simulate-exit-title"
+          isSubmitting={busyMemberId !== null}
+          header={
             <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between shrink-0">
               <h3 id="simulate-exit-title" className="text-base font-bold text-slate-900">
                 Deactivate {memberToExit.name}?
@@ -516,14 +515,9 @@ export function RoomDetail({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
-              <p className="text-sm leading-5 text-slate-600">
-                This simulates an exit in the Users master. {memberToExit.name} loses app access and is removed from their active rooms; past messages show as &quot;Former member&quot;.
-              </p>
-              {memberActionError && (
-                <p role="alert" className="text-xs font-medium text-red-600">{memberActionError}</p>
-              )}
-            </div>
+          }
+          bodyClassName="px-6 py-4 space-y-3"
+          footer={
             <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
@@ -549,8 +543,15 @@ export function RoomDetail({
                 Deactivate user
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p className="text-sm leading-5 text-slate-600">
+            This simulates an exit in the Users master. {memberToExit.name} loses app access and is removed from their active rooms; past messages show as &quot;Former member&quot;.
+          </p>
+          {memberActionError && (
+            <p role="alert" className="text-xs font-medium text-red-600">{memberActionError}</p>
+          )}
+        </BaseModal>
       )}
 
       {/* Sub-tab 3: Room Settings */}

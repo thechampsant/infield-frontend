@@ -257,7 +257,7 @@ describe("Connect Acceptance Criteria Suite", () => {
       />,
     );
 
-    expect(htmlWithError).toContain('class="if2-toast error"');
+    expect(htmlWithError).toContain("if2-toast error");
     expect(htmlWithError).toContain("Failed to update switch: 500 Internal Server Error");
 
     const htmlWithoutError = renderToStaticMarkup(
@@ -273,7 +273,7 @@ describe("Connect Acceptance Criteria Suite", () => {
       />,
     );
 
-    expect(htmlWithoutError).not.toContain('class="if2-toast error"');
+    expect(htmlWithoutError).not.toContain("if2-toast error");
   });
 
   it("throws error and preserves original settings when backend feature-config update fails", async () => {

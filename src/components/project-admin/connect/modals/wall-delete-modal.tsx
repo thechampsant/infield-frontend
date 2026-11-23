@@ -2,6 +2,7 @@
 
 import React from "react";
 import { AlertTriangle, X } from "lucide-react";
+import { BaseModal } from "./base-modal";
 
 interface WallDeleteModalProps {
   isOpen: boolean;
@@ -20,16 +21,14 @@ export function WallDeleteModal({
   body = "It disappears from the Wall for everyone. The deletion is recorded in the audit log.",
   isDeleting = false,
 }: WallDeleteModalProps) {
-  if (!isOpen) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="delete-modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
-    >
-      <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden">
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="sm"
+      ariaLabelledBy="delete-modal-title"
+      isSubmitting={isDeleting}
+      header={
         <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2 text-red-600">
             <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -46,13 +45,9 @@ export function WallDeleteModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-          <p className="text-xs text-slate-600 leading-relaxed">
-            {body}
-          </p>
-        </div>
-
+      }
+      bodyClassName="px-6 py-4"
+      footer={
         <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-200 bg-slate-50 shrink-0">
           <button
             type="button"
@@ -71,8 +66,12 @@ export function WallDeleteModal({
             {isDeleting ? "Deleting..." : "Delete post"}
           </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      <p className="text-xs text-slate-600 leading-relaxed">
+        {body}
+      </p>
+    </BaseModal>
   );
 }
 

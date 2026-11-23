@@ -12,6 +12,7 @@ import type { ProjectUser } from "@/types/project-admin";
 import { MemberUserPicker } from "../room/member-user-picker";
 import { plural } from "../utils";
 import { MembershipRuleBuilder } from "../room/membership-rule-builder";
+import { BaseModal } from "./base-modal";
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 
 export interface CreateRoomModalProps {
@@ -79,20 +80,14 @@ export function CreateRoomModal({
     await onSubmit(values);
   }
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-room-modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
-    >
-      <div className="bg-white rounded-2xl max-w-[720px] w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="720px"
+      ariaLabelledBy="create-room-modal-title"
+      isSubmitting={isSubmitting}
+      header={
         <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div>
             <h3
@@ -115,11 +110,11 @@ export function CreateRoomModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Form Container */}
-        <form onSubmit={handleSubmit(onFormSubmit)} className="flex flex-col flex-1 min-h-0">
-          {/* Scrollable Body */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+      }
+      rawContent={true}
+    >
+      <form onSubmit={handleSubmit(onFormSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
             {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
             {/* Room Name Field */}
             <div>
@@ -284,7 +279,6 @@ export function CreateRoomModal({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

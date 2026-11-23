@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Image as ImageIcon, Video, Users, Play, AlertCircle, Loader2 } from "lucide-react";
 import { plural } from "../utils";
 import { MAX_POST_IMAGES, MAX_POST_TEXT_LENGTH, MAX_VIDEO_SIZE_BYTES, wallPostFormSchema, WallPostFormValues } from "../wall";
+import { BaseModal } from "./base-modal";
 
 interface WallComposerModalProps {
   isOpen: boolean;
@@ -210,34 +211,34 @@ export function WallComposerModal({
     errors.video?.message;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
+    <BaseModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      maxWidth="xl"
+      ariaLabelledBy="modal-title"
+      rawContent={true}
     >
-      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100 shrink-0">
-          <div>
-            <h3 id="modal-title" className="text-base font-bold text-slate-900">
-              New Wall post
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Goes live at once for everyone active in the project
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label="Close"
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+      {/* Header */}
+      <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+        <div>
+          <h3 id="modal-title" className="text-base font-bold text-slate-900">
+            New Wall post
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Goes live at once for everyone active in the project
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={handleClose}
+          aria-label="Close"
+          className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-        {/* Hidden native file inputs */}
+      {/* Hidden native file inputs */}
         <input
           ref={imageInputRef}
           type="file"
@@ -455,7 +456,6 @@ export function WallComposerModal({
             </div>
           )}
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 }
