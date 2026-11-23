@@ -83,11 +83,12 @@ export function AddMemberModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-room-members-title"
-      className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
       onClick={(event) => { if (!isSubmitting && event.target === event.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200">
-        <div className="flex items-start justify-between pb-3">
+      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between shrink-0">
           <h3 id="add-room-members-title" className="text-lg font-bold text-slate-900">
             Add members to {roomName}
           </h3>
@@ -95,23 +96,39 @@ export function AddMemberModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-        {membershipType === "fixed" && <div className="mb-3 inline-flex rounded-lg bg-slate-100 p-1 text-xs font-semibold"><button type="button" onClick={() => setMode("pick")} className={`rounded-md px-3 py-2 ${mode === "pick" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}>Pick people</button><button type="button" onClick={() => setMode("filter")} className={`rounded-md px-3 py-2 ${mode === "filter" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}>Add by filter</button></div>}
-        <form onSubmit={mode === "filter" ? handleFilterSubmit : handleSubmit}>
-          {mode === "filter" ? <MembershipRuleBuilder projectId={projectId} options={ruleOptions} users={eligibleUsers} value={rule} onChange={setRule} currentMemberIds={existingMemberIds} /> : <>
-          <div className="mt-3">
-            <label className="block text-[10px] font-bold tracking-[0.18em] text-slate-700 mb-2">MEMBERS</label>
-            <MemberUserPicker
-              users={eligibleUsers}
-              selectedUserIds={selectedUserIds}
-              onSelectionChange={setSelectedUserIds}
-              selectionLimit={remainingSlots}
-              excludedUserIds={existingMemberIds}
-              disabled={isSubmitting}
-            />
+
+        {/* Form Container */}
+        <form onSubmit={mode === "filter" ? handleFilterSubmit : handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Scrollable Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+            {membershipType === "fixed" && (
+              <div className="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-semibold">
+                <button type="button" onClick={() => setMode("pick")} className={`rounded-md px-3 py-2 cursor-pointer ${mode === "pick" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}>Pick people</button>
+                <button type="button" onClick={() => setMode("filter")} className={`rounded-md px-3 py-2 cursor-pointer ${mode === "filter" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}>Add by filter</button>
+              </div>
+            )}
+
+            {mode === "filter" ? (
+              <MembershipRuleBuilder projectId={projectId} options={ruleOptions} users={eligibleUsers} value={rule} onChange={setRule} currentMemberIds={existingMemberIds} />
+            ) : (
+              <div>
+                <label className="block text-[10px] font-bold tracking-[0.18em] text-slate-700 mb-2">MEMBERS</label>
+                <MemberUserPicker
+                  users={eligibleUsers}
+                  selectedUserIds={selectedUserIds}
+                  onSelectionChange={setSelectedUserIds}
+                  selectionLimit={remainingSlots}
+                  excludedUserIds={existingMemberIds}
+                  disabled={isSubmitting}
+                />
+              </div>
+            )}
+
+            {submitError && <p role="alert" className="text-xs font-medium text-red-600">{submitError}</p>}
           </div>
-          </>}
-          {submitError && <p role="alert" className="mt-3 text-xs font-medium text-red-600">{submitError}</p>}
-          <div className="mt-5 -mx-6 -mb-6 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex items-center justify-between gap-3">
+
+          {/* Fixed Footer */}
+          <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3 shrink-0">
             <span className="text-xs text-slate-500">{Math.min(memberCount, 1000)} of 1,000 max</span>
             <div className="flex items-center gap-2">
               <button type="button" onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer disabled:opacity-50">Cancel</button>

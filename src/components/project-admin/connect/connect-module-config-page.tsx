@@ -45,6 +45,12 @@ export function ConnectModuleConfigPage({
         message: `${field} ${val ? "enabled" : "disabled"}. Changes take effect immediately.`,
       });
     },
+    onError: (errorMessage) => {
+      setToast({
+        type: "error",
+        message: errorMessage,
+      });
+    },
   });
 
   return (
@@ -99,9 +105,9 @@ export function ConnectModuleConfigPage({
         savingConnect={saving}
         settingsError={error}
         auditHistory={auditHistory}
+        toast={toast}
+        onDismissToast={() => setToast(null)}
       />
-
-      <If2Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

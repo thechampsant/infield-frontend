@@ -148,6 +148,7 @@ export function normalizeSocketMessage(msg: SocketNewMessagePayload): RoomMessag
     content: msg.isRemoved ? "Removed by admin" : msg.text,
     initials: getRoomInitials(senderDisplayName),
     isSystem: Boolean(msg.isSystem || msg.senderType === "SYSTEM"),
+    clientMessageId: msg.clientMessageId ?? undefined,
   };
 }
 

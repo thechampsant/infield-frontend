@@ -65,7 +65,9 @@ export function useConnectSettings(
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(formatApiError(err, "Failed to load Connect configuration."));
+          const msg = formatApiError(err, "Failed to load Connect configuration.");
+          setError(msg);
+          options?.onError?.(msg, "Connect");
         }
       });
 

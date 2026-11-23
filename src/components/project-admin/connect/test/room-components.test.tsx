@@ -8,6 +8,10 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ accountCode: "acc", projectCode: "prj", roomId: "room-123" }),
 }));
 
+vi.mock("@/lib/auth/auth-context", () => ({
+  useAuth: () => ({ user: { name: "Admin Connect", email: "admin@example.com" } }),
+}));
+
 import { CreateRoomModal } from "../modals/create-room-modal";
 import { RoomSettingsTab } from "../room/room-settings-tab";
 import { ChatRoomsTab } from "../room/chat-rooms-tab";
@@ -292,6 +296,35 @@ describe("Room Components Suite", () => {
       expect(html).not.toContain("Add members");
       expect(html).toContain("Membership rule");
       expect(html).toContain("Promoter");
+    });
+
+    it("deduplicates messages sharing the same id without key collision warnings", () => {
+      const duplicateMsg: RoomMessage = {
+        id: "6b0407ebf792f213c4514f77",
+        senderName: "Program Team",
+        timestamp: "10:30 AM",
+        content: "Testing deduplication",
+        initials: "PT",
+      };
+
+      const html = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={[duplicateMsg, { ...duplicateMsg }]}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          initialSubTab="messages"
+        />,
+      );
+
+      const occurrences = (html.match(/Testing deduplication/g) || []).length;
+      expect(occurrences).toBe(1);
     });
   });
 

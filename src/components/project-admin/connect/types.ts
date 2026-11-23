@@ -76,6 +76,7 @@ export interface RoomMessage {
   content: string;
   initials: string;
   isSystem?: boolean;
+  clientMessageId?: string;
 }
 
 export type ConnectTab = "wall" | "chat" | "settings";

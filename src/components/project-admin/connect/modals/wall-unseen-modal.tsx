@@ -62,11 +62,11 @@ export function WallUnseenModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="unseen-modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
     >
-      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="p-6 pb-4 flex items-start justify-between">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between shrink-0">
           <div className="min-w-0 pr-4">
             <h3
               id="unseen-modal-title"
@@ -92,8 +92,8 @@ export function WallUnseenModal({
         </div>
 
         {/* Body: Pick list container with rounded border and scroll */}
-        <div className="px-6 pb-5">
-          <div className="border border-slate-200/90 rounded-2xl overflow-hidden bg-white max-h-[300px] overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+          <div className="border border-slate-200/90 rounded-2xl overflow-hidden bg-white">
             {rawList.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {rawList.map((user) => (
@@ -132,7 +132,7 @@ export function WallUnseenModal({
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-50/70 border-t border-slate-100 px-6 py-4 flex items-center justify-between">
+        <div className="bg-slate-50 border-t border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0">
           <span className="text-xs text-slate-500 font-normal">
             Seen = half the post on screen for one second
           </span>

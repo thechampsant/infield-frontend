@@ -81,15 +81,7 @@ export function WallTab({
   }
 
   async function handleDownloadUnseenList(post: WallPost, users: UnseenUserRow[]) {
-    if (onDownloadUnseen) {
-      await onDownloadUnseen(post, users);
-      return;
-    }
-    try {
-      await connectWallService.downloadUnseenXlsx(post.id);
-    } catch {
-      exportUnseenUsersToCsv(post, users);
-    }
+    exportUnseenUsersToCsv(post, users);
   }
 
   return (

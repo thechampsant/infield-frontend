@@ -27,10 +27,10 @@ export function WallDeleteModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
     >
-      <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200">
-        <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+      <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2 text-red-600">
             <AlertTriangle className="w-5 h-5 shrink-0" />
             <h3 id="delete-modal-title" className="text-base font-bold text-slate-900">
@@ -47,16 +47,18 @@ export function WallDeleteModal({
           </button>
         </div>
 
-        <p className="mt-3 text-xs text-slate-600 leading-relaxed">
-          {body}
-        </p>
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+          <p className="text-xs text-slate-600 leading-relaxed">
+            {body}
+          </p>
+        </div>
 
-        <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-5">
+        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-200 bg-slate-50 shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={isDeleting}
-            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
           >
             Cancel
           </button>

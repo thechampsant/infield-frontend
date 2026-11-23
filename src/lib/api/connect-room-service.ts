@@ -534,6 +534,7 @@ export const connectRoomService = {
       content: res.isRemoved ? "Removed by admin" : res.text,
       initials: getRoomInitials(res.senderDisplayName || "PT"),
       isSystem: Boolean(res.isSystem || res.senderType === "SYSTEM"),
+      clientMessageId: res.clientMessageId || clientMessageId,
     };
   },
 

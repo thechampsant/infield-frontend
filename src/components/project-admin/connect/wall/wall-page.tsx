@@ -72,6 +72,7 @@ export function ConnectWallPage() {
     desig: projectUser.designation || projectUser.role || "Promoter",
     role: projectUser.role || projectUser.designation || "Promoter",
     store: typeof projectUser.udfs?.store === "string" ? projectUser.udfs.store : "Default Store",
+    reportingManager: typeof projectUser.udfs?.reportingManager === "string" ? projectUser.udfs.reportingManager : "",
     location: typeof projectUser.udfs?.location === "string" ? projectUser.udfs.location : "",
     email: projectUser.email,
     phone: projectUser.mobile,

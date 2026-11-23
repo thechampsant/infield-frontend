@@ -17,6 +17,26 @@ import { RoomSettingsTab } from "./room-settings-tab";
 import { plural } from "../utils";
 import type { MembershipRuleInput } from "@/lib/api/connect-room-service";
 
+export function dedupeMessages(messages: RoomMessage[]): RoomMessage[] {
+  const seenIds = new Set<string>();
+  const result: RoomMessage[] = [];
+
+  for (const msg of messages) {
+    const id = msg.id;
+    if (!id) {
+      result.push(msg);
+      continue;
+    }
+    if (seenIds.has(id)) {
+      continue;
+    }
+    seenIds.add(id);
+    result.push(msg);
+  }
+
+  return result;
+}
+
 export interface RoomDetailProps {
   room: ChatRoom;
   onBack: () => void;
@@ -38,6 +58,7 @@ export interface RoomDetailProps {
   waitingCount?: number;
   onResolveHeldRemovals?: (decision: "remove" | "keep") => void | Promise<void>;
   initialSubTab?: RoomSubTab;
+  senderDisplayName?: string;
 }
 
 export function RoomDetail({
@@ -61,6 +82,7 @@ export function RoomDetail({
   waitingCount = 0,
   onResolveHeldRemovals,
   initialSubTab = "messages",
+  senderDisplayName = "Program Team",
 }: RoomDetailProps) {
   const [roomSubTab, setRoomSubTab] = useState<RoomSubTab>(initialSubTab);
   const [inputMessage, setInputMessage] = useState("");
@@ -164,48 +186,51 @@ export function RoomDetail({
       {roomSubTab === "messages" && (
         <div className="flex h-[480px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
           <div ref={messagesScrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            {messages.map((msg) => msg.isSystem ? (
-              <div key={msg.id} className="flex justify-center py-0.5">
-                <span className="max-w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-center text-[11px] text-slate-500">
-                  {msg.content} · {msg.timestamp}
-                </span>
-              </div>
-            ) : (
-              <div key={msg.id} className="group flex items-start justify-between gap-3 rounded-lg px-1 py-1 hover:bg-slate-50/60">
-                <div className="flex min-w-0 items-start gap-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white">
-                    {msg.initials}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-x-1.5">
-                      <span className="text-xs font-bold text-slate-900">{msg.senderName}</span>
-                      <span className="text-[11px] text-slate-500">{msg.timestamp}</span>
-                    </div>
-                    <p className={`mt-0.5 break-words text-[13px] ${msg.content === "Removed by admin" ? "italic text-slate-400" : "text-slate-700"}`}>
-                      {msg.content}
-                    </p>
-                  </div>
+            {dedupeMessages(messages).map((msg, index) => {
+              const msgKey = msg.id || `msg-${index}`;
+              return msg.isSystem ? (
+                <div key={msgKey} className="flex justify-center py-0.5">
+                  <span className="max-w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-center text-[11px] text-slate-500">
+                    {msg.content} · {msg.timestamp}
+                  </span>
                 </div>
-                {msg.content !== "Removed by admin" && (
-                  <button
-                    type="button"
-                    onClick={() => onDeleteMessage(msg.id)}
-                    className="shrink-0 p-1 text-slate-500 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
-                    title="Delete message for everyone"
-                    aria-label="Delete message for everyone"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
+              ) : (
+                <div key={msgKey} className="group flex items-start justify-between gap-3 rounded-lg px-1 py-1 hover:bg-slate-50/60">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white">
+                      {msg.initials}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-baseline gap-x-1.5">
+                        <span className="text-xs font-bold text-slate-900">{msg.senderName}</span>
+                        <span className="text-[11px] text-slate-500">{msg.timestamp}</span>
+                      </div>
+                      <p className={`mt-0.5 break-words text-[13px] ${msg.content === "Removed by admin" ? "italic text-slate-400" : "text-slate-700"}`}>
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                  {msg.content !== "Removed by admin" && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteMessage(msg.id)}
+                      className="shrink-0 p-1 text-slate-500 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                      title="Delete message for everyone"
+                      aria-label="Delete message for everyone"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <form onSubmit={handleSend} className="flex items-center gap-2 border-t border-slate-200 bg-slate-50/70 px-3 py-2.5">
             <input
               type="text"
               maxLength={2000}
-              placeholder={`Message ${room.name} as Program Team`}
+              placeholder={`Message ${room.name} as ${senderDisplayName}`}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               className="h-10 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs transition-colors placeholder:text-slate-500 focus:border-blue-600 focus:outline-none"
@@ -443,13 +468,13 @@ export function RoomDetail({
           role="dialog"
           aria-modal="true"
           aria-labelledby="simulate-exit-title"
-          className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
           onClick={(event) => {
             if (busyMemberId === null && event.target === event.currentTarget) setMemberToExit(null);
           }}
         >
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="px-6 pt-5 pb-4 flex items-start justify-between">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between shrink-0">
               <h3 id="simulate-exit-title" className="text-base font-bold text-slate-900">
                 Deactivate {memberToExit.name}?
               </h3>
@@ -458,23 +483,25 @@ export function RoomDetail({
                 onClick={() => setMemberToExit(null)}
                 disabled={busyMemberId !== null}
                 aria-label="Close deactivation dialog"
-                className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer transition-colors disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="px-6 pb-5 text-sm leading-5 text-slate-600">
-              This simulates an exit in the Users master. {memberToExit.name} loses app access and is removed from their active rooms; past messages show as &quot;Former member&quot;.
-            </p>
-            {memberActionError && (
-              <p role="alert" className="px-6 pb-4 text-xs font-medium text-red-600">{memberActionError}</p>
-            )}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
+              <p className="text-sm leading-5 text-slate-600">
+                This simulates an exit in the Users master. {memberToExit.name} loses app access and is removed from their active rooms; past messages show as &quot;Former member&quot;.
+              </p>
+              {memberActionError && (
+                <p role="alert" className="text-xs font-medium text-red-600">{memberActionError}</p>
+              )}
+            </div>
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setMemberToExit(null)}
                 disabled={busyMemberId !== null}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -488,7 +515,7 @@ export function RoomDetail({
                   );
                   if (didExit) setMemberToExit(null);
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 cursor-pointer"
               >
                 {busyMemberId === memberToExit.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Deactivate user
