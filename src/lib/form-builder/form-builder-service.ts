@@ -216,6 +216,7 @@ export const formBuilderService = {
       });
       cloned.fields = cloned.fields.map((field) => ({
         ...field,
+        formula: field.formula.replace(/\{([^{}]+)\}/g, (token, key) => oldToNewId.has(key) ? `{${oldToNewId.get(key)}}` : token),
         parentId: field.parentId ? (oldToNewId.get(field.parentId) ?? field.parentId) : null,
         visibilityRules: field.visibilityRules.map((rule) => ({
           ...rule,
@@ -325,8 +326,8 @@ export const formBuilderService = {
     const result: ApiPublishResult = await formBuilderApi.publish(configId);
     return {
       status: result.status,
-      errors: result.errors,
-      warnings: result.warnings,
+      errors: result.errors ?? [],
+      warnings: result.warnings ?? [],
       publishedAt: result.publishedAt,
     };
   },
@@ -558,32 +559,28 @@ export const formBuilderService = {
    * Used by "Save & Publish" buttons.
    */
   async saveSchemaAndPublish(configId: string, fields: FormField[]): Promise<PublishResult> {
+    const fieldIds = new Set(fields.map((field) => field.id));
+    for (const field of fields) {
+      if (field.required !== "conditional") continue;
+      const complete = field.requiredRules.length > 0 && field.requiredRules.every((rule) =>
+        fieldIds.has(rule.sourceFieldId) && rule.sourceFieldId !== field.id &&
+        (rule.operator === "is_empty" || rule.operator === "is_not_empty" || String(rule.value ?? "").trim() !== "")
+      );
+      if (!complete) {
+        throw new Error(`Complete the required condition for "${field.label}" before publishing.`);
+      }
+    }
+
+    const schemaPayload = mapFieldsToSaveSchemaPayload(fields);
     if (USE_MOCK_API) {
-      await delay();
-      return { status: "published", errors: [], warnings: [], publishedAt: new Date().toISOString() };
+      await this.updateConfiguration(configId, { fields: structuredClone(fields) });
+      return this.publishConfiguration(configId);
     }
 
     // Step 1: Save all fields in bulk
-    const schemaPayload = mapFieldsToSaveSchemaPayload(fields);
     await formBuilderApi.saveSchema(configId, schemaPayload);
 
-    // Step 2: Publish (ignore "no draft changes" error — schema save is the main operation)
-    try {
-      const result = await formBuilderApi.publish(configId);
-      return {
-        status: result.status,
-        errors: result.errors ?? [],
-        warnings: result.warnings ?? [],
-        publishedAt: result.publishedAt,
-      };
-    } catch (err: any) {
-      // If already published and no draft changes, treat as success
-      const msg = typeof err?.message === "string" ? err.message.toLowerCase() : "";
-      if (msg.includes("no draft") || msg.includes("already published")) {
-        return { status: "published", errors: [], warnings: [], publishedAt: new Date().toISOString() };
-      }
-      throw err;
-    }
+    return this.publishConfiguration(configId);
   },
 
   /**

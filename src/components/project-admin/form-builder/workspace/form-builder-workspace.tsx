@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FormBuilderProvider, useFormBuilder } from "@/lib/form-builder/form-builder-context";
 import { formBuilderService } from "@/lib/form-builder/form-builder-service";
+import { useRouter } from "next/navigation";
+import { useProjectContext } from "@/lib/project-admin/project-context";
+import { projectAdminBase } from "@/lib/nav/nav";
+import { createDebouncedSave, loadDraft } from "@/lib/form-builder/draft-storage";
+import type { FormField } from "@/lib/form-builder/types";
+import { BuilderDragContext } from "./builder-drag-context";
+import { checkPublishFields, publishErrorMessages, publishReceipt } from "@/lib/form-builder/publish-feedback";
+import { usePublishNotice } from "./publish-notice";
 import { WorkspaceHeader } from "./workspace-header";
 import { WorkspaceFooter } from "./workspace-footer";
 import { ComponentPalette } from "../palette/component-palette";
@@ -16,6 +24,62 @@ function WorkspaceContent({ configId }: { configId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { accountCode, projectCode } = useProjectContext();
+  const router = useRouter();
+  const [publishing, setPublishing] = useState(false);
+  const lastFields = useRef<FormField[] | null>(null);
+  const config = state.configurations.find((item) => item.id === configId);
+  const fields = config?.fields;
+  const notifyPublished = usePublishNotice();
+  const [publishErrors, setPublishErrors] = useState<string[]>([]);
+  const save = useMemo(() => createDebouncedSave(configId, 2000, (saved) => {
+    dispatch({ type: "SET_DRAFT_STATUS", status: saved ? "saved" : "error" });
+  }), [configId, dispatch]);
+
+  useLayoutEffect(() => {
+    if (fields && fields !== lastFields.current) {
+      lastFields.current = fields;
+      save(fields);
+      dispatch({ type: "SET_DRAFT_STATUS", status: "saving" });
+    }
+  }, [fields, save, dispatch]);
+
+  useLayoutEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") save.flush();
+    };
+    window.addEventListener("pagehide", save.flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", save.flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      save.flush();
+    };
+  }, [save]);
+
+  async function publish() {
+    if (!config || !fields || publishing) return;
+    const checks = checkPublishFields(config);
+    setPublishErrors(checks.errors);
+    if (checks.errors.length) return;
+    setPublishing(true);
+    save.flush();
+    try {
+      const result = await formBuilderService.saveSchemaAndPublish(configId, fields);
+      if (result.status !== "published") {
+        setPublishErrors(result.errors.length ? result.errors.map((error) => error.message) : ["The form could not be published."]);
+        return;
+      }
+      save.published(fields);
+      notifyPublished(publishReceipt(config, result.warnings, checks.warnings));
+      router.push(`${projectAdminBase(accountCode, projectCode)}/form-builder`);
+    } catch (err) {
+      setPublishErrors(publishErrorMessages(err));
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -25,7 +89,9 @@ function WorkspaceContent({ configId }: { configId: string }) {
       try {
         const config = await formBuilderService.getConfiguration(configId);
         if (!cancelled) {
-          dispatch({ type: "LOAD_CONFIG", config });
+          const restoredFields = loadDraft(configId) ?? config.fields;
+          lastFields.current = restoredFields;
+          dispatch({ type: "LOAD_CONFIG", config: { ...config, fields: restoredFields } });
         }
       } catch (err) {
         if (!cancelled) {
@@ -91,9 +157,18 @@ function WorkspaceContent({ configId }: { configId: string }) {
   }
 
   return (
-    <>
+    <BuilderDragContext>
       {/* Header */}
-      <WorkspaceHeader />
+      <WorkspaceHeader publishing={publishing} onPublish={publish} />
+
+      {publishErrors.length > 0 && (
+        <div className="pa-info-banner" role="alert">
+          <div><strong>Form could not be published</strong>
+            <ul>{publishErrors.map((message, index) => <li key={index}>{message}</li>)}</ul>
+          </div>
+          <button type="button" onClick={() => setPublishErrors([])}>Dismiss</button>
+        </div>
+      )}
 
       {/* Three-panel body */}
       <div
@@ -107,7 +182,7 @@ function WorkspaceContent({ configId }: { configId: string }) {
         {/* Palette (left) */}
         <aside
           style={{
-            width: 260,
+            width: "clamp(300px, 25%, 368px)",
             flexShrink: 0,
             borderRight: "1px solid #e2e8f0",
             overflowY: "auto",
@@ -151,8 +226,8 @@ function WorkspaceContent({ configId }: { configId: string }) {
       </div>
 
       {/* Footer */}
-      <WorkspaceFooter />
-    </>
+      <WorkspaceFooter publishing={publishing} onPublish={publish} />
+    </BuilderDragContext>
   );
 }
 
@@ -164,17 +239,14 @@ interface FormBuilderWorkspaceProps {
 
 export function FormBuilderWorkspace({ configId }: FormBuilderWorkspaceProps) {
   return (
-    <FormBuilderProvider>
+    <FormBuilderProvider key={configId}>
       <div
+        className="pa-form-builder-workspace"
         style={{
           display: "flex",
           flexDirection: "column",
           height: "100vh",
           minHeight: 0,
-          /* Break out of pa-content-wrap max-width and pa-stage padding */
-          width: "calc(100% + 64px)",
-          maxWidth: "none",
-          margin: "-32px",
           position: "relative",
         }}
       >

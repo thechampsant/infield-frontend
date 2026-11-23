@@ -4,6 +4,7 @@ import type {
   FormField,
   ComponentType,
 } from "./types";
+import { canPlaceField, placeField } from "./field-placement";
 import { getComponentDefinition } from "./constants";
 import { DEFAULT_FILE_FIELD_CONFIG } from "@/lib/udf/file-field-config";
 
@@ -195,33 +196,11 @@ export function formBuilderReducer(
       const currentFields = getActiveFields(state);
       const { undoStack, redoStack } = pushUndo(state, currentFields);
 
-      // Determine insertion position
-      const topLevelFields = currentFields.filter(
-        (f) => f.parentId === (action.parentId ?? null)
-      );
-      const insertOrder =
-        action.atIndex !== undefined
-          ? action.atIndex
-          : topLevelFields.length;
-
-      const newField = createDefaultField(
-        action.componentType,
-        insertOrder,
-        action.parentId ?? null
-      );
-
-      // Shift fields at or after the insertion index
-      const updatedFields = currentFields.map((f) => {
-        if (
-          f.parentId === (action.parentId ?? null) &&
-          f.order >= insertOrder
-        ) {
-          return { ...f, order: f.order + 1 };
-        }
-        return f;
-      });
-
-      const allFields = renumberFields([...updatedFields, newField]);
+      const parentId = action.parentId ?? null;
+      if (!canPlaceField(currentFields, action.componentType, parentId)) return state;
+      const index = action.atIndex ?? currentFields.filter((field) => field.parentId === parentId).length;
+      const newField = createDefaultField(action.componentType, index, parentId);
+      const allFields = renumberFields(placeField(currentFields, newField, parentId, index));
       const configurations = updateActiveConfigFields(state, allFields);
 
       return {
@@ -261,9 +240,10 @@ export function formBuilderReducer(
 
       // Collect IDs to delete: the field itself + any children
       const idsToDelete = new Set<string>([action.fieldId]);
-      currentFields
-        .filter((f) => f.parentId === action.fieldId)
-        .forEach((child) => idsToDelete.add(child.id));
+      for (const parentId of idsToDelete) {
+        currentFields.filter((field) => field.parentId === parentId)
+          .forEach((child) => idsToDelete.add(child.id));
+      }
 
       let remainingFields = currentFields.filter(
         (f) => !idsToDelete.has(f.id)
@@ -332,33 +312,15 @@ export function formBuilderReducer(
 
     case "MOVE_FIELD": {
       const currentFields = getActiveFields(state);
-      const { undoStack, redoStack } = pushUndo(state, currentFields);
-
-      const fieldToMove = currentFields.find(
-        (f) => f.id === action.fieldId
-      );
-      if (!fieldToMove) return state;
-
-      // Update the field's parentId and order
-      const updatedFields = currentFields.map((f) => {
-        if (f.id === action.fieldId) {
-          return {
-            ...f,
-            parentId: action.toParentId,
-            order: action.toIndex,
-          };
-        }
-        return f;
-      });
-
-      const allFields = renumberFields(updatedFields);
-      const configurations = updateActiveConfigFields(state, allFields);
-
+      const field = currentFields.find((item) => item.id === action.fieldId);
+      if (!field || !canPlaceField(currentFields, field.type, action.toParentId, field.id)) return state;
+      const placed = placeField(currentFields, field, action.toParentId, action.toIndex);
+      if (placed === currentFields) return state;
       return {
         ...state,
-        configurations,
-        undoStack,
-        redoStack,
+        ...pushUndo(state, currentFields),
+        configurations: updateActiveConfigFields(state, renumberFields(placed)),
+        selectedFieldId: field.id,
       };
     }
 

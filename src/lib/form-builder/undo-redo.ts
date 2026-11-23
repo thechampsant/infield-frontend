@@ -2,6 +2,16 @@ import { FormField } from "./types";
 
 const MAX_STACK_SIZE = 30;
 
+export function historyShortcut(
+  event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey" | "isComposing" | "defaultPrevented">,
+): "UNDO" | "REDO" | null {
+  if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey === event.metaKey) return null;
+  const key = event.key.toLowerCase();
+  if (key === "z") return event.shiftKey ? "REDO" : "UNDO";
+  if (key === "y" && event.ctrlKey && !event.shiftKey) return "REDO";
+  return null;
+}
+
 /**
  * Pushes the current fields snapshot onto the undo stack.
  * Trims from the front if stack exceeds 30 entries.

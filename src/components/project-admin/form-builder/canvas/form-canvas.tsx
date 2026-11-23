@@ -1,42 +1,15 @@
 "use client";
 
+import { Fragment, type ReactNode } from "react";
+import { useDndContext } from "@dnd-kit/core";
+import { canPlaceField, isFormContainer } from "@/lib/form-builder/field-placement";
+import { DropZone } from "./drop-zone";
 import { Plus } from "lucide-react";
 import { useFormBuilder } from "@/lib/form-builder/form-builder-context";
 import { FieldCard } from "./field-card";
 import { SectionGroupContainer } from "./section-group-container";
 import { AddMoreBlockContainer } from "./add-more-block-container";
 import type { FormField } from "@/lib/form-builder/types";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────
-
-/**
- * Builds a sequential question number map across all visible fields,
- * including nested children, in display order.
- */
-function buildQuestionNumberMap(
-  topLevelFields: FormField[],
-  allFields: FormField[]
-): Map<string, number> {
-  const numberMap = new Map<string, number>();
-  let counter = 1;
-
-  for (const field of topLevelFields) {
-    numberMap.set(field.id, counter++);
-
-    // If this field supports children, number its children sequentially
-    if (field.type === "section-group" || field.type === "add-more-block") {
-      const children = allFields
-        .filter((f) => f.parentId === field.id)
-        .sort((a, b) => a.order - b.order);
-
-      for (const child of children) {
-        numberMap.set(child.id, counter++);
-      }
-    }
-  }
-
-  return numberMap;
-}
 
 // ─── Form Header Card ─────────────────────────────────────────────────────
 
@@ -125,26 +98,15 @@ export function FormCanvas() {
 
   const allFields = activeConfig?.fields ?? [];
 
-  const topLevelFields = allFields
-    .filter((f) => f.parentId === null)
-    .sort((a, b) => a.order - b.order);
-
-  const questionNumberMap = buildQuestionNumberMap(topLevelFields, allFields);
-
-  const handleFieldClick = (fieldId: string) => {
-    dispatch({ type: "SELECT_FIELD", fieldId });
-  };
-
-  const handleDeleteField = (fieldId: string) => {
-    dispatch({ type: "DELETE_FIELD", fieldId });
-  };
-
-  // Get children of a container field, sorted by order
-  const getChildFields = (parentId: string): FormField[] => {
-    return allFields
-      .filter((f) => f.parentId === parentId)
-      .sort((a, b) => a.order - b.order);
-  };
+  const { active } = useDndContext();
+  const source = active?.data.current;
+  const childrenByParent = new Map<string | null, FormField[]>();
+  for (const field of allFields) {
+    const siblings = childrenByParent.get(field.parentId) ?? [];
+    siblings.push(field);
+    childrenByParent.set(field.parentId, siblings);
+  }
+  for (const siblings of childrenByParent.values()) siblings.sort((a, b) => a.order - b.order);
 
   // Compute edit badge text
   const getEditBadgeText = (): string => {
@@ -159,7 +121,7 @@ export function FormCanvas() {
   };
 
   // Empty state
-  if (topLevelFields.length === 0) {
+  if (!childrenByParent.has(null) && !source) {
     return (
       <div
         style={{
@@ -216,115 +178,48 @@ export function FormCanvas() {
     }
   };
 
-  // Render a field — either as a container or a simple field card
-  const renderField = (field: FormField) => {
-    const questionNumber = questionNumberMap.get(field.id) ?? 0;
+  let questionNumber = 0;
+  function renderSiblings(parentId: string | null): ReactNode {
+    const siblings = childrenByParent.get(parentId) ?? [];
+    const canDrop = source && canPlaceField(allFields, source.componentType, parentId, source.fieldId);
 
-    if (field.type === "section-group") {
-      const children = getChildFields(field.id);
-      return (
-        <SectionGroupContainer
-          key={field.id}
-          field={field}
-          questionNumber={questionNumber}
-          isSelected={state.selectedFieldId === field.id}
-          onClick={() => handleFieldClick(field.id)}
-        >
-          {children.length > 0 ? (
-            children.map((child) => (
-              <FieldCard
-                key={child.id}
-                field={child}
-                questionNumber={questionNumberMap.get(child.id) ?? 0}
-                isSelected={state.selectedFieldId === child.id}
-                onClick={() => handleFieldClick(child.id)}
-                onDuplicate={() =>
-                  dispatch({ type: "DUPLICATE_FIELD", fieldId: child.id })
-                }
-                onDelete={() =>
-                  handleDeleteField(child.id)
-                }
-              />
-            ))
-          ) : (
-            <div
-              style={{
-                padding: "16px",
-                textAlign: "center",
-                fontSize: 12,
-                color: "#94a3b8",
-                border: "2px dashed #86efac",
-                borderRadius: 8,
-              }}
-            >
-              Drop fields here
-            </div>
-          )}
-        </SectionGroupContainer>
-      );
+    function gap(index: number) {
+      if (canDrop) return <DropZone parentId={parentId} index={index} empty={!siblings.length} />;
+      if (!siblings.length) return <div style={{ textAlign: "center", padding: 12, color: "#64748b" }}>
+        {source ? "Cannot move this component here" : "Drop fields here"}
+      </div>;
+      return null;
     }
 
-    if (field.type === "add-more-block") {
-      const children = getChildFields(field.id);
-      return (
-        <AddMoreBlockContainer
-          key={field.id}
-          field={field}
-          questionNumber={questionNumber}
-          isSelected={state.selectedFieldId === field.id}
-          onClick={() => handleFieldClick(field.id)}
-        >
-          {children.length > 0 ? (
-            children.map((child) => (
-              <FieldCard
-                key={child.id}
-                field={child}
-                questionNumber={questionNumberMap.get(child.id) ?? 0}
-                isSelected={state.selectedFieldId === child.id}
-                onClick={() => handleFieldClick(child.id)}
-                onDuplicate={() =>
-                  dispatch({ type: "DUPLICATE_FIELD", fieldId: child.id })
-                }
-                onDelete={() =>
-                  handleDeleteField(child.id)
-                }
-              />
-            ))
-          ) : (
-            <div
-              style={{
-                padding: "16px",
-                textAlign: "center",
-                fontSize: 12,
-                color: "#94a3b8",
-                border: "2px dashed #e2e8f0",
-                borderRadius: 8,
-              }}
-            >
-              Drop fields here
+    return <>
+      {gap(0)}
+      {siblings.map((field, index) => {
+        const props = {
+          field,
+          questionNumber: ++questionNumber,
+          isSelected: state.selectedFieldId === field.id,
+          onClick: () => dispatch({ type: "SELECT_FIELD", fieldId: field.id }),
+        };
+        const Container = field.type === "section-group" ? SectionGroupContainer : AddMoreBlockContainer;
+        return (
+          <Fragment key={field.id}>
+            <div data-builder-selected={props.isSelected}>
+              {isFormContainer(field.type) ? (
+                <Container {...props}>{renderSiblings(field.id)}</Container>
+              ) : (
+                <FieldCard
+                  {...props}
+                  onDuplicate={() => dispatch({ type: "DUPLICATE_FIELD", fieldId: field.id })}
+                  onDelete={() => dispatch({ type: "DELETE_FIELD", fieldId: field.id })}
+                />
+              )}
             </div>
-          )}
-        </AddMoreBlockContainer>
-      );
-    }
-
-    // Regular field card
-    return (
-      <FieldCard
-        key={field.id}
-        field={field}
-        questionNumber={questionNumber}
-        isSelected={state.selectedFieldId === field.id}
-        onClick={() => handleFieldClick(field.id)}
-        onDuplicate={() =>
-          dispatch({ type: "DUPLICATE_FIELD", fieldId: field.id })
-        }
-        onDelete={() =>
-          handleDeleteField(field.id)
-        }
-      />
-    );
-  };
+            {gap(index + 1)}
+          </Fragment>
+        );
+      })}
+    </>;
+  }
 
   return (
     <div
@@ -347,7 +242,7 @@ export function FormCanvas() {
       />
 
       {/* Field cards */}
-      {topLevelFields.map(renderField)}
+      {renderSiblings(null)}
 
       {/* Add field prompt at bottom */}
       <button

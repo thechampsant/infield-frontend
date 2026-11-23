@@ -1,15 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormBuilder } from "@/lib/form-builder/form-builder-context";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { projectAdminBase } from "@/lib/nav/nav";
-import { formBuilderService } from "@/lib/form-builder/form-builder-service";
 
 // ─── Workspace Footer ─────────────────────────────────────────────────────
 
-export function WorkspaceFooter() {
+export function WorkspaceFooter({ publishing, onPublish }: { publishing: boolean; onPublish: () => void }) {
   const router = useRouter();
   const { accountCode, projectCode } = useProjectContext();
   const { state } = useFormBuilder();
@@ -63,26 +61,6 @@ export function WorkspaceFooter() {
     router.push(`${base}/form-builder`);
   }
 
-  const [publishing, setPublishing] = useState(false);
-
-  async function handlePublish() {
-    const activeConfig = state.configurations.find((c) => c.id === state.activeConfigId);
-    if (!activeConfig || !state.activeConfigId) return;
-    setPublishing(true);
-    try {
-      await formBuilderService.saveSchemaAndPublish(state.activeConfigId, activeConfig.fields);
-      alert("Published successfully");
-      router.push(`${base}/form-builder`);
-    } catch (err) {
-      console.error("Failed to publish:", err);
-      alert(err instanceof Error ? err.message : "Failed to publish. Please try again.");
-    } finally {
-      setPublishing(false);
-    }
-  }
-
-  // ─── Render ───────────────────────────────────────────────────────────
-
   return (
     <footer
       style={{
@@ -133,7 +111,7 @@ export function WorkspaceFooter() {
 
         <button
           type="button"
-          onClick={handlePublish}
+          onClick={onPublish}
           disabled={publishing}
           style={{
             display: "inline-flex",

@@ -1,5 +1,7 @@
 "use client";
 
+import { FieldDragHandle } from "./field-drag-handle";
+
 import { Plus } from "lucide-react";
 import type { FormField } from "@/lib/form-builder/types";
 
@@ -69,7 +71,7 @@ export function AddMoreBlockContainer({
           onClick();
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
             onClick();
           }
@@ -83,6 +85,7 @@ export function AddMoreBlockContainer({
           cursor: "pointer",
         }}
       >
+        <FieldDragHandle field={field} />
         {/* Question number badge */}
         <span
           style={{

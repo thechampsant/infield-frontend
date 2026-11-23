@@ -1,4 +1,4 @@
-import { FormField } from "./types";
+import type { FormField } from "./types";
 
 /**
  * Generates the localStorage key for a given config ID.
@@ -11,12 +11,13 @@ function getDraftKey(configId: string): string {
  * Saves the current fields array to localStorage as JSON.
  * Handles localStorage unavailability gracefully.
  */
-export function saveDraft(configId: string, fields: FormField[]): void {
+export function saveDraft(configId: string, fields: FormField[]): boolean {
   try {
     const key = getDraftKey(configId);
     localStorage.setItem(key, JSON.stringify(fields));
+    return true;
   } catch {
-    // localStorage unavailable or quota exceeded — fail silently
+    return false;
   }
 }
 
@@ -46,9 +47,10 @@ export function loadDraft(configId: string): FormField[] | null {
  * Removes the draft from localStorage.
  * Handles localStorage unavailability gracefully.
  */
-export function clearDraft(configId: string): void {
+export function clearDraft(configId: string, expectedFields?: FormField[]): void {
   try {
     const key = getDraftKey(configId);
+    if (expectedFields && localStorage.getItem(key) !== JSON.stringify(expectedFields)) return;
     localStorage.removeItem(key);
   } catch {
     // localStorage unavailable — fail silently
@@ -61,17 +63,33 @@ export function clearDraft(configId: string): void {
  */
 export function createDebouncedSave(
   configId: string,
-  delayMs: number = 2000
-): (fields: FormField[]) => void {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  delayMs: number = 2000,
+  onSave?: (saved: boolean) => void,
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending: FormField[] | null = null;
 
-  return (fields: FormField[]) => {
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
+  function flush() {
+    clearTimeout(timer);
+    if (pending === null) return;
+    const saved = saveDraft(configId, pending);
+    if (saved) pending = null;
+    onSave?.(saved);
+  }
+
+  function schedule(fields: FormField[]) {
+    clearTimeout(timer);
+    pending = fields;
+    timer = setTimeout(flush, delayMs);
+  }
+
+  function published(fields: FormField[]) {
+    if (pending === fields) {
+      clearTimeout(timer);
+      pending = null;
     }
-    timeoutId = setTimeout(() => {
-      saveDraft(configId, fields);
-      timeoutId = null;
-    }, delayMs);
-  };
+    clearDraft(configId, fields);
+  }
+
+  return Object.assign(schedule, { flush, published });
 }

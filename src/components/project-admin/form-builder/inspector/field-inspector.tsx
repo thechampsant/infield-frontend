@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { X, MousePointerClick } from "lucide-react";
 import { useFormBuilder } from "@/lib/form-builder/form-builder-context";
 import { getComponentDefinition } from "@/lib/form-builder/constants";
 import type { FormField } from "@/lib/form-builder/types";
+import { CalculationSettings, OptionDataSettings, StructuredDataSettings } from "./advanced-settings";
+import { newDataSource, structuredSource } from "@/lib/form-builder/advanced-fields";
+import { RequiredRuleSettings, StorePrefillSettings } from "./field-rule-settings";
 import { FileFieldSettings } from "@/components/udf/file-field-settings";
 import { udfConfigService } from "@/lib/api";
 import type { UdfDataSourceDefinition, UdfSourcePreviewItem, UdfDatasourceFilterModesResponse } from "@/lib/api";
@@ -36,32 +39,6 @@ const colors = {
   duplicateBorder: "#e2e8f0",
   duplicateText: "#0f172a",
 };
-
-// ─── Debounce Hook ────────────────────────────────────────────────────────
-
-function useDebouncedDispatch(
-  dispatch: React.Dispatch<import("@/lib/form-builder/types").FormBuilderAction>,
-  fieldId: string,
-  delay: number
-) {
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  return useCallback(
-    (changes: Partial<FormField>) => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        dispatch({ type: "UPDATE_FIELD", fieldId, changes });
-      }, delay);
-    },
-    [dispatch, fieldId, delay]
-  );
-}
 
 // ─── Empty State ──────────────────────────────────────────────────────────
 
@@ -540,10 +517,6 @@ function InspectorContent({
   const { state, dispatch } = useFormBuilder();
   const definition = getComponentDefinition(field.type);
 
-  // Local state for debounced text inputs
-  const [label, setLabel] = useState(field.label);
-  const [helpText, setHelpText] = useState(field.helpText);
-
   // Data sources state (for API Select and Cascading Select)
   const [sources, setSources] = useState<UdfDataSourceDefinition[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
@@ -552,6 +525,8 @@ function InspectorContent({
   const [filterModes, setFilterModes] = useState<UdfDatasourceFilterModesResponse | null>(null);
   const [filterModesLoading, setFilterModesLoading] = useState(false);
 
+  const nativeLookup = !structuredSource(field);
+
   // Load available data sources when field type is api-select or cascading-select
   useEffect(() => {
     const needsSources =
@@ -559,7 +534,7 @@ function InspectorContent({
       field.type === "list-view" ||
       field.type === "cascading-select" ||
       field.type === "dependent-dropdown";
-    if (!needsSources) return;
+    if (!nativeLookup || !needsSources) return;
     let cancelled = false;
     setSourcesLoading(true);
     udfConfigService.getSources().then((list) => {
@@ -570,11 +545,11 @@ function InspectorContent({
       if (!cancelled) setSourcesLoading(false);
     });
     return () => { cancelled = true; };
-  }, [field.type]);
+  }, [field.type, nativeLookup]);
 
   // Load filter modes when data source changes
   useEffect(() => {
-    const sourceKey = field.dataSource?.customName ?? "";
+    const sourceKey = nativeLookup ? field.dataSource?.customName ?? "" : "";
     if (!sourceKey) {
       setFilterModes(null);
       return;
@@ -589,28 +564,8 @@ function InspectorContent({
       if (!cancelled) setFilterModesLoading(false);
     });
     return () => { cancelled = true; };
-  }, [field.dataSource?.customName]);
+  }, [field.dataSource?.customName, nativeLookup]);
 
-  // Sync local state when field changes
-  useEffect(() => {
-    setLabel(field.label);
-    setHelpText(field.helpText);
-  }, [field.id, field.label, field.helpText]);
-
-  // Debounced dispatch for text inputs
-  const debouncedUpdate = useDebouncedDispatch(dispatch, field.id, 300);
-
-  const handleLabelChange = (value: string) => {
-    setLabel(value);
-    debouncedUpdate({ label: value });
-  };
-
-  const handleHelpTextChange = (value: string) => {
-    setHelpText(value);
-    debouncedUpdate({ helpText: value });
-  };
-
-  // Immediate dispatch for non-text changes
   const updateField = (changes: Partial<FormField>) => {
     dispatch({ type: "UPDATE_FIELD", fieldId: field.id, changes });
   };
@@ -638,8 +593,10 @@ function InspectorContent({
   const isFileUploadType = field.type === "file-upload";
   const isDateType = field.type === "date-picker";
   const isRatingType = field.type === "rating";
-  const isApiSelectType = field.type === "api-select" || field.type === "list-view";
-  const isCascadingType = field.type === "cascading-select" || field.type === "dependent-dropdown";
+  const structured = field.type === "list-view" || field.type === "dependent-dropdown";
+  const legacyLookup = structured && !structuredSource(field);
+  const isApiSelectType = field.type === "api-select" || (legacyLookup && field.type === "list-view");
+  const isCascadingType = field.type === "cascading-select" || (legacyLookup && field.type === "dependent-dropdown");
   const isRepeatableType = field.type === "repeatable-group";
   const hasOptions = ["dropdown", "multi-select", "radio", "checkbox"].includes(
     field.type
@@ -720,14 +677,14 @@ function InspectorContent({
         <SectionHeader title="Field" />
         <InspectorInput
           label="Label"
-          value={label}
-          onChange={handleLabelChange}
+          value={field.label}
+          onChange={(label) => updateField({ label })}
           required
         />
         <InspectorInput
           label="Help text"
-          value={helpText}
-          onChange={handleHelpTextChange}
+          value={field.helpText}
+          onChange={(helpText) => updateField({ helpText })}
           description="Shown below label & as placeholder"
         />
 
@@ -761,6 +718,7 @@ function InspectorContent({
 
         {/* PRE-FILL & READ-ONLY Section */}
         <SectionHeader title="Pre-fill & Read-only" />
+        {definition?.supportsPrefill && <StorePrefillSettings field={field} update={updateField} />}
         <div
           style={{
             padding: "8px 16px",
@@ -818,6 +776,15 @@ function InspectorContent({
             })
           }
         />
+
+        {field.required === "conditional" && (
+          <RequiredRuleSettings
+            rules={field.requiredRules}
+            candidates={(state.configurations.find((config) => config.id === state.activeConfigId)?.fields ?? [])
+              .filter((candidate) => candidate.id !== field.id && !LAYOUT_FIELD_TYPES.has(candidate.type))}
+            onChange={(requiredRules) => updateField({ requiredRules })}
+          />
+        )}
 
         {/* Type-specific validation inputs */}
         {isTextType && (
@@ -1201,6 +1168,13 @@ function InspectorContent({
             )}
           </>
         )}
+        {structured && (legacyLookup ? (
+          <button type="button" onClick={() => updateField({ dataSource: newDataSource(field.type === "list-view" ? "table" : "hierarchy") })}>
+            {field.type === "list-view" ? "Replace lookup with editable table" : "Replace lookup with ordered hierarchy"}
+          </button>
+        ) : <StructuredDataSettings key={field.id} field={field} update={updateField} />)}
+        {field.type === "calculation" && <CalculationSettings field={field} update={updateField}
+          fields={state.configurations.find((c) => c.id === state.activeConfigId)?.fields ?? []} />}
         {isApiSelectType && (
           <>
             <SectionHeader title="Data Source" />
@@ -1790,15 +1764,20 @@ function InspectorContent({
                 { label: "Manual", value: "manual" },
                 { label: "Excel", value: "excel" },
                 { label: "Master", value: "from-master" },
+                { label: "Mapping", value: "from-mapping" },
               ]}
               value={field.optionsSource ?? "manual"}
               onChange={(value) =>
                 updateField({
-                  optionsSource: value as "manual" | "excel" | "from-master",
+                  optionsSource: value as FormField["optionsSource"],
+                  ...(value === "from-mapping" || value === "from-master" ? { displayColumns: [] } : {}),
                 })
               }
             />
 
+            {field.optionsSource && field.optionsSource !== "manual" && (
+              <OptionDataSettings key={field.id + field.optionsSource} field={field} update={updateField} />
+            )}
             {/* Manual options editor */}
             {(field.optionsSource === "manual" || !field.optionsSource) && (
               <div style={{ padding: "8px 16px" }}>

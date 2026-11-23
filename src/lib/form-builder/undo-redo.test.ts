@@ -4,10 +4,31 @@ import {
   clearRedo,
   performUndo,
   performRedo,
+  historyShortcut,
   canUndo,
   canRedo,
 } from "./undo-redo";
 import { FormField } from "./types";
+
+describe("builder keyboard shortcuts", () => {
+  const event = { key: "z", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, isComposing: false, defaultPrevented: false };
+
+  it("recognizes Windows, Linux and macOS undo and redo", () => {
+    expect(historyShortcut(event)).toBe("UNDO");
+    expect(historyShortcut({ ...event, key: "y" })).toBe("REDO");
+    expect(historyShortcut({ ...event, key: "Z", shiftKey: true })).toBe("REDO");
+    const mac = { ...event, ctrlKey: false, metaKey: true };
+    expect(historyShortcut(mac)).toBe("UNDO");
+    expect(historyShortcut({ ...mac, shiftKey: true })).toBe("REDO");
+    expect(historyShortcut({ ...mac, key: "y" })).toBeNull();
+  });
+
+  it.each([{ altKey: true }, { ctrlKey: false }, { metaKey: true }, { key: "a" }, { isComposing: true }, { defaultPrevented: true }])(
+    "ignores other shortcuts and consumed input (%o)", (change) => {
+      expect(historyShortcut({ ...event, ...change })).toBeNull();
+    },
+  );
+});
 
 function makeField(id: string): FormField {
   return {

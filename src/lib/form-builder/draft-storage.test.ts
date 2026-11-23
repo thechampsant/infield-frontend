@@ -179,6 +179,44 @@ describe("draft-storage", () => {
       );
     });
 
+    it("flushes the latest edit on exit and keeps an intentionally empty draft", () => {
+      const save = createDebouncedSave("first");
+      save([makeField("removed")]);
+      save([]);
+      save.flush();
+      expect(loadDraft("first")).toEqual([]);
+      expect(loadDraft("second")).toBeNull();
+      vi.runAllTimers();
+      expect(localStorageMock.setItem).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports a failed save and retries the pending edit on flush", () => {
+      const status = vi.fn();
+      const save = createDebouncedSave("first", 2000, status);
+      localStorageMock.setItem.mockImplementationOnce(() => { throw new Error("quota"); });
+      save([makeField("latest")]);
+      vi.runAllTimers();
+      expect(status).toHaveBeenLastCalledWith(false);
+      save.flush();
+      expect(status).toHaveBeenLastCalledWith(true);
+      expect(loadDraft("first")?.[0].id).toBe("latest");
+    });
+
+    it("clears the published snapshot without removing a newer edit", () => {
+      const save = createDebouncedSave("first");
+      const snapshot = [makeField("published")];
+      const newer = [makeField("newer")];
+      save(snapshot);
+      save.flush();
+      save(newer);
+      save.published(snapshot);
+      expect(loadDraft("first")).toBeNull();
+      vi.runAllTimers();
+      expect(loadDraft("first")).toEqual(newer);
+      save.published(snapshot);
+      expect(loadDraft("first")).toEqual(newer);
+    });
+
     it("uses default delay of 2000ms", () => {
       const debouncedSave = createDebouncedSave("config-1");
       const fields = [makeField("1")];

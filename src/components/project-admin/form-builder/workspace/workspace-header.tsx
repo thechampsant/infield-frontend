@@ -1,18 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { ChevronLeft, Undo2, Redo2, RotateCw, Settings } from "lucide-react";
 import { useFormBuilder } from "@/lib/form-builder/form-builder-context";
 import { useProjectContext } from "@/lib/project-admin/project-context";
 import { projectAdminBase } from "@/lib/nav/nav";
-import { formBuilderService } from "@/lib/form-builder/form-builder-service";
+import { historyShortcut } from "@/lib/form-builder/undo-redo";
 
-export function WorkspaceHeader() {
+export function WorkspaceHeader({ publishing, onPublish }: { publishing: boolean; onPublish: () => void }) {
   const { state, dispatch } = useFormBuilder();
   const { accountCode, projectCode } = useProjectContext();
-  const router = useRouter();
 
   const base = projectAdminBase(accountCode, projectCode);
   const backHref = `${base}/form-builder`;
@@ -28,23 +26,21 @@ export function WorkspaceHeader() {
   const canUndo = state.undoStack.length > 0;
   const canRedo = state.redoStack.length > 0;
 
-  // Publish state
-  const [publishing, setPublishing] = useState(false);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const action = historyShortcut(event);
+      if (!action || (action === "UNDO" ? !canUndo : !canRedo)) return;
+      const target = event.target;
+      if (target instanceof HTMLElement &&
+        (target.isContentEditable || target.closest("input, textarea, select, [role=textbox]"))) return;
 
-  const handleSaveAndPublish = async () => {
-    if (!activeConfig || !state.activeConfigId) return;
-    setPublishing(true);
-    try {
-      await formBuilderService.saveSchemaAndPublish(state.activeConfigId, activeConfig.fields);
-      alert("Published successfully");
-      router.push(`${base}/form-builder`);
-    } catch (err) {
-      console.error("Failed to publish:", err);
-      alert(err instanceof Error ? err.message : "Failed to publish. Please try again.");
-    } finally {
-      setPublishing(false);
+      event.preventDefault();
+      dispatch({ type: action });
     }
-  };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canUndo, canRedo, dispatch]);
 
   return (
     <div
@@ -112,7 +108,8 @@ export function WorkspaceHeader() {
         <button
           onClick={() => dispatch({ type: "UNDO" })}
           disabled={!canUndo}
-          title="Undo"
+          title="Undo (Ctrl+Z or ⌘Z)"
+          aria-keyshortcuts="Control+Z Meta+Z"
           aria-label="Undo"
           style={{
             display: "inline-flex",
@@ -135,7 +132,8 @@ export function WorkspaceHeader() {
         <button
           onClick={() => dispatch({ type: "REDO" })}
           disabled={!canRedo}
-          title="Redo"
+          title="Redo (Ctrl+Y, Ctrl+Shift+Z or ⌘⇧Z)"
+          aria-keyshortcuts="Control+Y Control+Shift+Z Meta+Shift+Z"
           aria-label="Redo"
           style={{
             display: "inline-flex",
@@ -194,7 +192,7 @@ export function WorkspaceHeader() {
         </button>
 
         <button
-          onClick={handleSaveAndPublish}
+          onClick={onPublish}
           disabled={publishing}
           style={{
             marginLeft: 8,

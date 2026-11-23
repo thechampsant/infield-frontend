@@ -1,3 +1,4 @@
+import { formulaTokens, hierarchyFields, structuredSource, validateDataSource } from "./advanced-fields";
 /**
  * Mapper functions to convert between API types (UdfField, ApiFormConfig)
  * and frontend types (FormField, FormConfiguration).
@@ -112,9 +113,10 @@ const FRONTEND_TO_API_TYPE: Record<ComponentType, string> = Object.fromEntries(
 ) as Record<ComponentType, string>;
 
 export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
-  return fields.map((field, index) => {
+  return fields.flatMap((field, index) => {
+    const structured = structuredSource(field);
     const componentType = frontendComponentTypeToApi(field.type);
-    const udfType = COMPONENT_TO_UDF_TYPE[field.type] ?? "STRING";
+    let udfType = COMPONENT_TO_UDF_TYPE[field.type] ?? "STRING";
 
     const config: Record<string, any> = {
       componentType,
@@ -139,6 +141,26 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
     }
     if (field.type === "dropdown" || field.type === "multi-select") {
       config.multiple = field.typeConfig.multiple ?? (field.type === "multi-select");
+    }
+
+    if (field.optionsSource === "excel") {
+      config.optionSource = "excel";
+      config.options = field.excelOptions ?? field.manualOptions;
+      if (!config.options.length) throw new Error(`${field.label}: upload option values before publishing.`);
+    }
+    if (field.optionsSource === "from-master" || field.optionsSource === "from-mapping") {
+      const mapped = field.optionsSource === "from-mapping";
+      const columns = field.displayColumns ?? [];
+      if (!columns.length) throw new Error(`${field.label}: choose a display column.`);
+      udfType = "API_SELECT";
+      delete config.options;
+      config.optionSource = field.optionsSource;
+      config.dataSource = mapped ? "STORE" : field.masterEntity || "PRODUCT";
+      config.displayColumns = columns;
+      config.labelField = columns[0];
+      config.valueField = "_id";
+      config.multiple = field.type === "checkbox" || (config.multiple ?? false);
+      if (mapped) config.filters = { mode: "direct_store" };
     }
 
     // Pre-fill
@@ -177,8 +199,15 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       config.validation = { requiredMode: field.required === "no" ? "never" : field.required };
     }
 
+    if (field.required === "conditional") {
+      config.validation.requiredRules = field.requiredRules;
+    } else if (config.validation) {
+      delete config.validation.requiredRules;
+      delete config.validation.conditionalRequired;
+    }
+
     // API Select config — save as flat config properties (same as Claims/Sales)
-    if (field.type === "api-select" || field.type === "list-view") {
+    if (field.type === "api-select" || (field.type === "list-view" && !structured)) {
       const sourceKey = field.dataSource?.customName || "";
       if (sourceKey) {
         config.dataSource = sourceKey;
@@ -205,7 +234,7 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
     }
 
     // Cascading Select config — save as flat config properties (same as Claims/Sales)
-    if (field.type === "cascading-select" || field.type === "dependent-dropdown") {
+    if (field.type === "cascading-select" || (field.type === "dependent-dropdown" && !structured)) {
       const dependsOn = field.dataSource?.chainLevels?.[0] || "";
       if (dependsOn) {
         config.dependsOn = dependsOn;
@@ -251,16 +280,47 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
       config.precision = 2;
     }
 
+    if (field.type === "calculation") {
+      udfType = "FORMULA";
+      config.scope = "row";
+      config.expression = formulaTokens(field.formula, fields, field);
+      config.precision = 2;
+      config.formula = { expression: field.formula, resultFormat: field.formulaResultFormat };
+    }
+
+    if (structured?.layout === "table") {
+      const source = structured;
+      validateDataSource(field, source);
+      udfType = "REPEATABLE_GROUP";
+      config.listView = source;
+      config.minRows = 0;
+      const readonly = source.readOnlyColumns.map((name) => ({
+        label: name, type: "STRING", config: { isReadOnly: true, sourceField: name }, required: false,
+      }));
+      const editable = source.editableColumns.map((column) => ({
+        label: column.name.trim(),
+        type: ({ number: "NUMBER", dropdown: "DROPDOWN", date: "DATE", alphanumeric: "STRING", text: "STRING" })[column.type],
+        config: { componentType: column.type.toUpperCase(), options: column.options?.map((value) => value.trim()).filter(Boolean),
+          validation: { minValue: column.min, maxValue: column.max } },
+        required: column.required,
+      }));
+      config.fields = [...readonly, ...editable].map((column, order) => ({
+        ...column, fieldKey: source.editableColumns.find((item) => item.name.trim() === column.label)?.id ?? column.label,
+        order, status: true,
+      }));
+    }
+
     // UDF-native visibility at field top-level (mobile/submit evaluate this shape only)
     const visibilityRules =
       field.visibility === "conditional"
         ? toUdfVisibilityRules(field.visibilityRules)
         : undefined;
 
-    return {
+    const saved = {
       fieldKey: field.id,
       label: field.label,
       type: udfType,
+      ...(structured?.layout === "table" ? { view_type: "table" } : {}),
       config,
       required: field.required === "always",
       order: index,
@@ -269,7 +329,11 @@ export function mapFieldsToSaveSchemaPayload(fields: FormField[]): any[] {
         ? { visibilityRules }
         : {}),
     };
-  });
+    if (structured?.layout === "hierarchy") {
+      return hierarchyFields(field, structured, saved);
+    }
+    return [saved];
+  }).map((field, order) => ({ ...field, order }));
 }
 
 /** Group FE equals-rules into UDF { dependsOnField, showWhen[] }. */
@@ -389,7 +453,9 @@ export function mapUdfFieldToFrontend(udf: ApiUdfField): FormField {
 
   // Determine required mode from boolean + config
   let required: "no" | "always" | "conditional" = "no";
-  if (udf.required) {
+  if (cfg.validation?.requiredMode === "conditional") {
+    required = "conditional";
+  } else if (udf.required) {
     required = cfg.validation?.conditionalRequired ? "conditional" : "always";
   }
 
@@ -447,15 +513,19 @@ export function mapUdfFieldToFrontend(udf: ApiUdfField): FormField {
           },
 
     // Options
-    optionsSource: Array.isArray(cfg.options) ? "manual" : (cfg.options?.source ?? null),
-    manualOptions: Array.isArray(cfg.options) ? cfg.options : (cfg.values ?? cfg.options?.manualOptions ?? []),
-    excelOptionsCount: Array.isArray(cfg.options) ? 0 : (cfg.options?.excelOptionsCount ?? 0),
-    masterEntity: Array.isArray(cfg.options) ? "" : (cfg.options?.masterEntity ?? ""),
+    optionsSource: cfg.optionSource ?? (Array.isArray(cfg.options) ? "manual" : (cfg.options?.source ?? null)),
+    excelOptions: cfg.optionSource === "excel" ? cfg.options ?? [] : undefined,
+    displayColumns: cfg.displayColumns ?? cfg.options?.displayColumns,
+    manualOptions: cfg.optionSource === "excel" ? [] : Array.isArray(cfg.options) ? cfg.options : (cfg.values ?? cfg.options?.manualOptions ?? []),
+    excelOptionsCount: cfg.optionSource === "excel" ? cfg.options?.length ?? 0 : Array.isArray(cfg.options) ? 0 : (cfg.options?.excelOptionsCount ?? 0),
+    masterEntity: cfg.optionSource === "from-master" ? cfg.dataSource : Array.isArray(cfg.options) ? "" : (cfg.options?.masterEntity ?? ""),
     masterField: Array.isArray(cfg.options) ? "" : (cfg.options?.masterField ?? ""),
     mappingParentField: Array.isArray(cfg.options) ? "" : (cfg.options?.mappingParentField ?? ""),
 
     // Data source — rebuild DataSourceConfig from flat config properties
     dataSource: (() => {
+      if (cfg.hierarchy) return cfg.hierarchy;
+      if (cfg.listView) return cfg.listView;
       const componentFe = apiComponentTypeToFrontend(componentType);
       if (componentFe === "api-select" || componentFe === "list-view") {
         const srcKey = typeof cfg.dataSource === 'string' ? cfg.dataSource : (cfg.sourceKey ?? "");
@@ -645,7 +715,7 @@ export function mapApiConfigToFrontend(
     editPermission: apiConfig.editPermission,
     editWindow: apiEditWindowToFrontend(apiConfig.editWindow),
     editWindowHours: apiConfig.editWindowHours ?? 24,
-    fields: fields.map(mapUdfFieldToFrontend),
+    fields: fields.filter((field) => !field.config?.hierarchyOwner).map(mapUdfFieldToFrontend),
     status: apiConfig.status === "archived" ? "draft" : apiConfig.status,
     createdAt: apiConfig.createdAt,
     updatedAt: apiConfig.updatedAt,

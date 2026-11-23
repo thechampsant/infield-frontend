@@ -1,5 +1,7 @@
 "use client";
 
+import { useDraggable } from "@dnd-kit/core";
+
 import type { ComponentDefinition } from "@/lib/form-builder/types";
 import {
   Type,
@@ -86,12 +88,19 @@ export interface PaletteTileProps {
 }
 
 export function PaletteTile({ component, onClick }: PaletteTileProps) {
+  const { setNodeRef, listeners, attributes } = useDraggable({
+    id: `palette-${component.type}`,
+    data: { componentType: component.type, label: component.name },
+  });
   const IconComponent = ICON_MAP[component.icon];
   const colors = ACCENT_COLORS[component.accent] ?? ACCENT_COLORS.gray;
 
   return (
     <button
       type="button"
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       onClick={onClick}
       title={component.description}
       aria-label={`Add ${component.name} component`}
@@ -100,12 +109,14 @@ export function PaletteTile({ component, onClick }: PaletteTileProps) {
         alignItems: "center",
         gap: 8,
         width: "100%",
-        height: 44,
+        minHeight: 44,
+        boxSizing: "border-box",
         padding: "6px 10px",
         borderRadius: 8,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
-        cursor: "pointer",
+        cursor: "grab",
+        touchAction: "none",
         transition: "border-color .15s, box-shadow .15s",
       }}
       onMouseEnter={(e) => {
@@ -141,9 +152,9 @@ export function PaletteTile({ component, onClick }: PaletteTileProps) {
           fontSize: 12,
           fontWeight: 500,
           color: "#0f172a",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
+          whiteSpace: "normal",
+          overflowWrap: "anywhere",
+          textAlign: "left",
         }}
       >
         {component.name}

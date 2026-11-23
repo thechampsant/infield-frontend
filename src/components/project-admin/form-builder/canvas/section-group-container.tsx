@@ -1,5 +1,7 @@
 "use client";
 
+import { FieldDragHandle } from "./field-drag-handle";
+
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { FormField } from "@/lib/form-builder/types";
@@ -70,7 +72,7 @@ export function SectionGroupContainer({
           onClick();
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
             onClick();
           }
@@ -91,7 +93,7 @@ export function SectionGroupContainer({
           aria-label={isExpanded ? "Collapse section" : "Expand section"}
           onClick={handleToggle}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
+            if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
               e.preventDefault();
               handleToggle(e);
             }
@@ -117,6 +119,7 @@ export function SectionGroupContainer({
           )}
         </button>
 
+        <FieldDragHandle field={field} />
         {/* Question number badge */}
         <span
           style={{

@@ -960,6 +960,14 @@
   max-width: 1200px;
 }
 
+.pa-shell .pa-stage:has(.pa-form-builder-workspace) {
+  padding: 0;
+}
+
+.pa-shell .pa-content-wrap:has(.pa-form-builder-workspace) {
+  max-width: none;
+}
+
 .pa-shell.page-shell:has(.pa-dashboard-embed) {
   height: 100vh;
   overflow: hidden;

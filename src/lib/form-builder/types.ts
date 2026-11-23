@@ -96,6 +96,9 @@ export type OptionsSourceType = "manual" | "excel" | "from-master" | "from-mappi
 // ─── Data Source ──────────────────────────────────────────────────────────
 
 export interface DataSourceConfig {
+  layout?: "hierarchy" | "table";
+  customRows?: string[][];
+  customHeaders?: string[];
   source: "product-master" | "store-master" | "custom";
   customName: string;
   chainLevels: string[]; // For dependent dropdown
@@ -105,6 +108,7 @@ export interface DataSourceConfig {
 }
 
 export interface EditableColumn {
+  id?: string;
   name: string;
   type: "text" | "number" | "dropdown" | "alphanumeric" | "date";
   required: boolean;
@@ -196,6 +200,8 @@ export interface FormField {
   optionsSource: OptionsSourceType | null;
   manualOptions: string[];
   excelOptionsCount: number;
+  excelOptions?: string[];
+  displayColumns?: string[];
   masterEntity: string;
   masterField: string;
   mappingParentField: string;

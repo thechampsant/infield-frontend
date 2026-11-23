@@ -1,5 +1,7 @@
 "use client";
 
+import { FieldDragHandle } from "./field-drag-handle";
+
 import { Copy, Trash2 } from "lucide-react";
 import type { FormField } from "@/lib/form-builder/types";
 import { getComponentDefinition } from "@/lib/form-builder/constants";
@@ -161,7 +163,7 @@ export function FieldCard({
       aria-selected={isSelected}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
           onClick();
         }
@@ -269,6 +271,7 @@ export function FieldCard({
           paddingRight: 56, // reserve space for action buttons
         }}
       >
+        <FieldDragHandle field={field} />
         {/* Question number badge */}
         <span
           style={{
