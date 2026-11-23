@@ -36,12 +36,17 @@ export function WallUnseenModal({
 
   const totalUsers = post.totalUsers ?? 36;
   const unseenCount = Math.max(0, totalUsers - post.seenCount);
+  // Use dynamic project users list when available, filtering out users who have already seen the post
+  const rawList = React.useMemo(() => {
+    if (!unseenUsers || unseenUsers.length === 0) return [];
+    if (post.seenUserIds && post.seenUserIds.length > 0) {
+      const seenSet = new Set(post.seenUserIds.map((id) => String(id)));
+      const filtered = unseenUsers.filter((u) => !seenSet.has(String(u.id)));
+      return filtered.slice(0, unseenCount);
+    }
+    return unseenUsers.slice(0, unseenCount);
+  }, [unseenUsers, post.seenUserIds, unseenCount]);
 
-  // Use dynamic project users list when available, falling back to prototype seed list
-  const rawList =
-    unseenUsers && unseenUsers.length > 0
-      ? unseenUsers.slice(0, unseenCount)
-      : [];
 
   function handleDownload() {
     if (!post) return;
