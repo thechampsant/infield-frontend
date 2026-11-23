@@ -11,6 +11,7 @@ import {
   type RaisedByMeItem,
 } from "@/lib/api/inbox-service";
 import { DetailFields } from "./detail-fields";
+import { inboxSubmissionFields } from "@/lib/inbox-resubmission";
 import { formatDate, formatDateTime, statusClass, statusLabel, timeAgo } from "./inbox-format";
 
 const RAISED_COLSPAN = 5;
@@ -101,7 +102,7 @@ export function RaisedRow({
     ...(item.assignedTo
       ? [{ label: "Assigned To", value: item.assignedTo.displayName } as DisplayField]
       : []),
-    ...(meta.fields ?? []),
+    ...inboxSubmissionFields(meta.fields ?? [], item.moduleData),
   ];
 
   return (

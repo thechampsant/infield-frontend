@@ -22,6 +22,7 @@ import {
   attendanceConfigService,
 } from "@/lib/api/attendance-config";
 import { designationService, type Designation } from "@/lib/api/designation-service";
+import { ResubmissionAttemptsField } from "@/components/approval/resubmission-attempts-field";
 import { RejectionReasonsSection } from "@/components/approval/rejection-reasons-section";
 
 type ChangeFn = <K extends keyof AttendanceConfigForm>(
@@ -979,7 +980,7 @@ export function AttendanceConfigEdit({
         open={openSections.reg}
         onToggle={() => toggleSection("reg")}
       >
-        <RegularizationSettings form={form} errors={errors} designations={designations} onChange={onChange} />
+        <RegularizationSettings form={form} errors={errors} designations={designations} onChange={onChange} readOnly={readOnly} />
       </Section>
 
       <Section
@@ -1181,11 +1182,13 @@ function RegularizationSettings({
   errors,
   designations,
   onChange,
+  readOnly,
 }: {
   form: AttendanceConfigForm;
   errors: Record<string, string>;
   designations: Designation[];
   onChange: ChangeFn;
+  readOnly: boolean;
 }) {
   return (
     <div className="section-inner">
@@ -1193,6 +1196,13 @@ function RegularizationSettings({
         label="Enable regularization"
         checked={form.regularizationEnabled}
         onChange={(v) => setRegularizationEnabled(form, onChange, v)}
+      />
+
+      <ResubmissionAttemptsField
+        value={form.regMaximumResubmissionAttempts}
+        onChange={(value) => onChange("regMaximumResubmissionAttempts", value)}
+        disabled={readOnly}
+        hint="The existing regularization window applies."
       />
 
       {form.regularizationEnabled && (

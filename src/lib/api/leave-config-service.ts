@@ -1,3 +1,4 @@
+import { parseResubmissionAttempts } from "@/lib/approval/resubmission-attempts";
 import { ApiError, apiClient } from "./api-client";
 import {
   emptyRejectionReasons,
@@ -164,6 +165,9 @@ export function normalizeLeaveTakeOver(levels: LeaveApprovalLevel[]): LeaveAppro
 
 export interface LeavePolicy {
   [key: string]: unknown;
+  maximumResubmissionAttempts?: number;
+  /** Raw form input; excluded from API payloads. */
+  resubmissionAttemptsInput?: string;
   _id?: string;
   name: string;
   applicableDesignations: string[];
@@ -177,6 +181,7 @@ export interface LeavePolicy {
 
 export interface LeaveConfigDocument {
   [key: string]: unknown;
+  maximumResubmissionAttempts?: number;
   _id?: string;
   projectId: string;
   policies: LeavePolicy[];
@@ -443,12 +448,14 @@ function createSpecialLeaveType(
 
 function createDefaultConfig(projectId: string): LeaveConfigDocument {
   return {
+    maximumResubmissionAttempts: 0,
     _id: makeId("leave_config"),
     projectId,
     policies: [
       {
         _id: makeId("policy"),
         name: "Default Leave Policy",
+        maximumResubmissionAttempts: 0,
         applicableDesignations: [],
         visibility: defaultVisibility(),
         holidays: [
@@ -701,13 +708,14 @@ export function normalizeLeaveType(value: unknown): LeaveTypeConfig {
   };
 }
 
-function normalizePolicy(value: unknown): LeavePolicy {
+function normalizePolicy(value: unknown, legacyRetryLimit = 0): LeavePolicy {
   const raw = record(value);
   const visibility = record(raw.visibility);
   return {
     ...raw,
     _id: text(raw._id) || text(raw.id) || undefined,
     name: text(raw.name) || "Untitled Leave Policy",
+    maximumResubmissionAttempts: num(raw.maximumResubmissionAttempts, legacyRetryLimit),
     applicableDesignations: stringArray(raw.applicableDesignations),
     visibility: {
       showLeaveBalance: bool(visibility.showLeaveBalance, true),
@@ -734,7 +742,10 @@ function normalizeConfig(value: unknown, projectId: string): LeaveConfigDocument
     ...raw,
     _id: text(raw._id) || text(raw.id) || undefined,
     projectId: text(raw.projectId) || projectId,
-    policies: Array.isArray(raw.policies) ? raw.policies.map(normalizePolicy) : [],
+    maximumResubmissionAttempts: num(raw.maximumResubmissionAttempts, 0),
+    policies: Array.isArray(raw.policies)
+      ? raw.policies.map((policy) => normalizePolicy(policy, num(raw.maximumResubmissionAttempts, 0)))
+      : [],
   };
 }
 
@@ -778,8 +789,13 @@ function leaveTypeForSave(leaveType: LeaveTypeConfig): LeaveTypeConfig {
 }
 
 function policyForSave(policy: LeavePolicy): LeavePolicy {
+  const { resubmissionAttemptsInput, maximumResubmissionAttempts, ...persisted } = policy;
+  const hasRetryLimit = resubmissionAttemptsInput !== undefined || maximumResubmissionAttempts !== undefined;
   return {
-    ...policy,
+    ...persisted,
+    ...(hasRetryLimit ? { maximumResubmissionAttempts: parseResubmissionAttempts(
+      resubmissionAttemptsInput ?? maximumResubmissionAttempts,
+    ) } : {}),
     _id: validMongoId(policy._id),
     holidays: policy.holidays.map(holidayForSave),
     holidayGroups: (policy.holidayGroups ?? []).map((group) => ({
@@ -971,17 +987,21 @@ export const leaveConfigService = {
     return Array.isArray(raw) ? raw.map(normalizeHolidayGroupingField) : [];
   },
 
-  async save(projectId: string, policies: LeavePolicy[]): Promise<LeaveConfigResponse> {
+  async save(projectId: string, policies: LeavePolicy[], maximumResubmissionAttempts?: number): Promise<LeaveConfigResponse> {
     const payloadPolicies = policies.map(policyForSave);
+    const retrySetting = maximumResubmissionAttempts === undefined ? {} : {
+      maximumResubmissionAttempts: parseResubmissionAttempts(maximumResubmissionAttempts),
+    };
     if (USE_MOCK_API) {
       await delay();
       const current = ensureMockConfig(projectId);
-      const next = normalizeConfig({ ...current, policies: payloadPolicies }, projectId);
+      const next = normalizeConfig({ ...current, ...retrySetting, policies: payloadPolicies }, projectId);
       mockConfigs.set(projectId, next);
       return withMockWarnings(next);
     }
     const raw = await apiClient.put<unknown>(`${BASE}/${projectId}`, {
       policies: payloadPolicies,
+      ...retrySetting,
     });
     return normalizeResponse(raw, projectId);
   },
