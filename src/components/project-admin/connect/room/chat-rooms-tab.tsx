@@ -70,6 +70,7 @@ export function ChatRoomsTab({
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [ruleOptions, setRuleOptions] = useState<MembershipRuleOptions | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [removalNotice, setRemovalNotice] = useState<string | null>(null);
 
   // 1. Dynamic fetch of Chat Rooms list (cached & deduplicated)
   useEffect(() => {
@@ -84,9 +85,17 @@ export function ChatRoomsTab({
         if (projectId || accountId) {
           connectRoomService.setContext({ projectId, accountId });
         }
-        const data = await connectRoomService.listRooms(projectId, false, accountId);
+        const data = await connectRoomService.listRooms(projectId, true, accountId);
         if (cancelled) return;
         setRooms(dedupeRooms(data || []));
+        const offlineRemovals = connectRoomService.consumePendingOfflineRemovals();
+        if (offlineRemovals.length > 0) {
+          const names = offlineRemovals
+            .map((r) => r.room_name || r.roomName || "a chat room")
+            .filter(Boolean)
+            .join(", ");
+          setRemovalNotice(`You were removed from ${names}`);
+        }
       } catch (err) {
         if (cancelled) return;
         console.warn("Could not fetch chat rooms from backend", err);
@@ -146,13 +155,32 @@ export function ChatRoomsTab({
       setRooms((prev) =>
         prev.map((r) =>
           (r.id && r.id === update.roomId) || (r._id && r._id === update.roomId)
-            ? { ...r, name: update.name, initials: getRoomInitials(update.name) }
+            ? {
+                ...r,
+                ...(update.name ? { name: update.name, initials: getRoomInitials(update.name) } : {}),
+                ...(typeof update.memberCount === "number" ? { memberCount: update.memberCount } : {}),
+              }
             : r,
         ),
       );
     },
     onRoomDeleted: (deletedRoomId) => {
       setRooms((prev) => prev.filter((r) => (r._id || r.id) !== deletedRoomId));
+    },
+    onRoomMemberRemoved: (payload) => {
+      if (payload.roomId) {
+        setRooms((prev) => prev.filter((r) => (r._id || r.id) !== payload.roomId));
+      }
+    },
+    onMeRemovedFromRoom: (payload) => {
+      const rid = payload.room_id || payload.roomId;
+      if (rid) {
+        setRooms((prev) => prev.filter((r) => (r._id || r.id) !== rid));
+      }
+      setRemovalNotice(
+        payload.message ||
+          `You were removed from ${payload.room_name || payload.roomName || "this room"}`,
+      );
     },
   });
 
@@ -230,6 +258,25 @@ export function ChatRoomsTab({
       </div>
 
       {/* Feature Disabled Notice */}
+      {removalNotice && (
+        <div
+          role="alert"
+          className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-xs text-amber-900 font-medium"
+        >
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>{removalNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRemovalNotice(null)}
+            className="text-amber-700 hover:text-amber-900 font-bold ml-2 text-sm cursor-pointer"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {!roomsEnabled && (
         <div
           role="alert"

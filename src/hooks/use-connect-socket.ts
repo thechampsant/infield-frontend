@@ -10,10 +10,12 @@ import {
   type SocketRoomSummaryUpdatedPayload,
   type SocketRoomUpdatedPayload,
   type SocketRoomDeletedPayload,
+  type SocketRoomMemberRemovedPayload,
   type SocketBadgeUpdatePayload,
   type SocketConnectBadgeUpdatePayload,
   type SocketWallBadgeUpdatePayload,
   type SocketRoomBadgeUpdatePayload,
+  type SocketMeRemovedFromRoomPayload,
 } from "@/lib/api/connect-socket-client";
 import {
   connectRoomService,
@@ -31,8 +33,9 @@ export interface UseRoomSocketOptions {
   roomId: string;
   onNewMessage?: (message: RoomMessage) => void;
   onMessageDeleted?: (messageId: string) => void;
-  onRoomUpdated?: (name: string) => void;
+  onRoomUpdated?: (nameOrPayload: string | SocketRoomUpdatedPayload) => void;
   onRoomDeleted?: () => void;
+  onMeRemovedFromRoom?: (payload: SocketMeRemovedFromRoomPayload) => void;
   onReconnect?: () => void;
 }
 
@@ -42,12 +45,14 @@ export function useRoomSocket({
   onMessageDeleted,
   onRoomUpdated,
   onRoomDeleted,
+  onMeRemovedFromRoom,
   onReconnect,
 }: UseRoomSocketOptions) {
   const onNewMessageRef = useRef(onNewMessage);
   const onMessageDeletedRef = useRef(onMessageDeleted);
   const onRoomUpdatedRef = useRef(onRoomUpdated);
   const onRoomDeletedRef = useRef(onRoomDeleted);
+  const onMeRemovedFromRoomRef = useRef(onMeRemovedFromRoom);
   const onReconnectRef = useRef(onReconnect);
 
   useEffect(() => {
@@ -55,6 +60,7 @@ export function useRoomSocket({
     onMessageDeletedRef.current = onMessageDeleted;
     onRoomUpdatedRef.current = onRoomUpdated;
     onRoomDeletedRef.current = onRoomDeleted;
+    onMeRemovedFromRoomRef.current = onMeRemovedFromRoom;
     onReconnectRef.current = onReconnect;
   });
 
@@ -90,12 +96,12 @@ export function useRoomSocket({
       },
     );
 
-    // 4. Listen for room rename
+    // 4. Listen for room rename or update
     const unsubUpdatedRoom = connectSocketClient.on<SocketRoomUpdatedPayload>(
       CONNECT_SOCKET_EVENTS.ROOM_UPDATED,
       (payload) => {
         if (payload.roomId !== roomId) return;
-        onRoomUpdatedRef.current?.(payload.name);
+        onRoomUpdatedRef.current?.(payload.name || payload);
       },
     );
 
@@ -104,6 +110,36 @@ export function useRoomSocket({
       CONNECT_SOCKET_EVENTS.ROOM_DELETED,
       (payload) => {
         if (payload.roomId !== roomId) return;
+        connectRoomService.clearCache();
+        onRoomDeletedRef.current?.();
+      },
+    );
+
+    // 5b. Listen for current user being removed from room: me-removed-from-room
+    const unsubMeRemoved = connectSocketClient.on<SocketMeRemovedFromRoomPayload>(
+      CONNECT_SOCKET_EVENTS.ME_REMOVED_FROM_ROOM,
+      (payload) => {
+        const targetId = payload.room_id || payload.roomId;
+        if (targetId !== roomId) return;
+        connectRoomService.clearCache();
+        onMeRemovedFromRoomRef.current?.(payload);
+        onRoomDeletedRef.current?.();
+      },
+    );
+
+    // 5c. Listen for room:member_removed
+    const unsubMemberRemoved = connectSocketClient.on<SocketRoomMemberRemovedPayload>(
+      CONNECT_SOCKET_EVENTS.ROOM_MEMBER_REMOVED,
+      (payload) => {
+        if (payload?.roomId !== roomId) return;
+        connectRoomService.clearCache();
+        onMeRemovedFromRoomRef.current?.({
+          room_id: roomId,
+          room_name: "",
+          roomId,
+          roomName: "",
+          message: "You were removed from this room",
+        });
         onRoomDeletedRef.current?.();
       },
     );
@@ -119,6 +155,8 @@ export function useRoomSocket({
       unsubDeletedMessage();
       unsubUpdatedRoom();
       unsubDeletedRoom();
+      unsubMeRemoved();
+      unsubMemberRemoved();
       unsubReconnect();
       connectSocketClient.leaveRoom(roomId);
     };
@@ -145,6 +183,8 @@ export interface UseRoomsListSocketOptions {
   onRoomAdded?: (room: ChatRoom) => void;
   onRoomUpdated?: (update: SocketRoomUpdatedPayload) => void;
   onRoomDeleted?: (roomId: string) => void;
+  onRoomMemberRemoved?: (payload: { roomId: string }) => void;
+  onMeRemovedFromRoom?: (payload: SocketMeRemovedFromRoomPayload) => void;
   onBadgeUpdate?: (badge: SocketBadgeUpdatePayload) => void;
   onConnectBadgeUpdate?: (badge: SocketConnectBadgeUpdatePayload) => void;
   onWallBadgeUpdate?: (badge: SocketWallBadgeUpdatePayload) => void;
@@ -185,7 +225,19 @@ export function useRoomsListSocket(options: UseRoomsListSocketOptions = {}) {
     const unsubDeleted = connectSocketClient.on<SocketRoomDeletedPayload>(
       CONNECT_SOCKET_EVENTS.ROOM_DELETED,
       (payload) => {
+        connectRoomService.clearCache();
         optionsRef.current.onRoomDeleted?.(payload.roomId);
+      },
+    );
+
+    const unsubRoomMemberRemoved = connectSocketClient.on<SocketRoomMemberRemovedPayload>(
+      CONNECT_SOCKET_EVENTS.ROOM_MEMBER_REMOVED,
+      (payload) => {
+        if (payload?.roomId) {
+          connectRoomService.clearCache();
+          optionsRef.current.onRoomDeleted?.(payload.roomId);
+          optionsRef.current.onRoomMemberRemoved?.(payload);
+        }
       },
     );
 
@@ -217,11 +269,26 @@ export function useRoomsListSocket(options: UseRoomsListSocketOptions = {}) {
       },
     );
 
+    const unsubMeRemoved = connectSocketClient.on<SocketMeRemovedFromRoomPayload>(
+      CONNECT_SOCKET_EVENTS.ME_REMOVED_FROM_ROOM,
+      (payload) => {
+        const rid = payload.room_id || payload.roomId;
+        if (rid) {
+          connectRoomService.clearCache();
+          optionsRef.current.onRoomDeleted?.(rid);
+          optionsRef.current.onRoomMemberRemoved?.({ roomId: rid });
+        }
+        optionsRef.current.onMeRemovedFromRoom?.(payload);
+      },
+    );
+
     return () => {
       unsubSummary();
       unsubAdded();
       unsubUpdated();
       unsubDeleted();
+      unsubRoomMemberRemoved();
+      unsubMeRemoved();
       unsubBadge();
       unsubConnectBadge();
       unsubWallBadge();
