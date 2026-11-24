@@ -35,6 +35,7 @@ export const CONNECT_SOCKET_EVENTS = {
   ROOM_UPDATED: "room:updated",
   ROOM_DELETED: "room:deleted",
   ROOM_MEMBER_REMOVED: "room:member_removed",
+  ME_REMOVED_FROM_ROOM: "me-removed-from-room",
   MESSAGE_DELETED: "message:deleted",
   BADGE_UPDATE: "badge:update",
   CONNECT_BADGE_UPDATE: "connect:badge_update",
@@ -107,7 +108,8 @@ export interface SocketRoomSummaryUpdatedPayload {
 
 export interface SocketRoomUpdatedPayload {
   roomId: string;
-  name: string;
+  name?: string;
+  memberCount?: number;
 }
 
 export interface SocketRoomDeletedPayload {
@@ -116,6 +118,15 @@ export interface SocketRoomDeletedPayload {
 
 export interface SocketRoomMemberRemovedPayload {
   roomId: string;
+}
+
+export interface SocketMeRemovedFromRoomPayload {
+  room_id: string;
+  room_name: string;
+  roomId?: string;
+  roomName?: string;
+  message?: string;
+  timestamp?: string;
 }
 
 export interface SocketBadgeUpdatePayload {

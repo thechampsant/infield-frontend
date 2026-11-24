@@ -51,6 +51,7 @@ export interface ChatRoom {
   hasDemoPhone?: boolean;
   messageCount: number;
   lastActivity: string;
+  unreadCount?: number;
   tag?: string;
   membershipType?: "fixed" | "rule";
   membershipSummary?: string;

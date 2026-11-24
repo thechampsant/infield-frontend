@@ -95,6 +95,18 @@ export interface ApiRoom {
   needsAttention?: boolean;
 }
 
+export interface RemovedFromNotice {
+  room_id: string;
+  room_name: string;
+  roomId?: string;
+  roomName?: string;
+}
+
+export interface ApiRoomsResponse {
+  rooms?: ApiRoom[];
+  removedFrom?: RemovedFromNotice[];
+}
+
 export interface ApiMessage {
   messageId?: string;
   _id?: string;
@@ -159,6 +171,7 @@ export interface RoomCacheEntry {
 const roomsCache = new Map<string, RoomCacheEntry>();
 const inFlightRooms = new Map<string, Promise<ChatRoom[]>>();
 const roomCacheVersions = new Map<string, number>();
+let pendingOfflineRemovals: RemovedFromNotice[] = [];
 
 function invalidateRoomCache(cacheKey: string): void {
   roomCacheVersions.set(cacheKey, (roomCacheVersions.get(cacheKey) || 0) + 1);
@@ -240,6 +253,7 @@ export function normalizeChatRoom(raw: ApiRoom): ChatRoom {
   const rawLastTime = raw.lastMessageAt || raw.lastMessage?.sentAt || raw.updatedAt || raw.createdAt;
   const lastActivity = formatRoomDate(rawLastTime);
   const messageCount = raw.messageCount ?? (raw.lastMessage ? 1 : 0);
+  const unreadCount = typeof raw.unreadCount === "number" ? raw.unreadCount : 0;
 
   return {
     _id: id,
@@ -250,6 +264,7 @@ export function normalizeChatRoom(raw: ApiRoom): ChatRoom {
     hasDemoPhone: Boolean((raw as unknown as Record<string, unknown>).hasDemoPhone),
     messageCount,
     lastActivity,
+    unreadCount,
     tag: "Discussion",
     membershipType: raw.membershipType || 'fixed',
     membershipSummary: raw.membershipSummary,
@@ -299,8 +314,11 @@ export const connectRoomService = {
     const cacheVersion = roomCacheVersions.get(cacheKey) || 0;
     const fetchPromise = (async () => {
       try {
-        const res = await apiClient.get<{ rooms?: ApiRoom[] } | ApiRoom[]>(ROOMS_BASE);
+        const res = await apiClient.get<ApiRoomsResponse | ApiRoom[]>(ROOMS_BASE);
         const rawList = Array.isArray(res) ? res : res.rooms || [];
+        if (!Array.isArray(res) && Array.isArray(res.removedFrom) && res.removedFrom.length > 0) {
+          pendingOfflineRemovals.push(...res.removedFrom);
+        }
         const normalized = rawList.map(normalizeChatRoom);
 
         // A room read or send can invalidate this request while it is pending.
@@ -318,6 +336,15 @@ export const connectRoomService = {
 
     inFlightRooms.set(cacheKey, fetchPromise);
     return fetchPromise;
+  },
+
+  /**
+   * Consume and clear any pending offline removal notices delivered by listRooms.
+   */
+  consumePendingOfflineRemovals(): RemovedFromNotice[] {
+    const list = [...pendingOfflineRemovals];
+    pendingOfflineRemovals = [];
+    return list;
   },
 
   /**
@@ -561,10 +588,12 @@ export const connectRoomService = {
     roomId: string,
     lastReadMessageId?: string,
   ): Promise<{ roomId: string; unreadCount: number }> {
-    return apiClient.post<{ roomId: string; unreadCount: number }>(
+    const res = await apiClient.post<{ roomId: string; unreadCount: number }>(
       `${ROOMS_BASE}/${roomId}/read`,
       lastReadMessageId ? { lastReadMessageId } : {},
     );
+    this.clearCache();
+    return res;
   },
 
   /**
@@ -613,10 +642,38 @@ export const connectRoomService = {
     projectId?: string,
     accountId?: string,
   ): Promise<{ roomId: string; memberCount: number }> {
-    return apiClient.patch<{ roomId: string; memberCount: number }>(
+    const res = await apiClient.patch<{ roomId: string; memberCount: number }>(
       `${ROOMS_BASE}/${roomId}/members`,
       payload,
     );
+    this.clearCache(projectId);
+    return res;
+  },
+
+  /**
+   * Leave a chat room voluntarily.
+   * POST /api/v1/connect/rooms/:roomId/leave
+   */
+  async leaveRoom(
+    roomId: string,
+    projectId?: string,
+    accountId?: string,
+  ): Promise<boolean> {
+    await apiClient.post(`${ROOMS_BASE}/${roomId}/leave`, {});
+    this.clearCache(projectId);
+    return true;
+  },
+
+  /**
+   * Remove a room directly from memory cache and clear cache entries.
+   */
+  removeRoomFromCache(roomId: string, projectId?: string): void {
+    const cacheKey = projectId || "default";
+    const cached = roomsCache.get(cacheKey);
+    if (cached) {
+      cached.data = cached.data.filter((r) => (r._id || r.id) !== roomId);
+    }
+    this.clearCache(projectId);
   },
 
   async addMembersByFilter(roomId: string, rule: MembershipRuleInput) {

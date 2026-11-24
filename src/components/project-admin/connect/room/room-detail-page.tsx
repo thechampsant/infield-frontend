@@ -22,6 +22,7 @@ import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 import { EditMembershipRuleModal } from "@/components/project-admin/connect/modals/edit-membership-rule-modal";
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomSocket } from "@/hooks/use-connect-socket";
+import { connectSocketClient } from "@/lib/api/connect-socket-client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 
@@ -177,6 +178,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         setKeptOutByHand(roomKeptOut);
         setHeldRemovals(roomHeld);
         setMessages(dedupeMessages(roomMsgs));
+
+        // Mark room read upon opening and advance watermark to latest message
+        const latestMessageId =
+          roomMsgs.length > 0
+            ? (roomMsgs[roomMsgs.length - 1].id || (roomMsgs[roomMsgs.length - 1] as any).messageId || (roomMsgs[roomMsgs.length - 1] as any)._id)
+            : undefined;
+        connectRoomService.markRead(roomId, latestMessageId).catch(() => {});
+        connectSocketClient.markRoomRead(roomId, latestMessageId);
       } catch (err) {
         if (cancelled) return;
         setError(
@@ -196,6 +205,18 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   // Real-time Socket.IO integration (Infield Connect API Integration Guide Sections 8.4, 12, 18.4)
   useRoomSocket({
     roomId,
+    onMeRemovedFromRoom: (payload) => {
+      connectRoomService.clearCache(projectId);
+      const msg =
+        payload.message ||
+        `You were removed from ${payload.room_name || payload.roomName || "this room"}`;
+      setError(msg);
+      setTimeout(() => {
+        if (roomsListHref) {
+          router.push(roomsListHref);
+        }
+      }, 1500);
+    },
     onNewMessage: (newMsg) => {
       setMessages((prev) => {
         // If message already exists by id, replace it
@@ -227,12 +248,25 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         prev.map((m) => (m.id === deletedMsgId ? { ...m, content: "Removed by admin" } : m)),
       );
     },
-    onRoomUpdated: (newName) => {
-      setRoom((prev) =>
-        prev ? { ...prev, name: newName, initials: getRoomInitials(newName) } : null,
-      );
+    onRoomUpdated: (update) => {
+      if (typeof update === "string") {
+        setRoom((prev) =>
+          prev ? { ...prev, name: update, initials: getRoomInitials(update) } : null,
+        );
+      } else if (update) {
+        setRoom((prev) =>
+          prev
+            ? {
+                ...prev,
+                ...(update.name ? { name: update.name, initials: getRoomInitials(update.name) } : {}),
+                ...(typeof update.memberCount === "number" ? { memberCount: update.memberCount } : {}),
+              }
+            : null,
+        );
+      }
     },
     onRoomDeleted: () => {
+      connectRoomService.clearCache(projectId);
       setError("This chat room was deleted.");
     },
     onReconnect: () => {
@@ -349,13 +383,25 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleRemoveMember(memberId: string) {
+    const isSelf =
+      memberId === authUser?.id ||
+      memberId === (authUser as any)?._id ||
+      memberId === (authUser as any)?.userId;
     const memberName = members.find((m) => m.id === memberId)?.name || "Member";
     await roomMembership.removeMember(memberId);
+    connectRoomService.clearCache(projectId);
     const roomName = room?.name || "this room";
     setToast({
       message: `${memberName} removed from ${roomName}`,
       type: "success",
     });
+    if (isSelf) {
+      if (roomsListHref) {
+        router.push(roomsListHref);
+      } else {
+        router.back();
+      }
+    }
   }
 
   async function handleSaveRule(rule: MembershipRuleInput) {

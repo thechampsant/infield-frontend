@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { use, useEffect } from "react";
 import { Megaphone, MessagesSquare, SlidersHorizontal } from "lucide-react";
 import { useConnectBadge } from "@/hooks/use-connect-socket";
+import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 
 export default function ConnectLayout({
   params,
@@ -16,7 +17,9 @@ export default function ConnectLayout({
   const { accountCode, projectCode } = use(params);
   const base = `/project-admin/${accountCode}/${projectCode}/connect`;
   const pathname = usePathname();
-  const { connectCount, wallUnseenCount, roomUnreadCount, clearWallUnseen } = useConnectBadge();
+  const projectContext = useOptionalProjectContext();
+  const projectId = projectContext?.projectId;
+  const { connectCount, wallUnseenCount, roomUnreadCount, clearWallUnseen, clearRoomUnread } = useConnectBadge(projectId);
 
   // Clear wall unseen indicator when viewing Wall feed
   useEffect(() => {
@@ -24,6 +27,17 @@ export default function ConnectLayout({
       clearWallUnseen();
     }
   }, [pathname, base, wallUnseenCount, clearWallUnseen]);
+
+  // Clear room unread indicator when viewing a specific chat room
+  useEffect(() => {
+    if (pathname.startsWith(`${base}/room/`) && roomUnreadCount > 0) {
+      const pathParts = pathname.split("/");
+      const openedRoomId = pathParts[pathParts.length - 1];
+      if (openedRoomId && openedRoomId !== "room") {
+        clearRoomUnread(openedRoomId);
+      }
+    }
+  }, [pathname, base, roomUnreadCount, clearRoomUnread]);
 
   const tabs = [
     {
