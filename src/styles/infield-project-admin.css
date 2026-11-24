@@ -267,6 +267,17 @@
   text-transform: uppercase;
 }
 
+.pa-shell .pa-nav-badge-count {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 9999px;
+  background: #1d4ed8;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
 .pa-shell .pa-drawer-footer {
   padding: 12px 16px;
   border-top: 1px solid var(--border);

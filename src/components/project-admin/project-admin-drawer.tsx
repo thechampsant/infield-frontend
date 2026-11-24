@@ -21,6 +21,7 @@ import {
   type DynamicMenuConfig,
 } from "@/lib/api/dynamic-menu-service";
 import { useConnectModuleEnabled } from "@/hooks/use-connect-module-enabled";
+import { useConnectBadge } from "@/hooks/use-connect-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import {
   canNavigateBackToProjects,
@@ -70,6 +71,7 @@ export function ProjectAdminDrawer({
   const pathname = usePathname() ?? "/";
   const { user } = useAuth();
   const showBackToProjects = canNavigateBackToProjects(user);
+  const { connectCount } = useConnectBadge(projectId);
   const baseNavItems = projectAdminDrawerNav(accountCode, projectCode, {
     adminAccess: resolvedAdminAccess(user),
   });
@@ -252,15 +254,32 @@ export function ProjectAdminDrawer({
             <Link
               href={`${projectAdminBase(accountCode, projectCode)}/connect/wall`}
               className={`pa-nav-link pa-nav-link--engagement${pathname.includes("/connect") ? " active" : ""}`}
-              title="Connect"
+              title={connectCount > 0 ? `Connect (${connectCount} unseen)` : "Connect"}
             >
-              <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+              <span style={{ flexShrink: 0, display: "flex", alignItems: "center", position: "relative" }}>
                 <MessagesSquare size={18} />
+                {!expanded && connectCount > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -4,
+                      right: -4,
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      backgroundColor: "#1d4ed8",
+                    }}
+                  />
+                )}
               </span>
               {expanded && (
                 <span className="pa-nav-link-content">
                   <span>Connect</span>
-                  <span className="pa-nav-badge-new">NEW</span>
+                  {connectCount > 0 ? (
+                    <span className="pa-nav-badge-count">{connectCount > 99 ? "99+" : connectCount}</span>
+                  ) : (
+                    <span className="pa-nav-badge-new">NEW</span>
+                  )}
                 </span>
               )}
             </Link>
