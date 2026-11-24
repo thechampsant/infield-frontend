@@ -41,7 +41,7 @@ export function WallUnseenModal({
     if (!unseenUsers || unseenUsers.length === 0) return [];
     if (post.seenUserIds && post.seenUserIds.length > 0) {
       const seenSet = new Set(post.seenUserIds.map((id) => String(id)));
-      const filtered = unseenUsers.filter((u) => !seenSet.has(String(u.id)));
+      const filtered = unseenUsers.filter((u) => !seenSet.has(String(u.backendId || u.id)));
       return filtered.slice(0, unseenCount);
     }
     return unseenUsers.slice(0, unseenCount);
@@ -126,14 +126,14 @@ export function WallUnseenModal({
       <div className="border border-slate-200/90 rounded-2xl overflow-hidden bg-white">
         {rawList.length > 0 ? (
           <div className="divide-y divide-slate-100">
-            {rawList.map((user) => (
+            {rawList.map((user, idx) => (
               <div
-                key={user.id}
+                key={user.backendId || `${user.id}-${idx}`}
                 className="py-3 px-4 flex items-center gap-3.5 hover:bg-slate-50/70 transition-colors"
               >
                 {/* Circle avatar with bold white initials */}
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs ${getInitialsColor(user.id || user.name)}`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs ${getInitialsColor(user.backendId || user.id || user.name)}`}
                   aria-hidden="true"
                 >
                   {initials(user.name)}

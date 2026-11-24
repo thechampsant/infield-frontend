@@ -12,6 +12,7 @@ import { ConnectStatusBanner } from "../connect-status-banner";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { exportUnseenUsersToCsv, type UnseenUserRow } from "../utils";
 import { WallPostFormValues } from "./wall-schema";
+import { storeService, type StoreRecord } from "@/lib/api/store-service";
 
 export function ConnectWallPage() {
   const { projectName, projectId, accountCode, projectCode } = useProjectContext();
@@ -25,8 +26,37 @@ export function ConnectWallPage() {
 
   const [userCount, setUserCount] = useState(() => projectId ? 0 : 36);
   const [projectUsers, setProjectUsers] = useState<ProjectUser[]>([]);
+  const [stores, setStores] = useState<StoreRecord[]>([]);
   const [posts, setPosts] = useState<WallPost[]>([]);
   const [isLoading, setIsLoading] = useState(Boolean(projectId));
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    storeService.listAllByProject(projectId).then((data) => {
+      if (!cancelled) setStores(data || []);
+    }).catch(() => {
+      if (!cancelled) setStores([]);
+    });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const storeMap = useMemo(
+    () => new Map(stores.map((s) => [s.backendId, s.storeName || s.storeCode])),
+    [stores],
+  );
+
+  const managerByReporteeId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of projectUsers) {
+      if (Array.isArray(u.reporteeIds)) {
+        for (const reporteeId of u.reporteeIds) {
+          map.set(String(reporteeId), u.name);
+        }
+      }
+    }
+    return map;
+  }, [projectUsers]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -66,18 +96,34 @@ export function ConnectWallPage() {
     totalUsers: effectiveUserCount,
   })), [posts, effectiveUserCount]);
 
-  const unseenUsers: UnseenUserRow[] = useMemo(() => projectUsers.map((projectUser) => ({
-    id: projectUser.backendId,
-    name: projectUser.name || "User",
-    desig: projectUser.designation || projectUser.role || "Promoter",
-    role: projectUser.role || projectUser.designation || "Promoter",
-    store: typeof projectUser.udfs?.store === "string" ? projectUser.udfs.store : "Default Store",
-    reportingManager: typeof projectUser.udfs?.reportingManager === "string" ? projectUser.udfs.reportingManager : "",
-    location: typeof projectUser.udfs?.location === "string" ? projectUser.udfs.location : "",
-    email: projectUser.email,
-    phone: projectUser.mobile,
-    hasDemoPhone: false,
-  })), [projectUsers]);
+  const unseenUsers: UnseenUserRow[] = useMemo(() => projectUsers.map((projectUser) => {
+    const rawStoreIds = Array.isArray(projectUser.udfs?.storeIds)
+      ? (projectUser.udfs.storeIds as string[])
+      : [];
+    const resolvedStore = rawStoreIds.map((id) => storeMap.get(id)).filter(Boolean).join(", ")
+      || (typeof projectUser.udfs?.storeName === "string" ? projectUser.udfs.storeName : "")
+      || (typeof projectUser.udfs?.store === "string" && projectUser.udfs.store !== "Default Store" ? projectUser.udfs.store : "");
+
+    const resolvedManager = managerByReporteeId.get(projectUser.backendId)
+      || managerByReporteeId.get(projectUser.id)
+      || (typeof projectUser.udfs?.reportingManager === "string" ? projectUser.udfs.reportingManager : "")
+      || (typeof projectUser.udfs?.manager === "string" ? projectUser.udfs.manager : "");
+
+    return {
+      id: projectUser.id,
+      backendId: projectUser.backendId,
+      employeeCode: projectUser.id,
+      name: projectUser.name || "User",
+      desig: projectUser.designation || projectUser.role || "Promoter",
+      role: projectUser.role || projectUser.designation || "Promoter",
+      store: resolvedStore,
+      reportingManager: resolvedManager,
+      location: typeof projectUser.udfs?.location === "string" ? projectUser.udfs.location : resolvedStore,
+      email: projectUser.email,
+      phone: projectUser.mobile,
+      hasDemoPhone: false,
+    };
+  }), [projectUsers, storeMap, managerByReporteeId]);
 
   async function handleDeletePost(postId: string) {
     try {
@@ -177,7 +223,7 @@ export function ConnectWallPage() {
 
   async function handleDownloadUnseen(post: WallPost, users: UnseenUserRow[]) {
     try {
-      await connectWallService.downloadUnseenXlsx(post.id);
+      await connectWallService.downloadUnseenXlsx(post.id, projectId);
     } catch (err) {
       console.warn("Failed to download unseen xlsx from server, falling back to CSV export", err);
       exportUnseenUsersToCsv(post, users);

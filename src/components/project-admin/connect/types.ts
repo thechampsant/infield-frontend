@@ -64,6 +64,9 @@ export interface RoomMember {
   name: string;
   role: string;
   location: string;
+  storeName?: string;
+  store?: string;
+  employeeCode?: string;
   hasDemoPhone?: boolean;
   avatarColorClass: string;
   membershipSource?: "rule" | "hand";

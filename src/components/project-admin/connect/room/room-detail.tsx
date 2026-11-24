@@ -406,7 +406,7 @@ export function RoomDetail({
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${member.membershipSource === "rule" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{member.membershipSource === "rule" ? "By rule" : "Added by hand"}</span>
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      {member.role} · {member.location}
+                      {member.role}{member.location ? ` · ${member.location}` : ""}
                     </div>
                   </div>
                 </div>
