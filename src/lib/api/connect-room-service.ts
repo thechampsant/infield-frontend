@@ -56,6 +56,8 @@ export interface ApiRoomMember {
   name: string;
   employeeCode?: string;
   designation?: string;
+  storeName?: string;
+  store?: string;
   phoneNumber?: string;
   joinedAt?: string;
   isMuted?: boolean;
@@ -127,7 +129,14 @@ export interface MembershipRuleInput {
   keptOutByHandUserIds?: string[];
 }
 
-export interface MembershipRuleOption { value: string; count: number }
+export interface MembershipRuleOption {
+  value: string;
+  count: number;
+  label?: string;
+  storeName?: string;
+  name?: string;
+  storeCode?: string;
+}
 export interface MembershipRuleOptions {
   designation: { key: string; label: string; source: string; options: MembershipRuleOption[] };
   managers: Array<{ userId: string; name: string; designation: string; count: number; left?: boolean }>;
@@ -434,12 +443,18 @@ export const connectRoomService = {
 
     const rawMembers = res.members || [];
     const members: RoomMember[] = rawMembers.map((m, index) => {
+      const storeDisplay = m.storeName && m.storeName !== "N/A"
+        ? m.storeName
+        : (m.store && m.store !== "N/A" ? m.store : "");
       return {
         id: m.userId,
         initials: getRoomInitials(m.name),
         name: m.name,
         role: m.designation || "Brand Ambassador",
-        location: m.employeeCode ? `Emp ${m.employeeCode}` : "Project Member",
+        storeName: storeDisplay,
+        store: storeDisplay,
+        employeeCode: m.employeeCode,
+        location: storeDisplay || "No Store",
         hasDemoPhone: index === 0,
         avatarColorClass: getInitialsColor(m.userId || m.name),
         membershipSource: m.membershipSource || 'hand',

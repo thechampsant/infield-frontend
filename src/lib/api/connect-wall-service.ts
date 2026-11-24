@@ -487,15 +487,16 @@ export const connectWallService = {
    * Export unseen users as an Excel attachment (.xlsx).
    * Streams GET /api/v1/connect/wall/posts/:postId/unseen/export
    */
-  async exportUnseen(postId: string): Promise<Blob> {
-    return apiClient.getBlob(`${WALL_BASE}/posts/${postId}/unseen/export`);
+  async exportUnseen(postId: string, projectId?: string): Promise<Blob> {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    return apiClient.getBlob(`${WALL_BASE}/posts/${postId}/unseen/export${qs}`);
   },
 
   /**
    * Trigger download of the unseen XLSX spreadsheet.
    */
-  async downloadUnseenXlsx(postId: string): Promise<void> {
-    const blob = await this.exportUnseen(postId);
+  async downloadUnseenXlsx(postId: string, projectId?: string): Promise<void> {
+    const blob = await this.exportUnseen(postId, projectId);
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     const suffix = postId.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "export";

@@ -46,6 +46,9 @@ export function getInitialsColor(userId: string): string {
 
 export interface UnseenUserRow {
   id: string;
+  backendId?: string;
+  employeeCode?: string;
+  employeeId?: string;
   name: string;
   role?: string;
   desig?: string;
@@ -95,7 +98,7 @@ export function exportUnseenUsersToCsv(
   ];
 
   const rows = unseenUsers.map((u) => [
-    `"${(u.id || "").replace(/"/g, '""')}"`,
+    `"${(u.employeeCode || u.employeeId || (u.id !== u.backendId ? u.id : "") || "").replace(/"/g, '""')}"`,
     `"${(u.name || "").replace(/"/g, '""')}"`,
     `"${(u.phone || "").replace(/"/g, '""')}"`,
     `"${(u.email || "").replace(/"/g, '""')}"`,
