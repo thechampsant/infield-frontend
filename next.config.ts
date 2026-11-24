@@ -1,9 +1,20 @@
 import type { NextConfig } from "next";
 
-// Set BACKEND_URL in .env.local to use a local backend during development.
 const BACKEND_URL = process.env.BACKEND_URL || "https://services.infield.co.in";
 
+
+const staging = process.env.APP_ENV === "staging";
+if (staging) {
+  for (const name of ["BACKEND_URL", "NEXT_PUBLIC_API_URL"]) {
+    const value = process.env[name];
+    if (!value || new URL(value).origin !== "https://staging-services.infield.co.in") {
+      throw new Error(`Staging requires ${name}=https://staging-services.infield.co.in`);
+    }
+  }
+}
+
 const nextConfig: NextConfig = {
+  ...(staging ? { output: "standalone" as const, typescript: { tsconfigPath: "tsconfig.staging.json" } } : {}),
   turbopack: {
     root: __dirname,
   },

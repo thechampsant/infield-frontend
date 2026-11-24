@@ -1,0 +1,53 @@
+substitutions:
+  _BACKEND_URL: https://staging-services.infield.co.in
+  _REGION: asia-south2
+  _DEPLOY: 'true'
+steps:
+  - id: branch-gate
+    name: bash:5.2
+    entrypoint: bash
+    args: ['-c', '[[ "$BRANCH_NAME" == staging ]] || { echo "Staging builds require the staging branch"; exit 1; }']
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=BACKEND_URL=${_BACKEND_URL}
+      - --build-arg=NEXT_PUBLIC_API_URL=${_BACKEND_URL}
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/staging-whynest/frontend:$COMMIT_SHA-$BUILD_ID
+      - .
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/staging-whynest/frontend:$COMMIT_SHA-$BUILD_ID']
+  - id: resolve-digest
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        image='${_REGION}-docker.pkg.dev/$PROJECT_ID/staging-whynest/frontend'
+        digest="$$(gcloud artifacts docker images describe "$$image:$COMMIT_SHA-$BUILD_ID" --project='$PROJECT_ID' --format='value(image_summary.digest)')"
+        printf '%s@%s' "$$image" "$$digest" > /workspace/frontend-image.txt
+  - id: staging-cve-gate
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: bash
+    args: ['-c', '"$$(gcloud info --format="value(basic.python_location)")" scripts/staging-cve-gate.py --report=/workspace/staging-cve-report.json "$$(cat /workspace/frontend-image.txt)"']
+  - id: deploy-staging
+    waitFor: ['staging-cve-gate']
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        [[ "${_DEPLOY}" == true ]] || { echo "Scan-only bootstrap build"; exit 0; }
+        gcloud run deploy staging-frontend --project='$PROJECT_ID' --region='${_REGION}' \
+          --image="$$(cat /workspace/frontend-image.txt)" \
+          --service-account='staging-frontend@$PROJECT_ID.iam.gserviceaccount.com' \
+          --set-env-vars='APP_ENV=staging,BACKEND_URL=${_BACKEND_URL},NEXT_PUBLIC_API_URL=${_BACKEND_URL},NEXT_PUBLIC_USE_MOCK_API=false' \
+          --port=8080 --cpu=1 --memory=512Mi --min=0 --max=2 --quiet
+serviceAccount: projects/$PROJECT_ID/serviceAccounts/staging-frontend-build@$PROJECT_ID.iam.gserviceaccount.com
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 2400s
