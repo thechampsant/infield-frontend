@@ -2,17 +2,14 @@
 
 import { useState } from "react";
 import { useProjectContext } from "@/lib/project-admin/project-context";
-import { useAuth } from "@/lib/auth/auth-context";
+import { useConnectPermission } from "@/hooks/use-connect-permission";
 import { useConnectSettings } from "@/hooks/use-connect-settings";
 import { SettingsTab } from "./settings-tab";
 import type { ToastState } from "@/components/accounts/if2-toast";
 
 export function ConnectSettingsPage() {
   const { projectName, projectId } = useProjectContext();
-  const { user } = useAuth();
-  const currentUserName = user
-    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Project Admin"
-    : "Project Admin";
+  const { currentUserName } = useConnectPermission();
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const {

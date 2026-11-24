@@ -43,6 +43,37 @@ export function getInitialsColor(userId: string): string {
     return INITIALS_COLORS[hash % INITIALS_COLORS.length];
 }
 
+/**
+ * Checks whether the current user is a Project Admin or Admin.
+ * Project Admin and Admin roles have full management permissions across Connect (Wall, Settings, Room creation & settings).
+ * Non-admin members are limited to viewing/participating in Rooms with management actions disabled.
+ */
+export function isConnectAdmin(user?: { role?: string; permissions?: string[]; email?: string } | null): boolean {
+  if (!user) return false;
+  const role = (user.role || "").toUpperCase();
+  if (
+    role === "PROJECT_ADMIN" ||
+    role === "ADMIN" ||
+    role === "SUPER_ADMIN" ||
+    role === "ACCOUNT_ADMIN"
+  ) {
+    return true;
+  }
+  if (user.permissions?.includes("PROJECT_ADMIN") || user.permissions?.includes("ADMIN")) {
+    return true;
+  }
+  const normalized = (user.role || "").toLowerCase().replace(/[\s_-]+/g, "");
+  if (normalized.includes("admin")) return true;
+  if (user.email && user.email.toLowerCase().startsWith("admin@")) return true;
+  return false;
+}
+
+export {
+  useConnectPermission,
+  type UseConnectPermissionOptions,
+  type UseConnectPermissionResult,
+} from "@/hooks/use-connect-permission";
+
 
 export interface UnseenUserRow {
   id: string;

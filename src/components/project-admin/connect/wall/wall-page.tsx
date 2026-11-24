@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useProjectContext } from "@/lib/project-admin/project-context";
-import { useAuth } from "@/lib/auth/auth-context";
+import { useConnectPermission } from "@/hooks/use-connect-permission";
 import { useConnectSettings } from "@/hooks/use-connect-settings";
 import { connectWallService } from "@/lib/api/connect-wall-service";
 import type { ProjectUser } from "@/types/project-admin";
@@ -16,10 +16,7 @@ import { storeService, type StoreRecord } from "@/lib/api/store-service";
 
 export function ConnectWallPage() {
   const { projectName, projectId, accountCode, projectCode } = useProjectContext();
-  const { user } = useAuth();
-  const currentUserName = user
-    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Project Admin"
-    : "Project Admin";
+  const { isAdmin, currentUserName } = useConnectPermission();
   const projectTitle = projectName || "Sample Retail Program";
   const settingsHref = `${projectAdminBase(accountCode, projectCode)}/connect/setting`;
   const { settings } = useConnectSettings(projectId, currentUserName);
@@ -126,6 +123,7 @@ export function ConnectWallPage() {
   }), [projectUsers, storeMap, managerByReporteeId]);
 
   async function handleDeletePost(postId: string) {
+    if (!isAdmin) return;
     try {
       await connectWallService.deletePost(postId, projectId);
     } catch (error) {
@@ -136,6 +134,7 @@ export function ConnectWallPage() {
   }
 
   async function handleCreatePost(payload: string | WallPostFormValues) {
+    if (!isAdmin) return;
     let text = "";
     let mediaType: "NONE" | "IMAGES" | "VIDEO" = "NONE";
     let images: WallImageMetadata[] | undefined;
@@ -196,7 +195,7 @@ export function ConnectWallPage() {
   }
 
   async function handleViewUnseen(post: WallPost) {
-    if (!post.id) return;
+    if (!isAdmin || !post.id) return;
     try {
       const reach = await connectWallService.getReach(post.id, projectId);
       if (reach) {
@@ -222,6 +221,7 @@ export function ConnectWallPage() {
   }
 
   async function handleDownloadUnseen(post: WallPost, users: UnseenUserRow[]) {
+    if (!isAdmin) return;
     try {
       await connectWallService.downloadUnseenXlsx(post.id, projectId);
     } catch (err) {
@@ -232,7 +232,7 @@ export function ConnectWallPage() {
 
   return (
     <div className="w-full pb-12 font-sans text-slate-800">
-      <ConnectStatusBanner surface="wall" settings={settings} settingsHref={settingsHref} />
+      {isAdmin && <ConnectStatusBanner surface="wall" settings={settings} settingsHref={settingsHref} />}
       <WallTab
         posts={displayedPosts}
         userCount={effectiveUserCount}
@@ -245,6 +245,7 @@ export function ConnectWallPage() {
         onDeletePost={handleDeletePost}
         onViewUnseen={handleViewUnseen}
         onDownloadUnseen={handleDownloadUnseen}
+        isAdmin={isAdmin}
       />
     </div>
   );

@@ -200,4 +200,34 @@ describe("WallTab Component Suite", () => {
     expect(html).toContain("Cancel");
     expect(html).toContain("Delete post");
   });
+
+  it("disables 'New post' button when isAdmin is false", () => {
+    const html = renderToStaticMarkup(
+      <WallTab
+        posts={defaultPosts}
+        userCount={userCount}
+        wallEnabled={true}
+        isAdmin={false}
+        onDeletePost={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Only project admins can publish posts to the Wall");
+    expect(html).toContain("disabled");
+  });
+
+  it("disables 'Not seen' and 'Delete post' buttons on WallPostCard when isAdmin is false", () => {
+    const post = defaultPosts[0];
+    const html = renderToStaticMarkup(
+      <WallPostCard
+        post={post}
+        onViewUnseen={vi.fn()}
+        onDelete={vi.fn()}
+        isAdmin={false}
+      />,
+    );
+
+    expect(html).toContain("Only project admins can view unseen users");
+    expect(html).toContain("Only project admins can delete posts");
+  });
 });

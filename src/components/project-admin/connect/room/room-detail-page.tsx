@@ -23,19 +23,15 @@ import { EditMembershipRuleModal } from "@/components/project-admin/connect/moda
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomSocket } from "@/hooks/use-connect-socket";
 import { connectSocketClient } from "@/lib/api/connect-socket-client";
-import { useAuth } from "@/lib/auth/auth-context";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import { useConnectPermission } from "@/hooks/use-connect-permission";
 
 export interface RoomDetailPageProps {
   roomId: string;
 }
 
 export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
-  const { user: authUser } = useAuth();
-  const isProjectAdmin = authUser?.role === "PROJECT_ADMIN" || authUser?.role === "SUPER_ADMIN";
-  const senderDisplayName = isProjectAdmin
-    ? "Program Team"
-    : [authUser?.firstName, authUser?.lastName].filter(Boolean).join(" ") || "Member";
+  const { user: authUser, isProjectAdmin, senderDisplayName } = useConnectPermission();
   const router = useRouter();
   const projectContext = useOptionalProjectContext();
   const accountCode = projectContext?.accountCode;
@@ -90,18 +86,18 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   });
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !isProjectAdmin) return;
     let cancelled = false;
     connectWallService.getActiveProjectUsers(projectId).then((result) => {
       if (!cancelled) setEligibleUsers(result.data);
     }).catch((err) => console.warn("Could not fetch project users for room members", err));
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, isProjectAdmin]);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !isProjectAdmin) return;
     connectRoomService.getMembershipRuleOptions(roomId).then(setRuleOptions).catch(() => setRuleOptions(null));
-  }, [projectId, roomId]);
+  }, [projectId, roomId, isProjectAdmin]);
 
   // Fetch real room details & real messages
   useEffect(() => {
@@ -289,7 +285,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleRenameRoom(newName: string) {
-    if (!roomId) return;
+    if (!isProjectAdmin || !roomId) return;
     try {
       await connectRoomService.renameRoom(roomId, newName, projectId, accountId);
     } catch (err) {
@@ -302,6 +298,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleDeleteRoom(id: string) {
+    if (!isProjectAdmin) return;
     try {
       await connectRoomService.deleteRoom(id, projectId, accountId);
     } catch (err) {
@@ -350,7 +347,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleDeleteMessage(msgId: string) {
-    if (!roomId) return;
+    if (!isProjectAdmin || !roomId) return;
     setMessages((prev) =>
       prev.map((m) => (m.id === msgId ? { ...m, content: "Removed by admin" } : m)),
     );
@@ -362,6 +359,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAddMember(users: ProjectUser[]) {
+    if (!isProjectAdmin) return;
     await roomMembership.addMembers(users.map((user) => user.backendId || user.id));
     setIsAddMemberModalOpen(false);
     const count = users.length;
@@ -373,6 +371,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAddByFilter(rule: MembershipRuleInput) {
+    if (!isProjectAdmin) return;
     await connectRoomService.addMembersByFilter(roomId, rule);
     await roomMembership.refreshRoom();
     const roomName = room?.name || "this room";
@@ -383,6 +382,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleRemoveMember(memberId: string) {
+    if (!isProjectAdmin) return;
     const isSelf =
       memberId === authUser?.id ||
       memberId === (authUser as any)?._id ||
@@ -405,12 +405,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleSaveRule(rule: MembershipRuleInput) {
+    if (!isProjectAdmin) return;
     await connectRoomService.updateMembershipRule(roomId, rule);
     await roomMembership.refreshRoom();
     setMembershipRule(await connectRoomService.getMembershipRule(roomId));
   }
 
   async function handleRemoveRule() {
+    if (!isProjectAdmin) return;
     await connectRoomService.removeMembershipRule(roomId);
     setMembershipRule(null);
     setRoom((prev) => prev ? { ...prev, membershipType: "fixed" } : prev);
@@ -418,6 +420,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAllowBack(userId: string) {
+    if (!isProjectAdmin) return;
     const personName = keptOutByHand.find((p) => p.userId === userId)?.name || "Member";
     await connectRoomService.allowBackByHand(roomId, userId);
     await roomMembership.refreshRoom();
@@ -429,11 +432,13 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleResolveHeldRemovals(decision: "remove" | "keep") {
+    if (!isProjectAdmin) return;
     await connectRoomService.resolveHeldRemovals(roomId, decision);
     await roomMembership.refreshRoom();
   }
 
   async function handleSimulateExit(memberId: string) {
+    if (!isProjectAdmin) return;
     const member = members.find((candidate) => candidate.id === memberId);
     if (!member) throw new Error("Room member could not be found.");
     await roomMembership.simulateExit(memberId, member.name);
@@ -479,15 +484,19 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         messages={messages}
         members={members}
         senderDisplayName={senderDisplayName}
+        isAdmin={isProjectAdmin}
+        isProjectAdmin={isProjectAdmin}
         onSendMessage={handleSendMessage}
         onDeleteMessage={handleDeleteMessage}
-        onAddMember={() => setIsAddMemberModalOpen(true)}
+        onAddMember={() => {
+          if (isProjectAdmin) setIsAddMemberModalOpen(true);
+        }}
         onRemoveMember={handleRemoveMember}
         onSimulateExit={handleSimulateExit}
         onRenameRoom={handleRenameRoom}
         onDeleteRoom={handleDeleteRoom}
         membershipRule={membershipRule}
-        onEditRule={() => setIsEditRuleOpen(true)}
+        onEditRule={isProjectAdmin ? () => setIsEditRuleOpen(true) : undefined}
         keptOutByHand={keptOutByHand}
         onAllowBack={handleAllowBack}
         heldRemovals={heldRemovals}
@@ -500,7 +509,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
       />
 
       <AddMemberModal
-        isOpen={isAddMemberModalOpen}
+        isOpen={isProjectAdmin && isAddMemberModalOpen}
         onClose={() => setIsAddMemberModalOpen(false)}
         onSubmit={handleAddMember}
         eligibleUsers={eligibleUsers}
@@ -513,7 +522,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         onAddByFilter={handleAddByFilter}
       />
       <EditMembershipRuleModal
-        isOpen={isEditRuleOpen}
+        isOpen={isProjectAdmin && isEditRuleOpen}
         roomId={roomId}
         roomName={room.name}
         projectId={projectId}

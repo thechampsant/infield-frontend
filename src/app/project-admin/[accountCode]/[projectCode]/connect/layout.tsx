@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { use, useEffect } from "react";
 import { Megaphone, MessagesSquare, SlidersHorizontal } from "lucide-react";
 import { useConnectBadge } from "@/hooks/use-connect-socket";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
+import { useConnectPermission } from "@/hooks/use-connect-permission";
 
 export default function ConnectLayout({
   params,
@@ -17,9 +18,20 @@ export default function ConnectLayout({
   const { accountCode, projectCode } = use(params);
   const base = `/project-admin/${accountCode}/${projectCode}/connect`;
   const pathname = usePathname();
+  const router = useRouter();
   const projectContext = useOptionalProjectContext();
   const projectId = projectContext?.projectId;
+  const { isAdmin, isLoading: isAuthLoading } = useConnectPermission();
   const { connectCount, wallUnseenCount, roomUnreadCount, clearWallUnseen, clearRoomUnread } = useConnectBadge(projectId);
+
+  // Non-admins can access Wall and Chat rooms. Redirect only from Settings.
+  useEffect(() => {
+    if (!isAuthLoading && !isAdmin) {
+      if (pathname === `${base}/setting` || pathname.startsWith(`${base}/setting`)) {
+        router.replace(`${base}/room`);
+      }
+    }
+  }, [isAuthLoading, isAdmin, pathname, base, router]);
 
   // Clear wall unseen indicator when viewing Wall feed
   useEffect(() => {
@@ -39,21 +51,25 @@ export default function ConnectLayout({
     }
   }, [pathname, base, roomUnreadCount, clearRoomUnread]);
 
-  const tabs = [
+  const allTabs = [
     {
       href: `${base}/wall`,
       label: "Wall",
       icon: Megaphone,
       badge: wallUnseenCount > 0 ? wallUnseenCount : null,
+      adminOnly: false,
     },
     {
       href: `${base}/room`,
       label: "Chat rooms",
       icon: MessagesSquare,
       badge: roomUnreadCount > 0 ? roomUnreadCount : null,
+      adminOnly: false,
     },
-    { href: `${base}/setting`, label: "Settings", icon: SlidersHorizontal },
+    { href: `${base}/setting`, label: "Settings", icon: SlidersHorizontal, adminOnly: true },
   ];
+
+  const visibleTabs = isAdmin ? allTabs : allTabs.filter((t) => !t.adminOnly);
 
   return (
     <section className="w-full pb-12 font-sans text-slate-800">
@@ -70,7 +86,7 @@ export default function ConnectLayout({
         <p className="mt-1 text-xs font-medium text-slate-500">Wall and chat rooms for this project</p>
       </header>
       <nav aria-label="Connect sections" className="mb-6 flex items-center gap-2 border-b border-slate-200">
-        {tabs.map(({ href, label, icon: Icon, badge }) => {
+        {visibleTabs.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname === href || (href === `${base}/room` && pathname.startsWith(`${base}/room`));
           return (
             <Link key={href} href={href} aria-current={active ? "page" : undefined}

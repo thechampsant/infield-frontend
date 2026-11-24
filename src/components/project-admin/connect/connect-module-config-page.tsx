@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useProjectContext } from "@/lib/project-admin/project-context";
-import { useAuth } from "@/lib/auth/auth-context";
+import { useConnectPermission } from "@/hooks/use-connect-permission";
 import { useConnectSettings } from "@/hooks/use-connect-settings";
 import { SettingsTab } from "./settings/settings-tab";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
@@ -18,13 +18,7 @@ export function ConnectModuleConfigPage({
   showBackToModules = true,
 }: ConnectModuleConfigPageProps) {
   const { projectId, projectName, accountCode, projectCode } = useProjectContext();
-  const { user } = useAuth();
-  const currentUserName =
-    user
-      ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-      user.email ||
-      "Project Admin"
-      : "Project Admin";
+  const { currentUserName } = useConnectPermission();
 
   const effectiveProjectName = projectName || "Sample Retail Program";
   const base = projectAdminBase(accountCode, projectCode);

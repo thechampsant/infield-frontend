@@ -64,6 +64,8 @@ export interface RoomDetailProps {
   toast?: ToastState | null;
   onDismissToast?: () => void;
   toastPosition?: ToastPosition;
+  isAdmin?: boolean;
+  isProjectAdmin?: boolean;
 }
 
 export function RoomDetail({
@@ -91,7 +93,10 @@ export function RoomDetail({
   toast: externalToast,
   onDismissToast,
   toastPosition = "center",
+  isAdmin: propIsAdmin,
+  isProjectAdmin: propIsProjectAdmin,
 }: RoomDetailProps) {
+  const isAdmin = propIsAdmin ?? propIsProjectAdmin ?? true;
   const [roomSubTab, setRoomSubTab] = useState<RoomSubTab>(initialSubTab);
   const [inputMessage, setInputMessage] = useState("");
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
@@ -109,6 +114,12 @@ export function RoomDetail({
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setInternalToast({ message, type });
   };
+
+  useEffect(() => {
+    if (!isAdmin && roomSubTab === "room-settings") {
+      setRoomSubTab("messages");
+    }
+  }, [isAdmin, roomSubTab]);
 
   useEffect(() => {
     if (roomSubTab === "messages" && messagesScrollRef.current) {
@@ -192,9 +203,14 @@ export function RoomDetail({
             type="button"
             role="tab"
             aria-selected={roomSubTab === "room-settings"}
-            onClick={() => setRoomSubTab("room-settings")}
-            className={`connect-subtab-item ${roomSubTab === "room-settings" ? "connect-subtab-item--active" : ""
-              }`}
+            disabled={!isAdmin}
+            title={!isAdmin ? "Only project admins can access room settings" : undefined}
+            onClick={() => {
+              if (isAdmin) setRoomSubTab("room-settings");
+            }}
+            className={`connect-subtab-item ${
+              roomSubTab === "room-settings" ? "connect-subtab-item--active" : ""
+            } ${!isAdmin ? "opacity-40 cursor-not-allowed hover:text-slate-400 hover:border-transparent" : ""}`}
           >
             Room settings
           </button>
@@ -229,7 +245,7 @@ export function RoomDetail({
                       </p>
                     </div>
                   </div>
-                  {msg.content !== "Removed by admin" && (
+                  {isAdmin && msg.content !== "Removed by admin" && (
                     <button
                       type="button"
                       onClick={() => onDeleteMessage(msg.id)}
@@ -276,10 +292,14 @@ export function RoomDetail({
                 <button
                   type="button"
                   onClick={onEditRule}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer bg-white border border-slate-200 hover:border-slate-300 ${
-                    room.membershipType === "rule"
-                      ? "text-slate-700 hover:text-slate-900 hover:bg-slate-50"
-                      : "text-blue-700 hover:text-blue-800 hover:bg-blue-50/50"
+                  disabled={!isAdmin}
+                  title={!isAdmin ? "Only project admins can configure membership rules" : undefined}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    !isAdmin
+                      ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60"
+                      : room.membershipType === "rule"
+                      ? "bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 cursor-pointer"
+                      : "bg-white border border-slate-200 text-blue-700 hover:text-blue-800 hover:bg-blue-50/50 cursor-pointer"
                   }`}
                 >
                   {room.membershipType === "rule" ? (
@@ -298,7 +318,9 @@ export function RoomDetail({
               <button
                 type="button"
                 onClick={onAddMember}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                disabled={!isAdmin}
+                title={!isAdmin ? "Only project admins can add members" : undefined}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{room.membershipType === "rule" ? "Add by hand" : "Add members"}</span>
@@ -363,14 +385,18 @@ export function RoomDetail({
                     <button
                       type="button"
                       onClick={() => onResolveHeldRemovals?.("remove")}
-                      className="rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700 transition-colors cursor-pointer"
+                      disabled={!isAdmin}
+                      title={!isAdmin ? "Only project admins can resolve held removals" : undefined}
+                      className="rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Remove them
                     </button>
                     <button
                       type="button"
                       onClick={() => onResolveHeldRemovals?.("keep")}
-                      className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                      disabled={!isAdmin}
+                      title={!isAdmin ? "Only project admins can resolve held removals" : undefined}
+                      className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Keep them
                     </button>
@@ -415,12 +441,20 @@ export function RoomDetail({
                   <button
                     type="button"
                     onClick={async () => {
+                      if (!isAdmin) return;
                       const success = await runMemberAction(member.id, () => onRemoveMember(member.id));
                       if (success) {
                         showToast(`${member.name} removed from ${room.name}`, "success");
                       }
                     }}
-                    disabled={busyMemberId !== null || room.memberCount <= 2}
+                    disabled={!isAdmin || busyMemberId !== null || room.memberCount <= 2}
+                    title={
+                      !isAdmin
+                        ? "Only project admins can remove members"
+                        : room.memberCount <= 2
+                        ? "Rooms must have at least 2 members"
+                        : undefined
+                    }
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {busyMemberId === member.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -430,12 +464,17 @@ export function RoomDetail({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!isAdmin) return;
                       setMemberActionError(null);
                       setMemberToExit(member);
                     }}
-                    disabled={busyMemberId !== null}
+                    disabled={!isAdmin || busyMemberId !== null}
+                    title={
+                      !isAdmin
+                        ? "Only project admins can simulate user exit"
+                        : "Simulates deactivation in the Users master"
+                    }
                     className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50/40 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Simulates deactivation in the Users master"
                   >
                     <UserMinus className="w-3.5 h-3.5" />
                     <span>Simulate exit</span>
@@ -472,13 +511,15 @@ export function RoomDetail({
                       <button
                         type="button"
                         onClick={async () => {
+                          if (!isAdmin) return;
                           const success = await runMemberAction(person.userId, () => onAllowBack?.(person.userId));
                           if (success) {
                             showToast(`${person.name} allowed back · rule rooms updated: ${room.name} (+1)`, "success");
                           }
                         }}
-                        disabled={busyMemberId !== null}
-                        className="shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        disabled={!isAdmin || busyMemberId !== null}
+                        title={!isAdmin ? "Only project admins can allow members back" : undefined}
+                        className="shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {busyMemberId === person.userId && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}
                         Allow back
@@ -555,11 +596,12 @@ export function RoomDetail({
       )}
 
       {/* Sub-tab 3: Room Settings */}
-      {roomSubTab === "room-settings" && (
+      {roomSubTab === "room-settings" && isAdmin && (
         <RoomSettingsTab
           room={room}
           onRenameRoom={onRenameRoom}
           onDeleteRoom={onDeleteRoom}
+          isAdmin={isAdmin}
         />
       )}
 

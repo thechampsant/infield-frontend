@@ -26,6 +26,7 @@ export interface WallTabProps {
   onDeletePost: (id: string) => void | Promise<void>;
   onViewUnseen?: (post: WallPost) => void;
   onDownloadUnseen?: (post: WallPost, users: UnseenUserRow[]) => void | Promise<void>;
+  isAdmin?: boolean;
 }
 
 export function WallTab({
@@ -40,6 +41,7 @@ export function WallTab({
   onDeletePost,
   onViewUnseen,
   onDownloadUnseen,
+  isAdmin = true,
 }: WallTabProps) {
   // Modal visibility states
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -48,6 +50,7 @@ export function WallTab({
   const [isDeleting, setIsDeleting] = useState(false);
 
   function handleOpenComposer() {
+    if (!isAdmin) return;
     if (onNewPost && !onCreatePost) {
       onNewPost();
     } else {
@@ -56,6 +59,7 @@ export function WallTab({
   }
 
   function handleViewUnseen(post: WallPost) {
+    if (!isAdmin) return;
     if (onViewUnseen) {
       onViewUnseen(post);
     }
@@ -63,7 +67,7 @@ export function WallTab({
   }
 
   async function handleConfirmDelete() {
-    if (!postToDeleteId) return;
+    if (!isAdmin || !postToDeleteId) return;
     try {
       setIsDeleting(true);
       await onDeletePost(postToDeleteId);
@@ -98,9 +102,10 @@ export function WallTab({
         <button
           type="button"
           onClick={handleOpenComposer}
-          disabled={!wallEnabled}
+          disabled={!isAdmin || !wallEnabled}
+          title={!isAdmin ? "Only project admins can publish posts to the Wall" : undefined}
           aria-label="New post"
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0b4ea2] hover:bg-[#093e82] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0b4ea2] hover:bg-[#093e82] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New post</span>
@@ -153,6 +158,7 @@ export function WallTab({
               }}
               onViewUnseen={handleViewUnseen}
               onDelete={(id) => setPostToDeleteId(id)}
+              isAdmin={isAdmin}
             />
           ))}
         </div>
@@ -160,7 +166,7 @@ export function WallTab({
 
       {/* Composer Modal with React-Hook-Form & Zod validation */}
       <WallComposerModal
-        isOpen={isComposerOpen}
+        isOpen={isAdmin && isComposerOpen}
         onClose={() => setIsComposerOpen(false)}
         onSubmit={handleCreatePostSubmit}
         userCount={userCount}
@@ -168,7 +174,7 @@ export function WallTab({
 
       {/* Unseen Users Modal with XLSX/CSV download */}
       <WallUnseenModal
-        post={selectedUnseenPost ? {
+        post={isAdmin && selectedUnseenPost ? {
           ...selectedUnseenPost,
           totalUsers: selectedUnseenPost.totalUsers > 0 ? selectedUnseenPost.totalUsers : userCount,
         } : null}
@@ -179,7 +185,7 @@ export function WallTab({
 
       {/* Delete Confirmation Modal */}
       <WallDeleteModal
-        isOpen={!!postToDeleteId}
+        isOpen={isAdmin && !!postToDeleteId}
         onClose={() => setPostToDeleteId(null)}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}

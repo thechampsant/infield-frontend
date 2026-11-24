@@ -18,6 +18,8 @@ import type { CreateRoomFormValues } from "./room-schema";
 import type { MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomsListSocket } from "@/hooks/use-connect-socket";
 import { connectSocketClient } from "@/lib/api/connect-socket-client";
+import { useAuth } from "@/lib/auth/auth-context";
+import { isConnectAdmin } from "../utils";
 
 function useSafeRouter() {
   try {
@@ -46,6 +48,7 @@ export interface ChatRoomsTabProps {
   eligibleUsers?: ProjectUser[];
   initialRooms?: ChatRoom[];
   rooms?: ChatRoom[];
+  isAdmin?: boolean;
 }
 
 export function ChatRoomsTab({
@@ -54,8 +57,11 @@ export function ChatRoomsTab({
   eligibleUsers = [],
   initialRooms,
   rooms: propRooms,
+  isAdmin: propIsAdmin,
 }: ChatRoomsTabProps) {
   const router = useSafeRouter();
+  const { user } = useAuth();
+  const isAdmin = propIsAdmin ?? isConnectAdmin(user);
   const projectContext = useOptionalProjectContext();
   const accountCode = projectContext?.accountCode;
   const projectCode = projectContext?.projectCode;
@@ -112,9 +118,9 @@ export function ChatRoomsTab({
   }, [projectId, accountId, initialRooms]);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !isAdmin) return;
     connectRoomService.getMembershipRuleOptions().then(setRuleOptions).catch((error) => console.warn("Could not load membership rule options", error));
-  }, [projectId]);
+  }, [projectId, isAdmin]);
 
   // 2. Real-time Socket.IO integration for rooms list (Guide Section 18.4 Scenario 2 & 3)
   useRoomsListSocket({
@@ -249,7 +255,8 @@ export function ChatRoomsTab({
         <button
           type="button"
           onClick={() => setIsCreateModalOpen(true)}
-          disabled={!roomsEnabled}
+          disabled={!roomsEnabled || !isAdmin}
+          title={!isAdmin ? "Only project admins can create chat rooms" : undefined}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0b4ea2] hover:bg-[#093e82] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -304,7 +311,9 @@ export function ChatRoomsTab({
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(true)}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0b4ea2] hover:bg-[#093e82] text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+              disabled={!isAdmin}
+              title={!isAdmin ? "Only project admins can create chat rooms" : undefined}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0b4ea2] hover:bg-[#093e82] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create room</span>
