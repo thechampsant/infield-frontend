@@ -240,6 +240,7 @@ export function normalizeChatRoom(raw: ApiRoom): ChatRoom {
   const rawLastTime = raw.lastMessageAt || raw.lastMessage?.sentAt || raw.updatedAt || raw.createdAt;
   const lastActivity = formatRoomDate(rawLastTime);
   const messageCount = raw.messageCount ?? (raw.lastMessage ? 1 : 0);
+  const unreadCount = typeof raw.unreadCount === "number" ? raw.unreadCount : 0;
 
   return {
     _id: id,
@@ -250,6 +251,7 @@ export function normalizeChatRoom(raw: ApiRoom): ChatRoom {
     hasDemoPhone: Boolean((raw as unknown as Record<string, unknown>).hasDemoPhone),
     messageCount,
     lastActivity,
+    unreadCount,
     tag: "Discussion",
     membershipType: raw.membershipType || 'fixed',
     membershipSummary: raw.membershipSummary,
@@ -561,10 +563,12 @@ export const connectRoomService = {
     roomId: string,
     lastReadMessageId?: string,
   ): Promise<{ roomId: string; unreadCount: number }> {
-    return apiClient.post<{ roomId: string; unreadCount: number }>(
+    const res = await apiClient.post<{ roomId: string; unreadCount: number }>(
       `${ROOMS_BASE}/${roomId}/read`,
       lastReadMessageId ? { lastReadMessageId } : {},
     );
+    this.clearCache();
+    return res;
   },
 
   /**

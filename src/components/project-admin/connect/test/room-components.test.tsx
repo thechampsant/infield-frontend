@@ -210,6 +210,18 @@ describe("Room Components Suite", () => {
       const occurrences = (html.match(/Mumbai Squad/g) || []).length;
       expect(occurrences).toBe(1);
     });
+
+    it("renders unread badge when a room has unread messages", () => {
+      const roomWithUnread = { ...MOCK_ROOM, unreadCount: 2 };
+      const html = renderToStaticMarkup(
+        <ChatRoomsTab
+          rooms={[roomWithUnread]}
+          roomsEnabled={true}
+        />,
+      );
+
+      expect(html).toContain("2 new");
+    });
   });
 
   describe("RoomDetail", () => {

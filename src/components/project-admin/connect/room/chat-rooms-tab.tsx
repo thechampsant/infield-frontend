@@ -17,6 +17,7 @@ import { CreateRoomModal } from "../modals/create-room-modal";
 import type { CreateRoomFormValues } from "./room-schema";
 import type { MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomsListSocket } from "@/hooks/use-connect-socket";
+import { connectSocketClient } from "@/lib/api/connect-socket-client";
 
 function useSafeRouter() {
   try {
@@ -116,10 +117,14 @@ export function ChatRoomsTab({
         if (index === -1) return prev;
         const target = prev[index];
         const lastTime = summary.lastMessageAt || summary.lastMessage?.sentAt;
+        const nextUnread = typeof summary.unreadCount === "number"
+          ? summary.unreadCount
+          : (target.unreadCount || 0) + 1;
         const updated: ChatRoom = {
           ...target,
           lastActivity: formatRoomDate(lastTime),
           messageCount: target.messageCount + 1,
+          unreadCount: nextUnread,
         };
         // Reorder room to top of list smoothly and remove any duplicate occurrences
         const remaining = prev.filter(
@@ -157,6 +162,16 @@ export function ChatRoomsTab({
       console.warn("Cannot open room details without project route context.");
       return;
     }
+    // Optimistically clear unread count for this room locally
+    setRooms((prev) =>
+      prev.map((r) =>
+        (r._id && r._id === roomId) || (r.id && r.id === roomId)
+          ? { ...r, unreadCount: 0 }
+          : r,
+      ),
+    );
+    connectRoomService.markRead(roomId).catch(() => {});
+    connectSocketClient.markRoomRead(roomId);
     router.push(`/project-admin/${accountCode}/${projectCode}/connect/room/${roomId}`);
   }
 
@@ -290,9 +305,20 @@ export function ChatRoomsTab({
                       <span className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 font-extrabold text-xs flex items-center justify-center border border-sky-100 flex-shrink-0">
                         {room.initials}
                       </span>
-                      <span className="text-sm font-bold text-slate-900 hover:text-blue-700 transition-colors">
-                        {room.name}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm ${(room.unreadCount || 0) > 0 ? "font-extrabold text-slate-950" : "font-bold text-slate-900"} hover:text-blue-700 transition-colors`}>
+                          {room.name}
+                        </span>
+                        {(room.unreadCount || 0) > 0 && (
+                          <span
+                            aria-label={`${room.unreadCount} unread message${room.unreadCount === 1 ? "" : "s"}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700 shadow-xs"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                            <span>{room.unreadCount} new</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
 

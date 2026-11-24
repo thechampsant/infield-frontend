@@ -22,6 +22,7 @@ import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 import { EditMembershipRuleModal } from "@/components/project-admin/connect/modals/edit-membership-rule-modal";
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomSocket } from "@/hooks/use-connect-socket";
+import { connectSocketClient } from "@/lib/api/connect-socket-client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 
@@ -177,6 +178,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         setKeptOutByHand(roomKeptOut);
         setHeldRemovals(roomHeld);
         setMessages(dedupeMessages(roomMsgs));
+
+        // Mark room read upon opening and advance watermark to latest message
+        const latestMessageId =
+          roomMsgs.length > 0
+            ? (roomMsgs[roomMsgs.length - 1].id || (roomMsgs[roomMsgs.length - 1] as any).messageId || (roomMsgs[roomMsgs.length - 1] as any)._id)
+            : undefined;
+        connectRoomService.markRead(roomId, latestMessageId).catch(() => {});
+        connectSocketClient.markRoomRead(roomId, latestMessageId);
       } catch (err) {
         if (cancelled) return;
         setError(

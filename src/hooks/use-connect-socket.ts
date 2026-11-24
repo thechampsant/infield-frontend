@@ -15,7 +15,11 @@ import {
   type SocketWallBadgeUpdatePayload,
   type SocketRoomBadgeUpdatePayload,
 } from "@/lib/api/connect-socket-client";
-import { normalizeChatRoom, type ApiRoom } from "@/lib/api/connect-room-service";
+import {
+  connectRoomService,
+  normalizeChatRoom,
+  type ApiRoom,
+} from "@/lib/api/connect-room-service";
 import { connectBadgeService } from "@/lib/api/connect-badge-service";
 import type { ChatRoom, RoomMessage } from "@/components/project-admin/connect/types";
 
@@ -372,9 +376,36 @@ export function useConnectBadge(projectId?: string) {
     }
   }, [projectId]);
 
+  const clearRoomUnread = useCallback(async (roomId?: string, lastReadMessageId?: string) => {
+    try {
+      if (roomId) {
+        await connectRoomService.markRead(roomId, lastReadMessageId);
+        connectSocketClient.markRoomRead(roomId, lastReadMessageId);
+      }
+      const fresh = await connectBadgeService.getConnectBadge(projectId);
+      if (fresh) {
+        setBadge({
+          connectCount: fresh.connectCount ?? ((fresh.roomUnreadCount ?? fresh.totalUnreadMessages ?? 0) + (fresh.wallUnseenCount ?? 0)),
+          wallUnseenCount: fresh.wallUnseenCount ?? (fresh.hasUnseenWallPosts ? 1 : 0),
+          roomUnreadCount: fresh.roomUnreadCount ?? fresh.totalUnreadMessages ?? 0,
+          hasUnseenWallPosts: Boolean(fresh.hasUnseenWallPosts || (fresh.wallUnseenCount && fresh.wallUnseenCount > 0)),
+          lastWallOpenedAt: fresh.lastWallOpenedAt ?? null,
+          isLoading: false,
+        });
+      }
+    } catch {
+      setBadge((prev) => ({
+        ...prev,
+        roomUnreadCount: 0,
+        connectCount: prev.wallUnseenCount,
+      }));
+    }
+  }, [projectId]);
+
   return {
     ...badge,
     refresh: fetchBadge,
     clearWallUnseen,
+    clearRoomUnread,
   };
 }
