@@ -10,7 +10,7 @@ import type { WallImageMetadata, WallPost, WallVideoMetadata } from "../types";
 import { WallTab } from "./wall-tab";
 import { ConnectStatusBanner } from "../connect-status-banner";
 import { projectAdminBase } from "@/lib/nav/nav";
-import type { UnseenUserRow } from "../utils";
+import { exportUnseenUsersToCsv, type UnseenUserRow } from "../utils";
 import { WallPostFormValues } from "./wall-schema";
 
 export function ConnectWallPage() {
@@ -63,15 +63,16 @@ export function ConnectWallPage() {
   const effectiveUserCount = userCount > 0 ? userCount : 36;
   const displayedPosts = useMemo(() => posts.map((post) => ({
     ...post,
-    totalUsers: post.totalUsers > 0 ? post.totalUsers : effectiveUserCount,
+    totalUsers: effectiveUserCount,
   })), [posts, effectiveUserCount]);
 
   const unseenUsers: UnseenUserRow[] = useMemo(() => projectUsers.map((projectUser) => ({
-    id: projectUser.id,
+    id: projectUser.backendId,
     name: projectUser.name || "User",
     desig: projectUser.designation || projectUser.role || "Promoter",
     role: projectUser.role || projectUser.designation || "Promoter",
     store: typeof projectUser.udfs?.store === "string" ? projectUser.udfs.store : "Default Store",
+    reportingManager: typeof projectUser.udfs?.reportingManager === "string" ? projectUser.udfs.reportingManager : "",
     location: typeof projectUser.udfs?.location === "string" ? projectUser.udfs.location : "",
     email: projectUser.email,
     phone: projectUser.mobile,
@@ -148,6 +149,41 @@ export function ConnectWallPage() {
     }
   }
 
+  async function handleViewUnseen(post: WallPost) {
+    if (!post.id) return;
+    try {
+      const reach = await connectWallService.getReach(post.id, projectId);
+      if (reach) {
+        setPosts((current) =>
+          current.map((p) =>
+            p.id === post.id
+              ? {
+                ...p,
+                seenCount: reach.seenCount,
+                totalUsers: reach.totalEligibleUsers > 0 ? reach.totalEligibleUsers : effectiveUserCount,
+                likes: reach.reactions?.like ?? p.likes,
+                claps: reach.reactions?.clap ?? p.claps,
+                celebrates: reach.reactions?.celebrate ?? p.celebrates,
+                usefuls: reach.reactions?.useful ?? p.usefuls,
+              }
+              : p,
+          ),
+        );
+      }
+    } catch (err) {
+      console.warn("Could not fetch fresh post reach", err);
+    }
+  }
+
+  async function handleDownloadUnseen(post: WallPost, users: UnseenUserRow[]) {
+    try {
+      await connectWallService.downloadUnseenXlsx(post.id);
+    } catch (err) {
+      console.warn("Failed to download unseen xlsx from server, falling back to CSV export", err);
+      exportUnseenUsersToCsv(post, users);
+    }
+  }
+
   return (
     <div className="w-full pb-12 font-sans text-slate-800">
       <ConnectStatusBanner surface="wall" settings={settings} settingsHref={settingsHref} />
@@ -161,6 +197,8 @@ export function ConnectWallPage() {
         unseenUsers={unseenUsers}
         onCreatePost={handleCreatePost}
         onDeletePost={handleDeletePost}
+        onViewUnseen={handleViewUnseen}
+        onDownloadUnseen={handleDownloadUnseen}
       />
     </div>
   );

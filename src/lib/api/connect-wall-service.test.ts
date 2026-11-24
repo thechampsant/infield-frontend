@@ -138,6 +138,16 @@ describe("connectWallService Suite", () => {
     expect(reach.totalEligibleUsers).toBe(20);
   });
 
+  it("recordSeen sends POST request to /api/v1/connect/wall/posts/:postId/seen", async () => {
+    const postSpy = vi.spyOn(apiClient, "post").mockResolvedValue({ postId: "p-seen", hasSeen: true, seenCount: 1 });
+
+    const result = await connectWallService.recordSeen("p-seen", "proj-1");
+
+    expect(postSpy).toHaveBeenCalledWith("/api/v1/connect/wall/posts/p-seen/seen?projectId=proj-1", {});
+    expect(result.hasSeen).toBe(true);
+    expect(result.seenCount).toBe(1);
+  });
+
   it("exportUnseen calls getBlob for unseen export endpoint", async () => {
     const mockBlob = new Blob(["test-data"], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const getBlobSpy = vi.spyOn(apiClient, "getBlob").mockResolvedValue(mockBlob);

@@ -9,7 +9,50 @@ import type { WallPost } from "../types";
 import { WallComposerModal } from "../modals/wall-composer-modal";
 
 describe("WallTab Component Suite", () => {
-  const defaultPosts: WallPost[] = [];
+  const defaultPosts: WallPost[] = [
+    {
+      id: "post-1",
+      timestamp: "Today, 2:40 PM",
+      content: "hello all users",
+      audience: "Everyone",
+      seenCount: 1,
+      totalUsers: 36,
+      likes: 0,
+      claps: 1,
+      celebrates: 0,
+      usefuls: 0,
+    },
+    {
+      id: "post-2",
+      timestamp: "Yesterday, 6:10 PM",
+      content:
+        "Trade-in documentation update. From 5 Nov, every trade-in needs the customer ID photo and the signed device declaration before the voucher is issued. Trade-ins missing either document will be rejected at audit. The one-page checklist is in the images below.",
+      hasImages: true,
+      imageCount: 2,
+      audience: "Everyone",
+      seenCount: 28,
+      totalUsers: 36,
+      likes: 6,
+      claps: 0,
+      celebrates: 0,
+      usefuls: 12,
+    },
+    {
+      id: "post-3",
+      timestamp: "Yesterday, 11:30 AM",
+      content:
+        "The 2-minute demo flow our top stores use during peak hours. Watch it before your Saturday shift.",
+      hasVideo: true,
+      videoDuration: "2:14",
+      audience: "Everyone",
+      seenCount: 24,
+      totalUsers: 36,
+      likes: 14,
+      claps: 6,
+      celebrates: 2,
+      usefuls: 9,
+    },
+  ];
   const userCount = 36;
 
   it("renders Wall subheader with total active user count and push notice", () => {
@@ -104,12 +147,33 @@ describe("WallTab Component Suite", () => {
     expect(html).toContain("Post to 36 users");
   });
 
+  it("renders WallComposerModal in confirmation state when confirmation is toggled", () => {
+    const html = renderToStaticMarkup(
+      <WallComposerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        userCount={userCount}
+        initialConfirmation={true}
+      />,
+    );
+
+    expect(html).toContain("A push goes to 36 persons now.");
+    expect(html).toContain("It can&#x27;t be recalled or edited; a wrong post is deleted and posted again.");
+    expect(html).toContain("Back");
+    expect(html).toContain("Post now");
+  });
+
   it("renders WallUnseenModal with unseen user count, user details, and download button", () => {
     const testPost = defaultPosts[1]; // 28 seen of 36 => 8 unseen
+    const mockUnseen = [
+      { id: "u-1", name: "Priya Venkatesh", desig: "Brand Ambassador", store: "Mumbai – Bandra" },
+    ];
     const html = renderToStaticMarkup(
       <WallUnseenModal
         post={testPost}
         onClose={vi.fn()}
+        unseenUsers={mockUnseen}
       />,
     );
 

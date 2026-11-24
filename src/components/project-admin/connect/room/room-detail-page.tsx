@@ -12,7 +12,7 @@ import {
   connectRoomService,
   getRoomInitials,
 } from "@/lib/api/connect-room-service";
-import { RoomDetail } from "./room-detail";
+import { RoomDetail, dedupeMessages } from "./room-detail";
 import { AddMemberModal } from "@/components/project-admin/connect/modals/add-member-modal";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 import { projectAdminBase } from "@/lib/nav/nav";
@@ -22,12 +22,19 @@ import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 import { EditMembershipRuleModal } from "@/components/project-admin/connect/modals/edit-membership-rule-modal";
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomSocket } from "@/hooks/use-connect-socket";
+import { useAuth } from "@/lib/auth/auth-context";
+import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 
 export interface RoomDetailPageProps {
   roomId: string;
 }
 
 export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
+  const { user: authUser } = useAuth();
+  const isProjectAdmin = authUser?.role === "PROJECT_ADMIN" || authUser?.role === "SUPER_ADMIN";
+  const senderDisplayName = isProjectAdmin
+    ? "Program Team"
+    : [authUser?.firstName, authUser?.lastName].filter(Boolean).join(" ") || "Member";
   const router = useRouter();
   const projectContext = useOptionalProjectContext();
   const accountCode = projectContext?.accountCode;
@@ -42,6 +49,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   const [room, setRoom] = useState<ChatRoom | null>(null);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [eligibleUsers, setEligibleUsers] = useState<ProjectUser[]>([]);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +68,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     setHeldRemovals(details.heldRemovals || []);
     setRemovalHoldReason(details.removalHoldReason || null);
     setWaitingCount(details.waitingCount || 0);
-    setMessages(refreshedMessages);
+    setMessages(dedupeMessages(refreshedMessages));
     setRoom((prev) => prev ? {
       ...prev,
       id: details.roomId,
@@ -168,7 +176,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         setMembers(roomMembers);
         setKeptOutByHand(roomKeptOut);
         setHeldRemovals(roomHeld);
-        setMessages(roomMsgs);
+        setMessages(dedupeMessages(roomMsgs));
       } catch (err) {
         if (cancelled) return;
         setError(
@@ -190,21 +198,27 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     roomId,
     onNewMessage: (newMsg) => {
       setMessages((prev) => {
-        // Deduplicate against optimistic local message (by id, clientMessageId or match)
-        const exists = prev.some(
-          (m) =>
-            m.id === newMsg.id ||
-            (m.id.startsWith("msg-") && m.content === newMsg.content && m.senderName === newMsg.senderName),
-        );
-        if (exists) {
-          return prev.map((m) =>
-            m.id === newMsg.id ||
-            (m.id.startsWith("msg-") && m.content === newMsg.content && m.senderName === newMsg.senderName)
-              ? newMsg
-              : m,
-          );
+        // If message already exists by id, replace it
+        const existsById = prev.some((m) => m.id === newMsg.id);
+        if (existsById) {
+          return prev.map((m) => (m.id === newMsg.id ? newMsg : m));
         }
-        return [...prev, newMsg];
+
+        // Deduplicate against optimistic local message (by clientMessageId or match)
+        const optimisticIdx = prev.findIndex(
+          (m) =>
+            (newMsg.clientMessageId &&
+              (m.clientMessageId === newMsg.clientMessageId || m.id === newMsg.clientMessageId)) ||
+            (m.id.startsWith("msg-") && m.content.trim() === newMsg.content.trim()),
+        );
+
+        if (optimisticIdx !== -1) {
+          const next = [...prev];
+          next[optimisticIdx] = newMsg;
+          return dedupeMessages(next);
+        }
+
+        return dedupeMessages([...prev, newMsg]);
       });
       setRoom((prev) => (prev ? { ...prev, messageCount: prev.messageCount + 1 } : null));
     },
@@ -226,7 +240,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
       connectRoomService
         .getMessages(roomId, { projectId, accountId })
         .then((res) => {
-          setMessages(res.messages);
+          setMessages(dedupeMessages(res.messages));
         })
         .catch(() => {});
     },
@@ -268,14 +282,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     const clientMessageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const newMsg: RoomMessage = {
       id: clientMessageId,
-      senderName: "Program Team",
+      senderName: senderDisplayName,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       content,
-      initials: "PT",
+      initials: senderDisplayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
       isSystem: false,
     };
 
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => dedupeMessages([...prev, newMsg]));
     setRoom((prev) => (prev ? { ...prev, messageCount: prev.messageCount + 1 } : null));
 
     try {
@@ -287,9 +301,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         accountId,
       );
       if (serverMsg) {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === clientMessageId ? serverMsg : m)),
-        );
+        setMessages((prev) => {
+          // If serverMsg.id was already added by Socket.IO message:new event, remove optimistic clientMessageId
+          const alreadyHasServerId = prev.some((m) => m.id === serverMsg.id);
+          if (alreadyHasServerId) {
+            return prev.filter((m) => m.id !== clientMessageId);
+          }
+          return prev.map((m) => (m.id === clientMessageId ? serverMsg : m));
+        });
       }
     } catch (err) {
       console.warn("Server send message failed", err);
@@ -311,15 +330,32 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   async function handleAddMember(users: ProjectUser[]) {
     await roomMembership.addMembers(users.map((user) => user.backendId || user.id));
     setIsAddMemberModalOpen(false);
+    const count = users.length;
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${count} ${count === 1 ? "member" : "members"} added to ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleAddByFilter(rule: MembershipRuleInput) {
     await connectRoomService.addMembersByFilter(roomId, rule);
     await roomMembership.refreshRoom();
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `Members added to ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleRemoveMember(memberId: string) {
+    const memberName = members.find((m) => m.id === memberId)?.name || "Member";
     await roomMembership.removeMember(memberId);
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${memberName} removed from ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleSaveRule(rule: MembershipRuleInput) {
@@ -336,8 +372,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAllowBack(userId: string) {
+    const personName = keptOutByHand.find((p) => p.userId === userId)?.name || "Member";
     await connectRoomService.allowBackByHand(roomId, userId);
     await roomMembership.refreshRoom();
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${personName} allowed back · rule rooms updated: ${roomName} (+1)`,
+      type: "success",
+    });
   }
 
   async function handleResolveHeldRemovals(decision: "remove" | "keep") {
@@ -378,6 +420,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
           <ChevronLeft className="w-4 h-4" />
           <span>Back to All rooms</span>
         </button>
+        <If2Toast toast={toast} onDismiss={() => setToast(null)} position="bottom-center" className="bg-black! text-white!" />
       </div>
     );
   }
@@ -389,6 +432,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         onBack={handleBack}
         messages={messages}
         members={members}
+        senderDisplayName={senderDisplayName}
         onSendMessage={handleSendMessage}
         onDeleteMessage={handleDeleteMessage}
         onAddMember={() => setIsAddMemberModalOpen(true)}
@@ -404,6 +448,9 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         removalHoldReason={removalHoldReason}
         waitingCount={waitingCount}
         onResolveHeldRemovals={handleResolveHeldRemovals}
+        toast={toast}
+        onDismissToast={() => setToast(null)}
+        toastPosition="bottom-center"
       />
 
       <AddMemberModal

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createRoomSchema, renameRoomSchema } from "./room-schema";
+import { createRoomSchema, renameRoomSchema } from "../room/room-schema";
 
 describe("Room Schemas Suite", () => {
   describe("createRoomSchema", () => {
@@ -25,33 +25,32 @@ describe("Room Schemas Suite", () => {
       }
     });
 
-    it("fails when memberUserIds has fewer than 2 members", () => {
+    it("fails when membershipType is missing or invalid", () => {
       const res = createRoomSchema.safeParse({
         name: "Valid Room",
-        memberUserIds: ["u1"],
+        memberUserIds: ["u1", "u2"],
       });
       expect(res.success).toBe(false);
-      if (!res.success) {
-        expect(res.error.issues[0].message).toBe("Add at least 2 members.");
-      }
     });
 
-    it("fails when memberUserIds has more than 250 members", () => {
-      const users = Array.from({ length: 251 }, (_, i) => `u-${i}`);
+    it("fails when memberUserIds has more than 1000 members", () => {
+      const users = Array.from({ length: 1001 }, (_, i) => `u-${i}`);
       const res = createRoomSchema.safeParse({
         name: "Valid Room",
         memberUserIds: users,
+        membershipType: "fixed",
       });
       expect(res.success).toBe(false);
       if (!res.success) {
-        expect(res.error.issues[0].message).toBe("A room holds up to 250 members.");
+        expect(res.error.issues[0].message).toBe("A room holds up to 1,000 members.");
       }
     });
 
-    it("succeeds with valid room name and 2-250 members", () => {
+    it("succeeds with valid room name, membershipType and members", () => {
       const res = createRoomSchema.safeParse({
         name: "Mumbai Promoters Squad",
         memberUserIds: ["u1", "u2", "u3"],
+        membershipType: "fixed",
       });
       expect(res.success).toBe(true);
       if (res.success) {

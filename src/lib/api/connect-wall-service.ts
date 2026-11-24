@@ -187,6 +187,8 @@ export function normalizeWallPost(raw: ApiWallPost, totalUsers = 0): WallPost {
     }
     : null;
 
+  const seenCount = raw.seenCount ?? (raw.seenUserIds?.length ?? 0);
+
   return {
     id: raw.postId,
     timestamp: formatWallDate(raw.createdAt),
@@ -199,8 +201,8 @@ export function normalizeWallPost(raw: ApiWallPost, totalUsers = 0): WallPost {
     videoDuration: video?.duration || "",
     video,
     audience: "Everyone",
-    seenCount: raw.seenCount ?? 0,
-    totalUsers: totalUsers > 0 ? totalUsers : (raw.seenCount ?? 0),
+    seenCount,
+    totalUsers: totalUsers > 0 ? totalUsers : 0,
     likes: raw.reactions?.like ?? 0,
     claps: raw.reactions?.clap ?? 0,
     celebrates: raw.reactions?.celebrate ?? 0,
@@ -458,11 +460,27 @@ export const connectWallService = {
   },
 
   /**
+   * Mark a Wall post as seen by the current user.
+   * POST /api/v1/connect/wall/posts/:postId/seen
+   */
+  async recordSeen(
+    postId: string,
+    projectId?: string,
+  ): Promise<{ postId: string; hasSeen: boolean; seenCount?: number }> {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    return apiClient.post<{ postId: string; hasSeen: boolean; seenCount?: number }>(
+      `${WALL_BASE}/posts/${postId}/seen${qs}`,
+      {},
+    );
+  },
+
+  /**
    * Fetch reach statistics for a Wall post.
    * GET /api/v1/connect/wall/posts/:postId/reach
    */
-  async getReach(postId: string): Promise<WallReachResponse> {
-    return apiClient.get<WallReachResponse>(`${WALL_BASE}/posts/${postId}/reach`);
+  async getReach(postId: string, projectId?: string): Promise<WallReachResponse> {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    return apiClient.get<WallReachResponse>(`${WALL_BASE}/posts/${postId}/reach${qs}`);
   },
 
   /**

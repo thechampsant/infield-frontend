@@ -134,7 +134,7 @@ describe("Connect Socket Client Suite", () => {
       );
       expect(onCall).toBeDefined();
 
-      const internalHandler = onCall[1];
+      const internalHandler = onCall![1];
       const payload = {
         messageId: "m1",
         roomId: "r1",

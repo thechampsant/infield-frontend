@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import type { AuditEntry } from "@/types/project-admin";
 import { ShieldCheck, Lock } from "lucide-react";
 import ConnectConfigurationAuditHistory from "../ConnectConfigurationAuditHistory";
+import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
 
 export interface SettingsTabProps {
   projectName: string;
@@ -16,6 +17,8 @@ export interface SettingsTabProps {
   savingConnect?: boolean;
   settingsError?: string | null;
   auditHistory?: AuditEntry[];
+  toast?: ToastState | null;
+  onDismissToast?: () => void;
 }
 
 export function SettingsTab({
@@ -29,8 +32,29 @@ export function SettingsTab({
   savingConnect = false,
   settingsError = null,
   auditHistory = [],
+  toast: externalToast,
+  onDismissToast,
 }: SettingsTabProps) {
   const wallOrRoomsDisabled = !connectEnabled || savingConnect;
+
+  const [internalToast, setInternalToast] = useState<ToastState | null>(() =>
+    settingsError ? { type: "error", message: settingsError } : null
+  );
+
+  useEffect(() => {
+    if (settingsError) {
+      setInternalToast({
+        type: "error",
+        message: settingsError,
+      });
+    }
+  }, [settingsError]);
+
+  const activeToast = externalToast || internalToast;
+  const handleDismissToast = () => {
+    setInternalToast(null);
+    onDismissToast?.();
+  };
 
   return (
     <div className="space-y-6">
@@ -259,7 +283,10 @@ export function SettingsTab({
       </div>
 
       {/* Configuration Audit History Card */}
-      {/* <ConnectConfigurationAuditHistory auditHistory={auditHistory} /> */}
+      <ConnectConfigurationAuditHistory auditHistory={auditHistory} />
+
+      {/* Toast notification for API errors / feedback */}
+      <If2Toast toast={activeToast} onDismiss={handleDismissToast} className="bg-black! text-white!" position="bottom-center" />
     </div>
   );
 }

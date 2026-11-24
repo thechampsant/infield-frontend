@@ -51,6 +51,7 @@ export interface UnseenUserRow {
   desig?: string;
   location?: string;
   store?: string;
+  reportingManager?: string;
   phone?: string;
   email?: string;
   hasDemoPhone?: boolean;
@@ -77,7 +78,7 @@ export function calculateReachPercentage(seenCount: number, totalUsers: number):
 
 /**
  * Export unseen users to CSV, downloading to the admin's machine.
- * Follows the API Guide structure: Employee Code, Full Name, Phone Number, Email, Designation, Store.
+ * Export the unseen list with employee, role, store, and reporting manager details.
  */
 export function exportUnseenUsersToCsv(
   post: WallPost,
@@ -89,7 +90,8 @@ export function exportUnseenUsersToCsv(
     "Phone Number",
     "Email",
     "Designation",
-    "Store / Location",
+    "Store",
+    "Reporting Manager",
   ];
 
   const rows = unseenUsers.map((u) => [
@@ -99,6 +101,7 @@ export function exportUnseenUsersToCsv(
     `"${(u.email || "").replace(/"/g, '""')}"`,
     `"${(u.desig || u.role || "").replace(/"/g, '""')}"`,
     `"${(u.store || u.location || "").replace(/"/g, '""')}"`,
+    `"${(u.reportingManager || "").replace(/"/g, '""')}"`,
   ]);
 
   const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
