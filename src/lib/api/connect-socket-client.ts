@@ -37,11 +37,36 @@ export const CONNECT_SOCKET_EVENTS = {
   ROOM_MEMBER_REMOVED: "room:member_removed",
   MESSAGE_DELETED: "message:deleted",
   BADGE_UPDATE: "badge:update",
+  CONNECT_BADGE_UPDATE: "connect:badge_update",
+  WALL_BADGE_UPDATE: "wall:badge_update",
+  ROOM_BADGE_UPDATE: "room:badge_update",
 } as const;
 
 // ─────────────────────────────────────────────────────────────
 // Socket Event Payloads
 // ─────────────────────────────────────────────────────────────
+
+export interface SocketConnectBadgeUpdatePayload {
+  connectCount?: number;
+  wallUnseenCount?: number;
+  roomUnreadCount?: number;
+  increment?: number;
+  timestamp?: string | Date;
+}
+
+export interface SocketWallBadgeUpdatePayload {
+  wallUnseenCount?: number;
+  hasUnseenWallPosts?: boolean;
+  increment?: number;
+  timestamp?: string | Date;
+}
+
+export interface SocketRoomBadgeUpdatePayload {
+  roomUnreadCount?: number;
+  roomMessagesCount?: number;
+  unreadRoomsCount?: number;
+  timestamp?: string | Date;
+}
 
 export interface SocketNewMessagePayload {
   messageId?: string;
@@ -94,10 +119,14 @@ export interface SocketRoomMemberRemovedPayload {
 }
 
 export interface SocketBadgeUpdatePayload {
+  connectCount?: number;
+  wallUnseenCount?: number;
+  roomUnreadCount?: number;
+  roomMessagesCount?: number;
   unreadRoomsCount?: number;
   totalUnreadMessages?: number;
   hasUnseenWallPosts?: boolean;
-  timestamp?: string;
+  timestamp?: string | Date;
 }
 
 export interface SocketAckResponse<T = unknown> {
@@ -381,6 +410,18 @@ class ConnectSocketClient {
 
     this.socket.on(CONNECT_SOCKET_EVENTS.BADGE_UPDATE, (data: SocketBadgeUpdatePayload) => {
       this.dispatch(CONNECT_SOCKET_EVENTS.BADGE_UPDATE, data);
+    });
+
+    this.socket.on(CONNECT_SOCKET_EVENTS.CONNECT_BADGE_UPDATE, (data: SocketConnectBadgeUpdatePayload) => {
+      this.dispatch(CONNECT_SOCKET_EVENTS.CONNECT_BADGE_UPDATE, data);
+    });
+
+    this.socket.on(CONNECT_SOCKET_EVENTS.WALL_BADGE_UPDATE, (data: SocketWallBadgeUpdatePayload) => {
+      this.dispatch(CONNECT_SOCKET_EVENTS.WALL_BADGE_UPDATE, data);
+    });
+
+    this.socket.on(CONNECT_SOCKET_EVENTS.ROOM_BADGE_UPDATE, (data: SocketRoomBadgeUpdatePayload) => {
+      this.dispatch(CONNECT_SOCKET_EVENTS.ROOM_BADGE_UPDATE, data);
     });
   }
 }

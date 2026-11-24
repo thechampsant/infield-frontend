@@ -460,6 +460,15 @@ export const connectWallService = {
   },
 
   /**
+   * Record that user opened the Wall feed to clear unseen dot/count.
+   * POST /api/v1/connect/wall/open
+   */
+  async recordWallOpen(projectId?: string): Promise<{ lastWallOpenedAt: string }> {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    return apiClient.post<{ lastWallOpenedAt: string }>(`/api/v1/connect/wall/open${qs}`, {});
+  },
+
+  /**
    * Mark a Wall post as seen by the current user.
    * POST /api/v1/connect/wall/posts/:postId/seen
    */
