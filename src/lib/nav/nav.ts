@@ -53,12 +53,12 @@ export const accountAdminNav: NavSection[] = [
  * Manager-level nav: Overview, Inbox, and Reports are static core items.
  * Additional modules are appended from project config at runtime (not hardcoded here).
  */
-export function managerNav(inboxBadge?: number | string): NavSection[] {
+export function managerNav(inboxBadge?: number | string, overviewAllowed = true): NavSection[] {
   return [
     {
       title: "Menu",
       items: [
-        { label: "Overview", href: "/workspace", icon: "layoutDashboard" },
+        ...(overviewAllowed ? [{ label: "Overview", href: "/workspace", icon: "layoutDashboard" as const }] : []),
         {
           label: "Inbox",
           href: "/workspace/inbox",

@@ -29,6 +29,7 @@ import {
 } from "@/lib/auth/permissions";
 import { projectHasVisibleSyncJobs } from "@/lib/api/integration-sync-service";
 import { ApiError } from "@/lib/api/api-client";
+import { canAccessOverview } from "@/lib/overview/access";
 
 const ICONS = {
   users: Users,
@@ -72,9 +73,9 @@ export function ProjectAdminDrawer({
   const { user } = useAuth();
   const showBackToProjects = canNavigateBackToProjects(user);
   const { connectCount } = useConnectBadge(projectId);
-  const baseNavItems = projectAdminDrawerNav(accountCode, projectCode, {
+  const baseNavItems = [...(canAccessOverview(user) && user?.projectId === projectId ? [{ label: "Overview", href: `${projectAdminBase(accountCode, projectCode)}/overview`, icon: "layoutDashboard" as const }] : []), ...projectAdminDrawerNav(accountCode, projectCode, {
     adminAccess: resolvedAdminAccess(user),
-  });
+  })];
 
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
   const [hasSyncJobs, setHasSyncJobs] = useState(false);
