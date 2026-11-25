@@ -14,7 +14,10 @@ if (staging) {
 }
 
 const nextConfig: NextConfig = {
-  ...(staging ? { output: "standalone" as const, typescript: { tsconfigPath: "tsconfig.staging.json" } } : {}),
+  ...(staging ? { output: "standalone" as const } : {}),
+  typescript: {
+    tsconfigPath: staging || process.env.NODE_ENV === "production" ? "tsconfig.build.json" : "tsconfig.json",
+  },
   turbopack: {
     root: __dirname,
   },
