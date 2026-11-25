@@ -79,6 +79,8 @@ export interface ApiWallPost {
   myReaction?: ConnectReactionType | null;
   hasSeen?: boolean;
   seenCount?: number;
+  totalUsers?: number;
+  totalEligibleUsers?: number;
   seenUserIds?: string[];
   createdAt?: string;
 }
@@ -188,6 +190,7 @@ export function normalizeWallPost(raw: ApiWallPost, totalUsers = 0): WallPost {
     : null;
 
   const seenCount = raw.seenCount ?? (raw.seenUserIds?.length ?? 0);
+  const resolvedTotalUsers = raw.totalUsers ?? raw.totalEligibleUsers ?? totalUsers;
 
   return {
     id: raw.postId,
@@ -202,7 +205,7 @@ export function normalizeWallPost(raw: ApiWallPost, totalUsers = 0): WallPost {
     video,
     audience: "Everyone",
     seenCount,
-    totalUsers: totalUsers > 0 ? totalUsers : 0,
+    totalUsers: resolvedTotalUsers > 0 ? resolvedTotalUsers : 0,
     likes: raw.reactions?.like ?? 0,
     claps: raw.reactions?.clap ?? 0,
     celebrates: raw.reactions?.celebrate ?? 0,

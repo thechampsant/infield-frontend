@@ -27,6 +27,8 @@ describe("BaseModal Component", () => {
     );
 
     expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('tabindex="-1"');
     expect(html).toContain("max-h-[90vh]");
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("overflow-y-auto");
@@ -34,6 +36,14 @@ describe("BaseModal Component", () => {
     expect(html).toContain("Test Modal");
     expect(html).toContain("Test Subtitle");
     expect(html).toContain("Scrollable Body Content");
+
+    // role="dialog" must be on the panel, not the backdrop
+    expect(html).toMatch(/^<div class="fixed inset-0[^"]*"><div tabindex="-1" role="dialog"/);
+
+    // aria-labelledby must be auto-linked to the title heading id
+    const labelledByMatch = html.match(/aria-labelledby="([^"]+)"/);
+    expect(labelledByMatch).not.toBeNull();
+    expect(html).toContain(`<h3 id="${labelledByMatch![1]}"`);
   });
 
   it("resolves various maxWidth prop values correctly", () => {

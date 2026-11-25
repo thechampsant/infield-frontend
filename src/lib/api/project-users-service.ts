@@ -32,6 +32,8 @@ interface RawUser {
   fullName?: string;
   phoneNumber?: string;
   employeeId?: string;
+  employeeCode?: string;
+  "employee-code"?: string;
   designation?: string | { _id?: string; id?: string; name?: string; roleName?: string };
   status?: string;
   isActive?: boolean;
@@ -148,9 +150,19 @@ function normalizeUser(raw: RawUser): ProjectUser {
     ? { ...rootLevelUdf, ...explicitUdf }
     : rootLevelUdf;
 
+  const employeeId = typeof raw.employeeId === "string" ? raw.employeeId.trim() : "";
+  const employeeCode =
+    typeof raw.employeeCode === "string"
+      ? raw.employeeCode.trim()
+      : typeof raw["employee-code"] === "string"
+        ? raw["employee-code"].trim()
+        : "";
+
   return {
     backendId,
     id: raw.employeeId ?? backendId,
+    ...(employeeId ? { employeeId } : {}),
+    ...(employeeCode ? { employeeCode } : {}),
     name,
     mobile: raw.phoneNumber ?? "",
     email: raw.email ?? "",

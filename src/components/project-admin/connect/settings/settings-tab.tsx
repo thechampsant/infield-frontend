@@ -283,7 +283,7 @@ export function SettingsTab({
       </div>
 
       {/* Configuration Audit History Card */}
-      <ConnectConfigurationAuditHistory auditHistory={auditHistory} />
+      {/* <ConnectConfigurationAuditHistory auditHistory={auditHistory} /> */}
 
       {/* Toast notification for API errors / feedback */}
       <If2Toast toast={activeToast} onDismiss={handleDismissToast} className="bg-black! text-white!" position="bottom-center" />

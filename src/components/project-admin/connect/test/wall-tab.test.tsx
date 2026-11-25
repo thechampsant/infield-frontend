@@ -7,6 +7,11 @@ import { WallUnseenModal } from "../modals/wall-unseen-modal";
 import { WallDeleteModal } from "../modals/wall-delete-modal";
 import type { WallPost } from "../types";
 import { WallComposerModal } from "../modals/wall-composer-modal";
+import {
+  mapWallPostsWithFallbackTotal,
+  resolveProjectUserEmployeeCode,
+} from "../wall/wall-page";
+import type { ProjectUser } from "@/types/project-admin";
 
 describe("WallTab Component Suite", () => {
   const defaultPosts: WallPost[] = [
@@ -229,5 +234,53 @@ describe("WallTab Component Suite", () => {
 
     expect(html).toContain("Only project admins can view unseen users");
     expect(html).toContain("Only project admins can delete posts");
+  });
+
+  it("preserves API totalUsers on posts and does not fall back to 36 when userCount is 0", () => {
+    const posts: WallPost[] = [
+      { ...defaultPosts[0], totalUsers: 50 },
+      { ...defaultPosts[1], totalUsers: 0 },
+    ];
+
+    const mappedWhenUsersFailed = mapWallPostsWithFallbackTotal(posts, 0);
+    expect(mappedWhenUsersFailed[0].totalUsers).toBe(50);
+    expect(mappedWhenUsersFailed[1].totalUsers).toBe(0);
+
+    const mappedWithFetchedCount = mapWallPostsWithFallbackTotal(posts, 14);
+    expect(mappedWithFetchedCount[0].totalUsers).toBe(50);
+    expect(mappedWithFetchedCount[1].totalUsers).toBe(14);
+  });
+
+  it("maps employeeCode from employee-code fields and avoids falling back to backendId-backed projectUser.id", () => {
+    const baseUser: ProjectUser = {
+      id: "65f1a2b3c4d5e6f7a8b9c0d1",
+      backendId: "65f1a2b3c4d5e6f7a8b9c0d1",
+      name: "Asha Rao",
+      mobile: "9999999999",
+      email: "asha@example.com",
+      designation: "Promoter",
+      role: "Promoter",
+      doj: "2026-01-01",
+      doe: "",
+      status: "active",
+      udfs: {},
+      reporteeIds: [],
+    };
+
+    expect(resolveProjectUserEmployeeCode(baseUser)).toBe("");
+
+    expect(
+      resolveProjectUserEmployeeCode({
+        ...baseUser,
+        udfs: { "employee-code": "EMP-778" },
+      }),
+    ).toBe("EMP-778");
+
+    expect(
+      resolveProjectUserEmployeeCode({
+        ...baseUser,
+        employeeCode: "EMP-901",
+      }),
+    ).toBe("EMP-901");
   });
 });

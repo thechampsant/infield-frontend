@@ -42,6 +42,24 @@ describe("connectWallService Suite", () => {
     expect(normalized.authorDisplayName).toBe("Program Team");
   });
 
+  it("normalizeWallPost preserves API totalUsers / totalEligibleUsers when present", () => {
+    const withTotalUsers = normalizeWallPost({
+      postId: "post-api-total",
+      text: "Hello",
+      mediaType: "NONE",
+      totalUsers: 42,
+    });
+    expect(withTotalUsers.totalUsers).toBe(42);
+
+    const withTotalEligible = normalizeWallPost({
+      postId: "post-api-eligible",
+      text: "Hello",
+      mediaType: "NONE",
+      totalEligibleUsers: 19,
+    });
+    expect(withTotalEligible.totalUsers).toBe(19);
+  });
+
   it("formatWallDate handles undefined or invalid timestamps gracefully", () => {
     expect(formatWallDate(undefined)).toBe("Just now");
     expect(formatWallDate("invalid-date")).toBe("Just now");

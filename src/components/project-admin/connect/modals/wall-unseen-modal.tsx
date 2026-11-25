@@ -34,7 +34,7 @@ export function WallUnseenModal({
 }: WallUnseenModalProps) {
   if (!post) return null;
 
-  const totalUsers = post.totalUsers ?? 36;
+  const totalUsers = post.totalUsers ?? 0;
   const unseenCount = Math.max(0, totalUsers - post.seenCount);
   // Use dynamic project users list when available, filtering out users who have already seen the post
   const rawList = React.useMemo(() => {

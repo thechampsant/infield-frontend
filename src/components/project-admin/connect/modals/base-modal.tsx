@@ -1,7 +1,28 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(", ");
+
+export function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) => {
+    if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") return false;
+    if (el.closest("[hidden]")) return false;
+    if (typeof window !== "undefined" && typeof window.getComputedStyle === "function") {
+      const style = window.getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden") return false;
+    }
+    return true;
+  });
+}
 
 export type ModalMaxWidth =
   | "sm"
@@ -82,11 +103,70 @@ export function BaseModal({
   closeButtonAriaLabel = "Close",
   rawContent = false,
 }: BaseModalProps) {
+  const generatedTitleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const resolvedAriaLabelledBy = ariaLabelledBy ?? (title ? generatedTitleId : undefined);
+
   useEffect(() => {
-    if (!isOpen || !closeOnEsc) return;
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    previousActiveElementRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    if (!panel.contains(document.activeElement) || document.activeElement === panel) {
+      const focusables = getFocusableElements(panel);
+      (focusables[0] ?? panel).focus();
+    }
+
+    return () => {
+      const prev = previousActiveElementRef.current;
+      previousActiveElementRef.current = null;
+      if (prev && document.contains(prev)) {
+        prev.focus();
+      }
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isSubmitting) {
-        onClose();
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const activeEl = document.activeElement as HTMLElement | null;
+      const activeDialog = activeEl?.closest('[role="dialog"]');
+      if (activeDialog && activeDialog !== panel) return;
+
+      if (e.key === "Escape") {
+        if (closeOnEsc && !isSubmitting) {
+          e.stopPropagation();
+          onClose();
+        }
+        return;
+      }
+
+      if (e.key === "Tab") {
+        const focusables = getFocusableElements(panel);
+        if (focusables.length === 0) {
+          e.preventDefault();
+          panel.focus();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (e.shiftKey) {
+          if (activeEl === first || activeEl === panel || !panel.contains(activeEl)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (activeEl === last || !panel.contains(activeEl)) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -107,15 +187,17 @@ export function BaseModal({
 
   return (
     <div
-      role={role}
-      aria-modal="true"
-      aria-labelledby={ariaLabelledBy}
-      aria-describedby={ariaDescribedBy}
       className={`fixed inset-0 ${zIndex} bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden ${backdropClassName}`}
       onClick={handleBackdropClick}
     >
       <div
-        className={`bg-white rounded-2xl w-full ${widthClass} shadow-2xl border border-slate-200 flex flex-col ${maxHeight} overflow-hidden overflow-x-hidden animate-in fade-in zoom-in-95 duration-150 ${className}`}
+        ref={panelRef}
+        tabIndex={-1}
+        role={role}
+        aria-modal="true"
+        aria-labelledby={resolvedAriaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        className={`bg-white rounded-2xl w-full ${widthClass} shadow-2xl border border-slate-200 flex flex-col ${maxHeight} overflow-hidden overflow-x-hidden animate-in fade-in zoom-in-95 duration-150 focus:outline-hidden ${className}`}
       >
         {/* Modal Header */}
         {hasHeader && (
@@ -128,11 +210,13 @@ export function BaseModal({
               <div className="min-w-0 pr-4">
                 {typeof title === "string" ? (
                   <h3
-                    id={ariaLabelledBy}
+                    id={resolvedAriaLabelledBy}
                     className="text-base font-bold text-slate-900"
                   >
                     {title}
                   </h3>
+                ) : resolvedAriaLabelledBy && !ariaLabelledBy ? (
+                  <div id={resolvedAriaLabelledBy}>{title}</div>
                 ) : (
                   title
                 )}

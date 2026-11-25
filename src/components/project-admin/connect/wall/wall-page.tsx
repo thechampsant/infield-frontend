@@ -14,6 +14,23 @@ import { exportUnseenUsersToCsv, type UnseenUserRow } from "../utils";
 import { WallPostFormValues } from "./wall-schema";
 import { storeService, type StoreRecord } from "@/lib/api/store-service";
 
+export function resolveProjectUserEmployeeCode(projectUser: ProjectUser): string {
+  const udfs = projectUser.udfs;
+  const udfCode =
+    (typeof udfs?.["employee-code"] === "string" ? udfs["employee-code"].trim() : "") ||
+    (typeof udfs?.employeeCode === "string" ? udfs.employeeCode.trim() : "") ||
+    (typeof udfs?.employeeId === "string" ? udfs.employeeId.trim() : "");
+
+  return udfCode
+}
+
+export function mapWallPostsWithFallbackTotal(posts: WallPost[], fallbackUserCount: number): WallPost[] {
+  return posts.map((post) => ({
+    ...post,
+    totalUsers: post.totalUsers > 0 ? post.totalUsers : fallbackUserCount,
+  }));
+}
+
 export function ConnectWallPage() {
   const { projectName, projectId, accountCode, projectCode } = useProjectContext();
   const { isAdmin, currentUserName } = useConnectPermission();
@@ -21,7 +38,7 @@ export function ConnectWallPage() {
   const settingsHref = `${projectAdminBase(accountCode, projectCode)}/connect/setting`;
   const { settings } = useConnectSettings(projectId, currentUserName);
 
-  const [userCount, setUserCount] = useState(() => projectId ? 0 : 36);
+  const [userCount, setUserCount] = useState(0);
   const [projectUsers, setProjectUsers] = useState<ProjectUser[]>([]);
   const [stores, setStores] = useState<StoreRecord[]>([]);
   const [posts, setPosts] = useState<WallPost[]>([]);
@@ -64,7 +81,10 @@ export function ConnectWallPage() {
       setProjectUsers(result.data);
     }).catch((error) => {
       console.warn("Could not fetch project users for the Wall", error);
-      if (!cancelled) setUserCount(36);
+      if (!cancelled) {
+        setUserCount(0);
+        setProjectUsers([]);
+      }
     });
     return () => { cancelled = true; };
   }, [projectId]);
@@ -87,11 +107,10 @@ export function ConnectWallPage() {
     return () => { cancelled = true; };
   }, [projectId]);
 
-  const effectiveUserCount = userCount > 0 ? userCount : 36;
-  const displayedPosts = useMemo(() => posts.map((post) => ({
-    ...post,
-    totalUsers: effectiveUserCount,
-  })), [posts, effectiveUserCount]);
+  const displayedPosts = useMemo(
+    () => mapWallPostsWithFallbackTotal(posts, userCount),
+    [posts, userCount],
+  );
 
   const unseenUsers: UnseenUserRow[] = useMemo(() => projectUsers.map((projectUser) => {
     const rawStoreIds = Array.isArray(projectUser.udfs?.storeIds)
@@ -106,10 +125,12 @@ export function ConnectWallPage() {
       || (typeof projectUser.udfs?.reportingManager === "string" ? projectUser.udfs.reportingManager : "")
       || (typeof projectUser.udfs?.manager === "string" ? projectUser.udfs.manager : "");
 
+    const employeeCode = resolveProjectUserEmployeeCode(projectUser);
+
     return {
       id: projectUser.id,
       backendId: projectUser.backendId,
-      employeeCode: projectUser.id,
+      ...(employeeCode ? { employeeCode } : {}),
       name: projectUser.name || "User",
       desig: projectUser.designation || projectUser.role || "Promoter",
       role: projectUser.role || projectUser.designation || "Promoter",
@@ -187,7 +208,10 @@ export function ConnectWallPage() {
         authorDisplayName: "Program Team",
         projectId,
       });
-      setPosts((current) => [{ ...created, totalUsers: effectiveUserCount }, ...current]);
+      setPosts((current) => [
+        { ...created, totalUsers: created.totalUsers > 0 ? created.totalUsers : userCount },
+        ...current,
+      ]);
     } catch (error) {
       console.warn("Backend Wall post creation failed", error);
       throw error;
@@ -205,7 +229,9 @@ export function ConnectWallPage() {
               ? {
                 ...p,
                 seenCount: reach.seenCount,
-                totalUsers: reach.totalEligibleUsers > 0 ? reach.totalEligibleUsers : effectiveUserCount,
+                totalUsers: reach.totalEligibleUsers > 0
+                  ? reach.totalEligibleUsers
+                  : (p.totalUsers > 0 ? p.totalUsers : userCount),
                 likes: reach.reactions?.like ?? p.likes,
                 claps: reach.reactions?.clap ?? p.claps,
                 celebrates: reach.reactions?.celebrate ?? p.celebrates,
@@ -235,7 +261,7 @@ export function ConnectWallPage() {
       {isAdmin && <ConnectStatusBanner surface="wall" settings={settings} settingsHref={settingsHref} />}
       <WallTab
         posts={displayedPosts}
-        userCount={effectiveUserCount}
+        userCount={userCount}
         wallEnabled={settings.wall}
         projectName={projectTitle}
         isLoading={isLoading}
