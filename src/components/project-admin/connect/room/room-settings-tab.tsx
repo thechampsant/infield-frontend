@@ -12,12 +12,14 @@ export interface RoomSettingsTabProps {
   room: ChatRoom;
   onRenameRoom: (name: string) => Promise<void> | void;
   onDeleteRoom: (roomId: string) => Promise<void> | void;
+  isAdmin?: boolean;
 }
 
 export function RoomSettingsTab({
   room,
   onRenameRoom,
   onDeleteRoom,
+  isAdmin = true,
 }: RoomSettingsTabProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -49,7 +51,7 @@ export function RoomSettingsTab({
   }, [room.name, reset]);
 
   async function onFormSubmit(values: RenameRoomFormValues) {
-    if (isUnchanged) return;
+    if (!isAdmin || isUnchanged) return;
     try {
       setIsSaving(true);
       setFeedback(null);
@@ -64,6 +66,7 @@ export function RoomSettingsTab({
   }
 
   async function handleConfirmDelete() {
+    if (!isAdmin) return;
     try {
       setIsDeleting(true);
       await onDeleteRoom(room.id);
@@ -121,8 +124,10 @@ export function RoomSettingsTab({
             maxLength={50}
             defaultValue={room.name}
             {...register("name")}
-            disabled={isSaving || isDeleting}
-            className={`w-full border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden transition-colors ${errors.name
+            disabled={!isAdmin || isSaving || isDeleting}
+            className={`w-full border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden transition-colors ${
+              !isAdmin ? "bg-slate-100 text-slate-400 cursor-not-allowed" : ""
+            } ${errors.name
               ? "border-red-400 bg-red-50/20 focus:border-red-500"
               : "border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               }`}
@@ -138,8 +143,9 @@ export function RoomSettingsTab({
           <button
             type="button"
             onClick={() => setShowDeleteModal(true)}
-            disabled={isSaving || isDeleting}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50/60 border border-red-400 rounded-lg transition-colors cursor-pointer"
+            disabled={!isAdmin || isSaving || isDeleting}
+            title={!isAdmin ? "Only project admins can delete rooms" : undefined}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50/60 border border-red-400 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Delete room</span>
@@ -147,8 +153,9 @@ export function RoomSettingsTab({
 
           <button
             type="submit"
-            disabled={isSaving || isDeleting || isUnchanged || !currentName.trim()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#0b4ea2] hover:bg-[#093e82] disabled:bg-slate-200 disabled:text-slate-400 rounded-lg shadow-xs transition-colors cursor-pointer"
+            disabled={!isAdmin || isSaving || isDeleting || isUnchanged || !currentName.trim()}
+            title={!isAdmin ? "Only project admins can rename rooms" : undefined}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#0b4ea2] hover:bg-[#093e82] disabled:bg-slate-200 disabled:text-slate-400 rounded-lg shadow-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
           >
             {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <span>Save name</span>

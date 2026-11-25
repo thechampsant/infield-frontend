@@ -2,6 +2,7 @@
 
 import React from "react";
 import { AlertTriangle, X } from "lucide-react";
+import { BaseModal } from "./base-modal";
 
 interface WallDeleteModalProps {
   isOpen: boolean;
@@ -20,17 +21,15 @@ export function WallDeleteModal({
   body = "It disappears from the Wall for everyone. The deletion is recorded in the audit log.",
   isDeleting = false,
 }: WallDeleteModalProps) {
-  if (!isOpen) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="delete-modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
-    >
-      <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200">
-        <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="sm"
+      ariaLabelledBy="delete-modal-title"
+      isSubmitting={isDeleting}
+      header={
+        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2 text-red-600">
             <AlertTriangle className="w-5 h-5 shrink-0" />
             <h3 id="delete-modal-title" className="text-base font-bold text-slate-900">
@@ -46,17 +45,15 @@ export function WallDeleteModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        <p className="mt-3 text-xs text-slate-600 leading-relaxed">
-          {body}
-        </p>
-
-        <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-5">
+      }
+      bodyClassName="px-6 py-4"
+      footer={
+        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-200 bg-slate-50 shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={isDeleting}
-            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -69,8 +66,12 @@ export function WallDeleteModal({
             {isDeleting ? "Deleting..." : "Delete post"}
           </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      <p className="text-xs text-slate-600 leading-relaxed">
+        {body}
+      </p>
+    </BaseModal>
   );
 }
 

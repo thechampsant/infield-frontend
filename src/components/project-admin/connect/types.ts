@@ -51,6 +51,7 @@ export interface ChatRoom {
   hasDemoPhone?: boolean;
   messageCount: number;
   lastActivity: string;
+  unreadCount?: number;
   tag?: string;
   membershipType?: "fixed" | "rule";
   membershipSummary?: string;
@@ -64,6 +65,9 @@ export interface RoomMember {
   name: string;
   role: string;
   location: string;
+  storeName?: string;
+  store?: string;
+  employeeCode?: string;
   hasDemoPhone?: boolean;
   avatarColorClass: string;
   membershipSource?: "rule" | "hand";
@@ -76,6 +80,7 @@ export interface RoomMessage {
   content: string;
   initials: string;
   isSystem?: boolean;
+  clientMessageId?: string;
 }
 
 export type ConnectTab = "wall" | "chat" | "settings";

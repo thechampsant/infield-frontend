@@ -55,13 +55,13 @@ export function MembershipRuleBuilder({
     filter.values = filter.values.includes(valueToToggle) ? filter.values.filter((item) => item !== valueToToggle) : [...filter.values, valueToToggle];
     onChange({ ...rule, filters: next.filter((item) => item.values.length) });
   }
-  function field(title: string, source: string, fieldKey: string, optionsList: Array<{ value: string; count: number }>) {
+  function field(title: string, source: string, fieldKey: string, optionsList: Array<{ value: string; count: number; label?: string; storeName?: string; name?: string; storeCode?: string }>) {
     const values = selected.get(`${source}:${fieldKey}`) || new Set<string>();
     return <section key={`${source}:${fieldKey}`} className="mb-4">
       <h4 className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">{title}</h4>
       <div className="flex flex-wrap gap-1.5">
         {optionsList.map((option) => <button key={option.value} type="button" disabled={disabled} aria-pressed={values.has(option.value)} onClick={() => toggleValue(source, fieldKey, option.value)} className={`rounded-full border px-3 py-1.5 text-[11px] transition-colors ${values.has(option.value) ? "border-blue-700 bg-blue-700 text-white" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50"}`}>
-          {option.value}<span className={`ml-1.5 ${values.has(option.value) ? "text-blue-100" : "text-slate-400"}`}>{option.count}</span>
+          {option.label || option.storeName || option.name || option.value}<span className={`ml-1.5 ${values.has(option.value) ? "text-blue-100" : "text-slate-400"}`}>{option.count}</span>
         </button>)}
       </div>
     </section>;
@@ -78,7 +78,38 @@ export function MembershipRuleBuilder({
           {(["direct", "subtree"] as const).map((scope) => <button key={scope} type="button" aria-pressed={rule.reportingScope === scope} onClick={() => onChange({ ...rule, reportingScope: scope })} className={`rounded-md px-2.5 py-1.5 ${rule.reportingScope === scope ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}>{scope === "direct" ? "Direct reports" : "Including sub-team"}</button>)}
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5">{options.managers.map((manager) => <button key={manager.userId} type="button" aria-pressed={rule.reportingManagerIds.includes(manager.userId)} onClick={() => onChange({ ...rule, reportingManagerIds: rule.reportingManagerIds.includes(manager.userId) ? rule.reportingManagerIds.filter((id) => id !== manager.userId) : [...rule.reportingManagerIds, manager.userId] })} className={`rounded-full border px-3 py-1.5 text-[11px] ${rule.reportingManagerIds.includes(manager.userId) ? "border-blue-700 bg-blue-700 text-white" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{manager.name}<span className="ml-1.5 opacity-70">{manager.count}</span>{manager.left && <span className="ml-1 text-red-600">left</span>}</button>)}</div>
+      {options.managers.length === 0 ? (
+        <p className="text-[11px] text-slate-400 italic">No reporting managers with active reportees found.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {options.managers.map((manager) => (
+            <button
+              key={manager.userId}
+              type="button"
+              aria-pressed={rule.reportingManagerIds.includes(manager.userId)}
+              onClick={() =>
+                onChange({
+                  ...rule,
+                  reportingManagerIds: rule.reportingManagerIds.includes(manager.userId)
+                    ? rule.reportingManagerIds.filter((id) => id !== manager.userId)
+                    : [...rule.reportingManagerIds, manager.userId],
+                })
+              }
+              className={`rounded-full border px-3 py-1.5 text-[11px] transition-colors ${
+                rule.reportingManagerIds.includes(manager.userId)
+                  ? "border-blue-700 bg-blue-700 text-white"
+                  : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50"
+              }`}
+            >
+              {manager.name}
+              <span className={`ml-1.5 ${rule.reportingManagerIds.includes(manager.userId) ? "text-blue-100" : "text-slate-400"}`}>
+                {manager.count}
+              </span>
+              {manager.left && <span className="ml-1 text-red-600 font-semibold">(inactive)</span>}
+            </button>
+          ))}
+        </div>
+      )}
       <p className="mt-2 text-[11px] text-slate-500">Managers match their reports. Choose “Also add their reporting managers” to include them too.</p>
     </section>
     {options.storeFields.length > 0 && <div className="border-t border-slate-200 pt-3"><p className="mb-3 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">Store fields · through each person’s mapped store</p>{options.storeFields.map((group) => field(group.label, "store", group.key, group.options))}<p className="mb-3 text-[11px] text-slate-500">People without a direct store mapping do not match store fields.</p></div>}

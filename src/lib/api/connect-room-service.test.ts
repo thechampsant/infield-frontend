@@ -201,5 +201,40 @@ describe("connectRoomService Suite", () => {
     expect(sent.id).toBe("msg-99");
     expect(sent.content).toBe("Broadcast update");
   });
+
+  it("manageMembers sends PATCH to /api/v1/connect/rooms/:roomId/members and invalidates cache", async () => {
+    const patchSpy = vi.spyOn(apiClient, "patch").mockResolvedValue({
+      roomId: "room-1",
+      memberCount: 3,
+    });
+    const getSpy = vi.spyOn(apiClient, "get").mockResolvedValue({ rooms: [] });
+
+    await connectRoomService.listRooms("proj-1");
+    expect(getSpy).toHaveBeenCalledTimes(1);
+
+    await connectRoomService.manageMembers("room-1", { removeMemberUserIds: ["u-1"] }, "proj-1");
+    expect(patchSpy).toHaveBeenCalledWith("/api/v1/connect/rooms/room-1/members", {
+      removeMemberUserIds: ["u-1"],
+    });
+
+    // Cache should be invalidated
+    await connectRoomService.listRooms("proj-1");
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaveRoom sends POST to /api/v1/connect/rooms/:roomId/leave and invalidates cache", async () => {
+    const postSpy = vi.spyOn(apiClient, "post").mockResolvedValue({ roomId: "room-1", left: true });
+    const getSpy = vi.spyOn(apiClient, "get").mockResolvedValue({ rooms: [] });
+
+    await connectRoomService.listRooms("proj-1");
+    expect(getSpy).toHaveBeenCalledTimes(1);
+
+    await connectRoomService.leaveRoom("room-1", "proj-1");
+    expect(postSpy).toHaveBeenCalledWith("/api/v1/connect/rooms/room-1/leave", {});
+
+    // Cache should be invalidated
+    await connectRoomService.listRooms("proj-1");
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
 });
 

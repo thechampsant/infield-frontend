@@ -7,9 +7,57 @@ import { WallUnseenModal } from "../modals/wall-unseen-modal";
 import { WallDeleteModal } from "../modals/wall-delete-modal";
 import type { WallPost } from "../types";
 import { WallComposerModal } from "../modals/wall-composer-modal";
+import {
+  mapWallPostsWithFallbackTotal,
+  resolveProjectUserEmployeeCode,
+} from "../wall/wall-page";
+import type { ProjectUser } from "@/types/project-admin";
 
 describe("WallTab Component Suite", () => {
-  const defaultPosts: WallPost[] = [];
+  const defaultPosts: WallPost[] = [
+    {
+      id: "post-1",
+      timestamp: "Today, 2:40 PM",
+      content: "hello all users",
+      audience: "Everyone",
+      seenCount: 1,
+      totalUsers: 36,
+      likes: 0,
+      claps: 1,
+      celebrates: 0,
+      usefuls: 0,
+    },
+    {
+      id: "post-2",
+      timestamp: "Yesterday, 6:10 PM",
+      content:
+        "Trade-in documentation update. From 5 Nov, every trade-in needs the customer ID photo and the signed device declaration before the voucher is issued. Trade-ins missing either document will be rejected at audit. The one-page checklist is in the images below.",
+      hasImages: true,
+      imageCount: 2,
+      audience: "Everyone",
+      seenCount: 28,
+      totalUsers: 36,
+      likes: 6,
+      claps: 0,
+      celebrates: 0,
+      usefuls: 12,
+    },
+    {
+      id: "post-3",
+      timestamp: "Yesterday, 11:30 AM",
+      content:
+        "The 2-minute demo flow our top stores use during peak hours. Watch it before your Saturday shift.",
+      hasVideo: true,
+      videoDuration: "2:14",
+      audience: "Everyone",
+      seenCount: 24,
+      totalUsers: 36,
+      likes: 14,
+      claps: 6,
+      celebrates: 2,
+      usefuls: 9,
+    },
+  ];
   const userCount = 36;
 
   it("renders Wall subheader with total active user count and push notice", () => {
@@ -104,12 +152,33 @@ describe("WallTab Component Suite", () => {
     expect(html).toContain("Post to 36 users");
   });
 
+  it("renders WallComposerModal in confirmation state when confirmation is toggled", () => {
+    const html = renderToStaticMarkup(
+      <WallComposerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        userCount={userCount}
+        initialConfirmation={true}
+      />,
+    );
+
+    expect(html).toContain("A push goes to 36 persons now.");
+    expect(html).toContain("It can&#x27;t be recalled or edited; a wrong post is deleted and posted again.");
+    expect(html).toContain("Back");
+    expect(html).toContain("Post now");
+  });
+
   it("renders WallUnseenModal with unseen user count, user details, and download button", () => {
     const testPost = defaultPosts[1]; // 28 seen of 36 => 8 unseen
+    const mockUnseen = [
+      { id: "u-1", name: "Priya Venkatesh", desig: "Brand Ambassador", store: "Mumbai – Bandra" },
+    ];
     const html = renderToStaticMarkup(
       <WallUnseenModal
         post={testPost}
         onClose={vi.fn()}
+        unseenUsers={mockUnseen}
       />,
     );
 
@@ -135,5 +204,83 @@ describe("WallTab Component Suite", () => {
     );
     expect(html).toContain("Cancel");
     expect(html).toContain("Delete post");
+  });
+
+  it("disables 'New post' button when isAdmin is false", () => {
+    const html = renderToStaticMarkup(
+      <WallTab
+        posts={defaultPosts}
+        userCount={userCount}
+        wallEnabled={true}
+        isAdmin={false}
+        onDeletePost={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Only project admins can publish posts to the Wall");
+    expect(html).toContain("disabled");
+  });
+
+  it("disables 'Not seen' and 'Delete post' buttons on WallPostCard when isAdmin is false", () => {
+    const post = defaultPosts[0];
+    const html = renderToStaticMarkup(
+      <WallPostCard
+        post={post}
+        onViewUnseen={vi.fn()}
+        onDelete={vi.fn()}
+        isAdmin={false}
+      />,
+    );
+
+    expect(html).toContain("Only project admins can view unseen users");
+    expect(html).toContain("Only project admins can delete posts");
+  });
+
+  it("preserves API totalUsers on posts and does not fall back to 36 when userCount is 0", () => {
+    const posts: WallPost[] = [
+      { ...defaultPosts[0], totalUsers: 50 },
+      { ...defaultPosts[1], totalUsers: 0 },
+    ];
+
+    const mappedWhenUsersFailed = mapWallPostsWithFallbackTotal(posts, 0);
+    expect(mappedWhenUsersFailed[0].totalUsers).toBe(50);
+    expect(mappedWhenUsersFailed[1].totalUsers).toBe(0);
+
+    const mappedWithFetchedCount = mapWallPostsWithFallbackTotal(posts, 14);
+    expect(mappedWithFetchedCount[0].totalUsers).toBe(50);
+    expect(mappedWithFetchedCount[1].totalUsers).toBe(14);
+  });
+
+  it("maps employeeCode from employee-code fields and avoids falling back to backendId-backed projectUser.id", () => {
+    const baseUser: ProjectUser = {
+      id: "65f1a2b3c4d5e6f7a8b9c0d1",
+      backendId: "65f1a2b3c4d5e6f7a8b9c0d1",
+      name: "Asha Rao",
+      mobile: "9999999999",
+      email: "asha@example.com",
+      designation: "Promoter",
+      role: "Promoter",
+      doj: "2026-01-01",
+      doe: "",
+      status: "active",
+      udfs: {},
+      reporteeIds: [],
+    };
+
+    expect(resolveProjectUserEmployeeCode(baseUser)).toBe("");
+
+    expect(
+      resolveProjectUserEmployeeCode({
+        ...baseUser,
+        udfs: { "employee-code": "EMP-778" },
+      }),
+    ).toBe("EMP-778");
+
+    expect(
+      resolveProjectUserEmployeeCode({
+        ...baseUser,
+        employeeCode: "EMP-901",
+      }),
+    ).toBe("EMP-901");
   });
 });

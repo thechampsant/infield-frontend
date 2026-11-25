@@ -9,6 +9,7 @@ interface WallPostCardProps {
   post: WallPost;
   onViewUnseen: (post: WallPost) => void;
   onDelete: (id: string) => void;
+  isAdmin?: boolean;
 }
 
 const REACTIONS: Array<{ key: keyof Pick<WallPost, "likes" | "claps" | "celebrates" | "usefuls">; label: string }> = [
@@ -18,7 +19,7 @@ const REACTIONS: Array<{ key: keyof Pick<WallPost, "likes" | "claps" | "celebrat
   { key: "usefuls", label: "USEFUL" },
 ];
 
-export function WallPostCard({ post, onViewUnseen, onDelete }: WallPostCardProps) {
+export function WallPostCard({ post, onViewUnseen, onDelete, isAdmin = true }: WallPostCardProps) {
   const imageCount = post.images?.length ?? post.imageCount ?? 0;
   const hasImages = (post.hasImages || imageCount > 0) && (post.mediaType !== "VIDEO");
   const videoDuration = post.video?.duration ?? post.videoDuration ?? "";
@@ -108,9 +109,12 @@ export function WallPostCard({ post, onViewUnseen, onDelete }: WallPostCardProps
           <div className="flex items-center justify-end gap-2 mt-3">
             <button
               type="button"
-              disabled={post.seenCount >= post.totalUsers}
-              onClick={() => onViewUnseen(post)}
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              disabled={!isAdmin || post.seenCount >= post.totalUsers}
+              onClick={() => {
+                if (isAdmin) onViewUnseen(post);
+              }}
+              title={!isAdmin ? "Only project admins can view unseen users" : undefined}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               <Eye className="w-3.5 h-3.5 text-slate-500" />
               <span>Not seen · {unseenCount}</span>
@@ -118,10 +122,13 @@ export function WallPostCard({ post, onViewUnseen, onDelete }: WallPostCardProps
 
             <button
               type="button"
-              onClick={() => onDelete(post.id)}
-              className="p-1 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-50 cursor-pointer"
-              title="Delete post"
+              disabled={!isAdmin}
+              onClick={() => {
+                if (isAdmin) onDelete(post.id);
+              }}
+              title={!isAdmin ? "Only project admins can delete posts" : "Delete post"}
               aria-label="Delete post"
+              className="p-1 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent"
             >
               <Trash2 className="w-4 h-4" />
             </button>

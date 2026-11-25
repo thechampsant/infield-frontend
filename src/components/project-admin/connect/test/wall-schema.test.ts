@@ -5,7 +5,7 @@ import {
   MAX_POST_IMAGES,
   MAX_VIDEO_DURATION_SECONDS,
   MAX_VIDEO_SIZE_BYTES,
-} from "./wall-schema";
+} from "../wall/wall-schema";
 
 describe("wallPostFormSchema Zod Validation", () => {
   it("passes for valid text-only post", () => {

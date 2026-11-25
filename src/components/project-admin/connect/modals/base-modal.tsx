@@ -1,0 +1,342 @@
+"use client";
+
+import React, { useEffect, useId, useRef } from "react";
+import { X } from "lucide-react";
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(", ");
+
+export function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) => {
+    if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") return false;
+    if (el.closest("[hidden]")) return false;
+    if (typeof window !== "undefined" && typeof window.getComputedStyle === "function") {
+      const style = window.getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden") return false;
+    }
+    return true;
+  });
+}
+
+export type ModalMaxWidth =
+  | "sm"
+  | "md"
+  | "lg"
+  | "xl"
+  | "2xl"
+  | "720px"
+  | (string & {});
+
+const maxWidthMap: Record<string, string> = {
+  sm: "max-w-sm",
+  md: "max-w-md",
+  lg: "max-w-lg",
+  xl: "max-w-xl",
+  "2xl": "max-w-2xl",
+  "720px": "max-w-[720px]",
+};
+
+function resolveMaxWidthClass(maxWidth: ModalMaxWidth = "xl"): string {
+  if (maxWidth in maxWidthMap) return maxWidthMap[maxWidth];
+  if (maxWidth.startsWith("max-w-")) return maxWidth;
+  return `max-w-[${maxWidth}]`;
+}
+
+export interface BaseModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+  maxWidth?: ModalMaxWidth;
+  maxHeight?: string;
+  zIndex?: string;
+  className?: string;
+  bodyClassName?: string;
+  headerClassName?: string;
+  footerClassName?: string;
+  backdropClassName?: string;
+  showCloseButton?: boolean;
+  closeOnBackdropClick?: boolean;
+  closeOnEsc?: boolean;
+  isSubmitting?: boolean;
+  formProps?: React.FormHTMLAttributes<HTMLFormElement>;
+  ariaLabelledBy?: string;
+  ariaDescribedBy?: string;
+  role?: string;
+  closeButtonAriaLabel?: string;
+  rawContent?: boolean;
+}
+
+export function BaseModal({
+  isOpen,
+  onClose,
+  title,
+  subtitle,
+  header,
+  footer,
+  children,
+  maxWidth = "xl",
+  maxHeight = "max-h-[90vh]",
+  zIndex = "z-50",
+  className = "",
+  bodyClassName = "",
+  headerClassName = "",
+  footerClassName = "",
+  backdropClassName = "",
+  showCloseButton = true,
+  closeOnBackdropClick = true,
+  closeOnEsc = true,
+  isSubmitting = false,
+  formProps,
+  ariaLabelledBy,
+  ariaDescribedBy,
+  role = "dialog",
+  closeButtonAriaLabel = "Close",
+  rawContent = false,
+}: BaseModalProps) {
+  const generatedTitleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const resolvedAriaLabelledBy = ariaLabelledBy ?? (title ? generatedTitleId : undefined);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    previousActiveElementRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    if (!panel.contains(document.activeElement) || document.activeElement === panel) {
+      const focusables = getFocusableElements(panel);
+      (focusables[0] ?? panel).focus();
+    }
+
+    return () => {
+      const prev = previousActiveElementRef.current;
+      previousActiveElementRef.current = null;
+      if (prev && document.contains(prev)) {
+        prev.focus();
+      }
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const activeEl = document.activeElement as HTMLElement | null;
+      const activeDialog = activeEl?.closest('[role="dialog"]');
+      if (activeDialog && activeDialog !== panel) return;
+
+      if (e.key === "Escape") {
+        if (closeOnEsc && !isSubmitting) {
+          e.stopPropagation();
+          onClose();
+        }
+        return;
+      }
+
+      if (e.key === "Tab") {
+        const focusables = getFocusableElements(panel);
+        if (focusables.length === 0) {
+          e.preventDefault();
+          panel.focus();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (e.shiftKey) {
+          if (activeEl === first || activeEl === panel || !panel.contains(activeEl)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (activeEl === last || !panel.contains(activeEl)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, closeOnEsc, isSubmitting, onClose]);
+
+  if (!isOpen) return null;
+
+  const widthClass = resolveMaxWidthClass(maxWidth);
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (closeOnBackdropClick && !isSubmitting && e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  const hasHeader = Boolean(header || title);
+
+  return (
+    <div
+      className={`fixed inset-0 ${zIndex} bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden ${backdropClassName}`}
+      onClick={handleBackdropClick}
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role={role}
+        aria-modal="true"
+        aria-labelledby={resolvedAriaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        className={`bg-white rounded-2xl w-full ${widthClass} shadow-2xl border border-slate-200 flex flex-col ${maxHeight} overflow-hidden overflow-x-hidden animate-in fade-in zoom-in-95 duration-150 focus:outline-hidden ${className}`}
+      >
+        {/* Modal Header */}
+        {hasHeader && (
+          header ? (
+            header
+          ) : (
+            <div
+              className={`flex items-start justify-between px-6 py-4 border-b border-slate-100 shrink-0 ${headerClassName}`}
+            >
+              <div className="min-w-0 pr-4">
+                {typeof title === "string" ? (
+                  <h3
+                    id={resolvedAriaLabelledBy}
+                    className="text-base font-bold text-slate-900"
+                  >
+                    {title}
+                  </h3>
+                ) : resolvedAriaLabelledBy && !ariaLabelledBy ? (
+                  <div id={resolvedAriaLabelledBy}>{title}</div>
+                ) : (
+                  title
+                )}
+                {subtitle && (
+                  typeof subtitle === "string" ? (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {subtitle}
+                    </p>
+                  ) : (
+                    subtitle
+                  )
+                )}
+              </div>
+              {showCloseButton && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  aria-label={closeButtonAriaLabel}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          )
+        )}
+
+        {rawContent ? (
+          children
+        ) : (
+          <>
+            {/* Modal Body & Footer */}
+            {formProps ? (
+              <form
+                {...formProps}
+                className="flex flex-col flex-1 min-h-0 overflow-hidden"
+              >
+                <div
+                  className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-4 ${bodyClassName}`}
+                >
+                  {children}
+                </div>
+                {footer && (
+                  <div className={`shrink-0 ${footerClassName}`}>
+                    {footer}
+                  </div>
+                )}
+              </form>
+            ) : (
+              <>
+                <div
+                  className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-4 ${bodyClassName}`}
+                >
+                  {children}
+                </div>
+                {footer && (
+                  <div className={`shrink-0 ${footerClassName}`}>
+                    {footer}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function BaseModalHeader({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`px-6 py-4 border-b border-slate-100 flex items-start justify-between shrink-0 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function BaseModalBody({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-4 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function BaseModalFooter({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+BaseModal.Header = BaseModalHeader;
+BaseModal.Body = BaseModalBody;
+BaseModal.Footer = BaseModalFooter;
+
+export const ConnectBaseModal = BaseModal;
