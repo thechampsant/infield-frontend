@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
     // Default dev proxy timeout is 30s — bulk Excel uploads (product/store master) need longer.
     proxyTimeout: 300_000, // 5 minutes
   },
+  async redirects() {
+    return [{ source: "/login", destination: "/login/password", permanent: false }];
+  },
   async rewrites() {
     return [
       {

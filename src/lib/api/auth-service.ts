@@ -19,6 +19,10 @@ export interface AuthService {
   logout(): Promise<void>;
   isAuthenticated(): boolean;
 
+  requestPasswordReset(identifier: string): Promise<void>;
+  verifyPasswordReset(identifier: string, otp: string): Promise<{ resetToken: string }>;
+  completePasswordReset(resetToken: string, newPassword: string): Promise<void>;
+
   // ── OTP ──
   requestOtp(identifier: string): Promise<{ message?: string }>;
   verifyOtp(identifier: string, otp: string): Promise<VerifyOtpResponse>;
@@ -68,6 +72,21 @@ export const authService: AuthService = {
 
   isAuthenticated(): boolean {
     return apiClient.getAccessToken() !== null;
+  },
+
+  async requestPasswordReset(identifier) {
+    await apiClient.post("/api/v1/auth/password-reset/request", { identifier });
+  },
+
+  async verifyPasswordReset(identifier, otp) {
+    return apiClient.post<{ resetToken: string }>("/api/v1/auth/password-reset/verify", {
+      identifier,
+      otp,
+    });
+  },
+
+  async completePasswordReset(resetToken, newPassword) {
+    await apiClient.post("/api/v1/auth/password-reset/complete", { resetToken, newPassword });
   },
 
   async requestOtp(identifier: string): Promise<{ message?: string }> {
