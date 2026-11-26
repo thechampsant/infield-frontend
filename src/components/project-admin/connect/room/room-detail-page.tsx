@@ -12,7 +12,7 @@ import {
   connectRoomService,
   getRoomInitials,
 } from "@/lib/api/connect-room-service";
-import { RoomDetail } from "./room-detail";
+import { RoomDetail, dedupeMessages } from "./room-detail";
 import { AddMemberModal } from "@/components/project-admin/connect/modals/add-member-modal";
 import { useOptionalProjectContext } from "@/lib/project-admin/project-context";
 import { projectAdminBase } from "@/lib/nav/nav";
@@ -22,12 +22,16 @@ import { useRoomMembership, type RoomDetails } from "./use-room-membership";
 import { EditMembershipRuleModal } from "@/components/project-admin/connect/modals/edit-membership-rule-modal";
 import type { MembershipRuleInput, MembershipRuleOptions } from "@/lib/api/connect-room-service";
 import { useRoomSocket } from "@/hooks/use-connect-socket";
+import { connectSocketClient } from "@/lib/api/connect-socket-client";
+import { If2Toast, type ToastState } from "@/components/accounts/if2-toast";
+import { useConnectPermission } from "@/hooks/use-connect-permission";
 
 export interface RoomDetailPageProps {
   roomId: string;
 }
 
 export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
+  const { user: authUser, isProjectAdmin, senderDisplayName } = useConnectPermission();
   const router = useRouter();
   const projectContext = useOptionalProjectContext();
   const accountCode = projectContext?.accountCode;
@@ -42,6 +46,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   const [room, setRoom] = useState<ChatRoom | null>(null);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [eligibleUsers, setEligibleUsers] = useState<ProjectUser[]>([]);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +65,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     setHeldRemovals(details.heldRemovals || []);
     setRemovalHoldReason(details.removalHoldReason || null);
     setWaitingCount(details.waitingCount || 0);
-    setMessages(refreshedMessages);
+    setMessages(dedupeMessages(refreshedMessages));
     setRoom((prev) => prev ? {
       ...prev,
       id: details.roomId,
@@ -81,18 +86,18 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   });
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !isProjectAdmin) return;
     let cancelled = false;
     connectWallService.getActiveProjectUsers(projectId).then((result) => {
       if (!cancelled) setEligibleUsers(result.data);
     }).catch((err) => console.warn("Could not fetch project users for room members", err));
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, isProjectAdmin]);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !isProjectAdmin) return;
     connectRoomService.getMembershipRuleOptions(roomId).then(setRuleOptions).catch(() => setRuleOptions(null));
-  }, [projectId, roomId]);
+  }, [projectId, roomId, isProjectAdmin]);
 
   // Fetch real room details & real messages
   useEffect(() => {
@@ -168,7 +173,15 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         setMembers(roomMembers);
         setKeptOutByHand(roomKeptOut);
         setHeldRemovals(roomHeld);
-        setMessages(roomMsgs);
+        setMessages(dedupeMessages(roomMsgs));
+
+        // Mark room read upon opening and advance watermark to latest message
+        const latestMessageId =
+          roomMsgs.length > 0
+            ? (roomMsgs[roomMsgs.length - 1].id || (roomMsgs[roomMsgs.length - 1] as any).messageId || (roomMsgs[roomMsgs.length - 1] as any)._id)
+            : undefined;
+        connectRoomService.markRead(roomId, latestMessageId).catch(() => {});
+        connectSocketClient.markRoomRead(roomId, latestMessageId);
       } catch (err) {
         if (cancelled) return;
         setError(
@@ -188,23 +201,41 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   // Real-time Socket.IO integration (Infield Connect API Integration Guide Sections 8.4, 12, 18.4)
   useRoomSocket({
     roomId,
+    onMeRemovedFromRoom: (payload) => {
+      connectRoomService.clearCache(projectId);
+      const msg =
+        payload.message ||
+        `You were removed from ${payload.room_name || payload.roomName || "this room"}`;
+      setError(msg);
+      setTimeout(() => {
+        if (roomsListHref) {
+          router.push(roomsListHref);
+        }
+      }, 1500);
+    },
     onNewMessage: (newMsg) => {
       setMessages((prev) => {
-        // Deduplicate against optimistic local message (by id, clientMessageId or match)
-        const exists = prev.some(
-          (m) =>
-            m.id === newMsg.id ||
-            (m.id.startsWith("msg-") && m.content === newMsg.content && m.senderName === newMsg.senderName),
-        );
-        if (exists) {
-          return prev.map((m) =>
-            m.id === newMsg.id ||
-            (m.id.startsWith("msg-") && m.content === newMsg.content && m.senderName === newMsg.senderName)
-              ? newMsg
-              : m,
-          );
+        // If message already exists by id, replace it
+        const existsById = prev.some((m) => m.id === newMsg.id);
+        if (existsById) {
+          return prev.map((m) => (m.id === newMsg.id ? newMsg : m));
         }
-        return [...prev, newMsg];
+
+        // Deduplicate against optimistic local message (by clientMessageId or match)
+        const optimisticIdx = prev.findIndex(
+          (m) =>
+            (newMsg.clientMessageId &&
+              (m.clientMessageId === newMsg.clientMessageId || m.id === newMsg.clientMessageId)) ||
+            (m.id.startsWith("msg-") && m.content.trim() === newMsg.content.trim()),
+        );
+
+        if (optimisticIdx !== -1) {
+          const next = [...prev];
+          next[optimisticIdx] = newMsg;
+          return dedupeMessages(next);
+        }
+
+        return dedupeMessages([...prev, newMsg]);
       });
       setRoom((prev) => (prev ? { ...prev, messageCount: prev.messageCount + 1 } : null));
     },
@@ -213,12 +244,25 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         prev.map((m) => (m.id === deletedMsgId ? { ...m, content: "Removed by admin" } : m)),
       );
     },
-    onRoomUpdated: (newName) => {
-      setRoom((prev) =>
-        prev ? { ...prev, name: newName, initials: getRoomInitials(newName) } : null,
-      );
+    onRoomUpdated: (update) => {
+      if (typeof update === "string") {
+        setRoom((prev) =>
+          prev ? { ...prev, name: update, initials: getRoomInitials(update) } : null,
+        );
+      } else if (update) {
+        setRoom((prev) =>
+          prev
+            ? {
+                ...prev,
+                ...(update.name ? { name: update.name, initials: getRoomInitials(update.name) } : {}),
+                ...(typeof update.memberCount === "number" ? { memberCount: update.memberCount } : {}),
+              }
+            : null,
+        );
+      }
     },
     onRoomDeleted: () => {
+      connectRoomService.clearCache(projectId);
       setError("This chat room was deleted.");
     },
     onReconnect: () => {
@@ -226,7 +270,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
       connectRoomService
         .getMessages(roomId, { projectId, accountId })
         .then((res) => {
-          setMessages(res.messages);
+          setMessages(dedupeMessages(res.messages));
         })
         .catch(() => {});
     },
@@ -241,7 +285,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleRenameRoom(newName: string) {
-    if (!roomId) return;
+    if (!isProjectAdmin || !roomId) return;
     try {
       await connectRoomService.renameRoom(roomId, newName, projectId, accountId);
     } catch (err) {
@@ -254,6 +298,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleDeleteRoom(id: string) {
+    if (!isProjectAdmin) return;
     try {
       await connectRoomService.deleteRoom(id, projectId, accountId);
     } catch (err) {
@@ -268,14 +313,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
     const clientMessageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const newMsg: RoomMessage = {
       id: clientMessageId,
-      senderName: "Program Team",
+      senderName: senderDisplayName,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       content,
-      initials: "PT",
+      initials: senderDisplayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
       isSystem: false,
     };
 
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => dedupeMessages([...prev, newMsg]));
     setRoom((prev) => (prev ? { ...prev, messageCount: prev.messageCount + 1 } : null));
 
     try {
@@ -287,9 +332,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         accountId,
       );
       if (serverMsg) {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === clientMessageId ? serverMsg : m)),
-        );
+        setMessages((prev) => {
+          // If serverMsg.id was already added by Socket.IO message:new event, remove optimistic clientMessageId
+          const alreadyHasServerId = prev.some((m) => m.id === serverMsg.id);
+          if (alreadyHasServerId) {
+            return prev.filter((m) => m.id !== clientMessageId);
+          }
+          return prev.map((m) => (m.id === clientMessageId ? serverMsg : m));
+        });
       }
     } catch (err) {
       console.warn("Server send message failed", err);
@@ -297,7 +347,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleDeleteMessage(msgId: string) {
-    if (!roomId) return;
+    if (!isProjectAdmin || !roomId) return;
     setMessages((prev) =>
       prev.map((m) => (m.id === msgId ? { ...m, content: "Removed by admin" } : m)),
     );
@@ -309,26 +359,60 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAddMember(users: ProjectUser[]) {
+    if (!isProjectAdmin) return;
     await roomMembership.addMembers(users.map((user) => user.backendId || user.id));
     setIsAddMemberModalOpen(false);
+    const count = users.length;
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${count} ${count === 1 ? "member" : "members"} added to ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleAddByFilter(rule: MembershipRuleInput) {
+    if (!isProjectAdmin) return;
     await connectRoomService.addMembersByFilter(roomId, rule);
     await roomMembership.refreshRoom();
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `Members added to ${roomName}`,
+      type: "success",
+    });
   }
 
   async function handleRemoveMember(memberId: string) {
+    if (!isProjectAdmin) return;
+    const isSelf =
+      memberId === authUser?.id ||
+      memberId === (authUser as any)?._id ||
+      memberId === (authUser as any)?.userId;
+    const memberName = members.find((m) => m.id === memberId)?.name || "Member";
     await roomMembership.removeMember(memberId);
+    connectRoomService.clearCache(projectId);
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${memberName} removed from ${roomName}`,
+      type: "success",
+    });
+    if (isSelf) {
+      if (roomsListHref) {
+        router.push(roomsListHref);
+      } else {
+        router.back();
+      }
+    }
   }
 
   async function handleSaveRule(rule: MembershipRuleInput) {
+    if (!isProjectAdmin) return;
     await connectRoomService.updateMembershipRule(roomId, rule);
     await roomMembership.refreshRoom();
     setMembershipRule(await connectRoomService.getMembershipRule(roomId));
   }
 
   async function handleRemoveRule() {
+    if (!isProjectAdmin) return;
     await connectRoomService.removeMembershipRule(roomId);
     setMembershipRule(null);
     setRoom((prev) => prev ? { ...prev, membershipType: "fixed" } : prev);
@@ -336,16 +420,25 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
   }
 
   async function handleAllowBack(userId: string) {
+    if (!isProjectAdmin) return;
+    const personName = keptOutByHand.find((p) => p.userId === userId)?.name || "Member";
     await connectRoomService.allowBackByHand(roomId, userId);
     await roomMembership.refreshRoom();
+    const roomName = room?.name || "this room";
+    setToast({
+      message: `${personName} allowed back · rule rooms updated: ${roomName} (+1)`,
+      type: "success",
+    });
   }
 
   async function handleResolveHeldRemovals(decision: "remove" | "keep") {
+    if (!isProjectAdmin) return;
     await connectRoomService.resolveHeldRemovals(roomId, decision);
     await roomMembership.refreshRoom();
   }
 
   async function handleSimulateExit(memberId: string) {
+    if (!isProjectAdmin) return;
     const member = members.find((candidate) => candidate.id === memberId);
     if (!member) throw new Error("Room member could not be found.");
     await roomMembership.simulateExit(memberId, member.name);
@@ -378,6 +471,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
           <ChevronLeft className="w-4 h-4" />
           <span>Back to All rooms</span>
         </button>
+        <If2Toast toast={toast} onDismiss={() => setToast(null)} position="bottom-center" className="bg-black! text-white!" />
       </div>
     );
   }
@@ -389,25 +483,33 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         onBack={handleBack}
         messages={messages}
         members={members}
+        senderDisplayName={senderDisplayName}
+        isAdmin={isProjectAdmin}
+        isProjectAdmin={isProjectAdmin}
         onSendMessage={handleSendMessage}
         onDeleteMessage={handleDeleteMessage}
-        onAddMember={() => setIsAddMemberModalOpen(true)}
+        onAddMember={() => {
+          if (isProjectAdmin) setIsAddMemberModalOpen(true);
+        }}
         onRemoveMember={handleRemoveMember}
         onSimulateExit={handleSimulateExit}
         onRenameRoom={handleRenameRoom}
         onDeleteRoom={handleDeleteRoom}
         membershipRule={membershipRule}
-        onEditRule={() => setIsEditRuleOpen(true)}
+        onEditRule={isProjectAdmin ? () => setIsEditRuleOpen(true) : undefined}
         keptOutByHand={keptOutByHand}
         onAllowBack={handleAllowBack}
         heldRemovals={heldRemovals}
         removalHoldReason={removalHoldReason}
         waitingCount={waitingCount}
         onResolveHeldRemovals={handleResolveHeldRemovals}
+        toast={toast}
+        onDismissToast={() => setToast(null)}
+        toastPosition="bottom-center"
       />
 
       <AddMemberModal
-        isOpen={isAddMemberModalOpen}
+        isOpen={isProjectAdmin && isAddMemberModalOpen}
         onClose={() => setIsAddMemberModalOpen(false)}
         onSubmit={handleAddMember}
         eligibleUsers={eligibleUsers}
@@ -420,7 +522,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
         onAddByFilter={handleAddByFilter}
       />
       <EditMembershipRuleModal
-        isOpen={isEditRuleOpen}
+        isOpen={isProjectAdmin && isEditRuleOpen}
         roomId={roomId}
         roomName={room.name}
         projectId={projectId}

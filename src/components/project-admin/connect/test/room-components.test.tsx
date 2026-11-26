@@ -8,6 +8,10 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ accountCode: "acc", projectCode: "prj", roomId: "room-123" }),
 }));
 
+vi.mock("@/lib/auth/auth-context", () => ({
+  useAuth: () => ({ user: { name: "Admin Connect", email: "admin@example.com" } }),
+}));
+
 import { CreateRoomModal } from "../modals/create-room-modal";
 import { RoomSettingsTab } from "../room/room-settings-tab";
 import { ChatRoomsTab } from "../room/chat-rooms-tab";
@@ -132,6 +136,21 @@ describe("Room Components Suite", () => {
       expect(html).toContain("Save name");
       expect(html).toContain("Delete room");
     });
+
+    it("disables input and buttons when isAdmin is false", () => {
+      const html = renderToStaticMarkup(
+        <RoomSettingsTab
+          room={MOCK_ROOM}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          isAdmin={false}
+        />,
+      );
+
+      expect(html).toContain("disabled");
+      expect(html).toContain("Only project admins can delete rooms");
+      expect(html).toContain("Only project admins can rename rooms");
+    });
   });
 
   describe("RoomDeleteModal", () => {
@@ -205,6 +224,31 @@ describe("Room Components Suite", () => {
 
       const occurrences = (html.match(/Mumbai Squad/g) || []).length;
       expect(occurrences).toBe(1);
+    });
+
+    it("renders unread badge when a room has unread messages", () => {
+      const roomWithUnread = { ...MOCK_ROOM, unreadCount: 2 };
+      const html = renderToStaticMarkup(
+        <ChatRoomsTab
+          rooms={[roomWithUnread]}
+          roomsEnabled={true}
+        />,
+      );
+
+      expect(html).toContain("2 new");
+    });
+
+    it("disables '+ Create room' button when isAdmin is false", () => {
+      const html = renderToStaticMarkup(
+        <ChatRoomsTab
+          rooms={[MOCK_ROOM]}
+          roomsEnabled={true}
+          isAdmin={false}
+        />,
+      );
+
+      expect(html).toContain("Only project admins can create chat rooms");
+      expect(html).toContain("disabled");
     });
   });
 
@@ -292,6 +336,117 @@ describe("Room Components Suite", () => {
       expect(html).not.toContain("Add members");
       expect(html).toContain("Membership rule");
       expect(html).toContain("Promoter");
+    });
+
+    it("deduplicates messages sharing the same id without key collision warnings", () => {
+      const duplicateMsg: RoomMessage = {
+        id: "6b0407ebf792f213c4514f77",
+        senderName: "Program Team",
+        timestamp: "10:30 AM",
+        content: "Testing deduplication",
+        initials: "PT",
+      };
+
+      const html = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={[duplicateMsg, { ...duplicateMsg }]}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          initialSubTab="messages"
+        />,
+      );
+
+      const occurrences = (html.match(/Testing deduplication/g) || []).length;
+      expect(occurrences).toBe(1);
+    });
+
+    it("renders toast notification when member added, removed, or allowed back", () => {
+      const htmlAdded = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          toast={{ message: `1 member added to ${MOCK_ROOM.name}`, type: "success" }}
+        />,
+      );
+      expect(htmlAdded).toContain("if2-toast success center");
+      expect(htmlAdded).toContain(`1 member added to ${MOCK_ROOM.name}`);
+
+      const htmlRemoved = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          toast={{ message: `Ritika Shah removed from ${MOCK_ROOM.name}`, type: "success" }}
+        />,
+      );
+      expect(htmlRemoved).toContain("if2-toast success center");
+      expect(htmlRemoved).toContain(`Ritika Shah removed from ${MOCK_ROOM.name}`);
+
+      const htmlAllowedBack = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          toast={{ message: `Imran Shaikh allowed back · rule rooms updated: ${MOCK_ROOM.name} (+1)`, type: "success" }}
+        />,
+      );
+      expect(htmlAllowedBack).toContain("if2-toast success center");
+      expect(htmlAllowedBack).toContain(`Imran Shaikh allowed back · rule rooms updated: ${MOCK_ROOM.name} (+1)`);
+    });
+
+    it("disables member management and room settings for non-admins", () => {
+      const html = renderToStaticMarkup(
+        <RoomDetail
+          room={MOCK_ROOM}
+          onBack={vi.fn()}
+          messages={MOCK_MESSAGES}
+          members={MOCK_MEMBERS}
+          onSendMessage={vi.fn()}
+          onDeleteMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onRenameRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+          onEditRule={vi.fn()}
+          isAdmin={false}
+          initialSubTab="members"
+        />,
+      );
+
+      expect(html).toContain("Only project admins can add members");
+      expect(html).toContain("Only project admins can configure membership rules");
+      expect(html).toContain("Only project admins can remove members");
+      expect(html).toContain("Only project admins can simulate user exit");
+      expect(html).toContain("Only project admins can access room settings");
     });
   });
 

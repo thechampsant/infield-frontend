@@ -42,6 +42,24 @@ describe("connectWallService Suite", () => {
     expect(normalized.authorDisplayName).toBe("Program Team");
   });
 
+  it("normalizeWallPost preserves API totalUsers / totalEligibleUsers when present", () => {
+    const withTotalUsers = normalizeWallPost({
+      postId: "post-api-total",
+      text: "Hello",
+      mediaType: "NONE",
+      totalUsers: 42,
+    });
+    expect(withTotalUsers.totalUsers).toBe(42);
+
+    const withTotalEligible = normalizeWallPost({
+      postId: "post-api-eligible",
+      text: "Hello",
+      mediaType: "NONE",
+      totalEligibleUsers: 19,
+    });
+    expect(withTotalEligible.totalUsers).toBe(19);
+  });
+
   it("formatWallDate handles undefined or invalid timestamps gracefully", () => {
     expect(formatWallDate(undefined)).toBe("Just now");
     expect(formatWallDate("invalid-date")).toBe("Just now");
@@ -136,6 +154,16 @@ describe("connectWallService Suite", () => {
     expect(getSpy).toHaveBeenCalledWith("/api/v1/connect/wall/posts/p-reach/reach");
     expect(reach.reachPercentage).toBe(75);
     expect(reach.totalEligibleUsers).toBe(20);
+  });
+
+  it("recordSeen sends POST request to /api/v1/connect/wall/posts/:postId/seen", async () => {
+    const postSpy = vi.spyOn(apiClient, "post").mockResolvedValue({ postId: "p-seen", hasSeen: true, seenCount: 1 });
+
+    const result = await connectWallService.recordSeen("p-seen", "proj-1");
+
+    expect(postSpy).toHaveBeenCalledWith("/api/v1/connect/wall/posts/p-seen/seen?projectId=proj-1", {});
+    expect(result.hasSeen).toBe(true);
+    expect(result.seenCount).toBe(1);
   });
 
   it("exportUnseen calls getBlob for unseen export endpoint", async () => {

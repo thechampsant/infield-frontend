@@ -5,6 +5,7 @@ import { X, Download } from "lucide-react";
 import type { WallPost } from "../types";
 import { exportUnseenUsersToCsv, type UnseenUserRow } from "../utils";
 import { initials, getInitialsColor } from "../utils";
+import { BaseModal } from "./base-modal";
 
 export interface WallUnseenModalProps {
   post: WallPost | null;
@@ -33,14 +34,19 @@ export function WallUnseenModal({
 }: WallUnseenModalProps) {
   if (!post) return null;
 
-  const totalUsers = post.totalUsers ?? 36;
+  const totalUsers = post.totalUsers ?? 0;
   const unseenCount = Math.max(0, totalUsers - post.seenCount);
+  // Use dynamic project users list when available, filtering out users who have already seen the post
+  const rawList = React.useMemo(() => {
+    if (!unseenUsers || unseenUsers.length === 0) return [];
+    if (post.seenUserIds && post.seenUserIds.length > 0) {
+      const seenSet = new Set(post.seenUserIds.map((id) => String(id)));
+      const filtered = unseenUsers.filter((u) => !seenSet.has(String(u.backendId || u.id)));
+      return filtered.slice(0, unseenCount);
+    }
+    return unseenUsers.slice(0, unseenCount);
+  }, [unseenUsers, post.seenUserIds, unseenCount]);
 
-  // Use dynamic project users list when available, falling back to prototype seed list
-  const rawList =
-    unseenUsers && unseenUsers.length > 0
-      ? unseenUsers.slice(0, unseenCount)
-      : [];
 
   function handleDownload() {
     if (!post) return;
@@ -58,15 +64,13 @@ export function WallUnseenModal({
       : post.content || (post.video?.title ? post.video.title : "Media post");
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="unseen-modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
-    >
-      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Header */}
-        <div className="p-6 pb-4 flex items-start justify-between">
+    <BaseModal
+      isOpen={Boolean(post)}
+      onClose={onClose}
+      maxWidth="xl"
+      ariaLabelledBy="unseen-modal-title"
+      header={
+        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between shrink-0">
           <div className="min-w-0 pr-4">
             <h3
               id="unseen-modal-title"
@@ -90,49 +94,10 @@ export function WallUnseenModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Body: Pick list container with rounded border and scroll */}
-        <div className="px-6 pb-5">
-          <div className="border border-slate-200/90 rounded-2xl overflow-hidden bg-white max-h-[300px] overflow-y-auto">
-            {rawList.length > 0 ? (
-              <div className="divide-y divide-slate-100">
-                {rawList.map((user) => (
-                  <div
-                    key={user.id}
-                    className="py-3 px-4 flex items-center gap-3.5 hover:bg-slate-50/70 transition-colors"
-                  >
-                    {/* Circle avatar with bold white initials */}
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs ${getInitialsColor(user.id || user.name)}`}
-                      aria-hidden="true"
-                    >
-                      {initials(user.name)}
-                    </div>
-
-                    {/* Name & Subtitle */}
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold text-slate-900 truncate">
-                        {user.name}
-                      </div>
-                      <div className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                        {[user.desig || user.role, user.store || user.location]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-10 text-center text-xs text-slate-500">
-                Everyone active in the project has seen this post.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="bg-slate-50/70 border-t border-slate-100 px-6 py-4 flex items-center justify-between">
+      }
+      bodyClassName="px-6 py-4"
+      footer={
+        <div className="bg-slate-50 border-t border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0">
           <span className="text-xs text-slate-500 font-normal">
             Seen = half the post on screen for one second
           </span>
@@ -156,8 +121,45 @@ export function WallUnseenModal({
             </button>
           </div>
         </div>
+      }
+    >
+      <div className="border border-slate-200/90 rounded-2xl overflow-hidden bg-white">
+        {rawList.length > 0 ? (
+          <div className="divide-y divide-slate-100">
+            {rawList.map((user, idx) => (
+              <div
+                key={user.backendId || `${user.id}-${idx}`}
+                className="py-3 px-4 flex items-center gap-3.5 hover:bg-slate-50/70 transition-colors"
+              >
+                {/* Circle avatar with bold white initials */}
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs ${getInitialsColor(user.backendId || user.id || user.name)}`}
+                  aria-hidden="true"
+                >
+                  {initials(user.name)}
+                </div>
+
+                {/* Name & Subtitle */}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-bold text-slate-900 truncate">
+                    {user.name}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                    {[user.desig || user.role, user.store || user.location]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-10 text-center text-xs text-slate-500">
+            Everyone active in the project has seen this post.
+          </div>
+        )}
       </div>
-    </div>
+    </BaseModal>
   );
 }
 export default WallUnseenModal;

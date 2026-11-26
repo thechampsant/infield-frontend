@@ -16,6 +16,28 @@ import type { ChatRoom, RoomMember, RoomMessage, RoomSubTab } from "@/components
 import { RoomSettingsTab } from "./room-settings-tab";
 import { plural } from "../utils";
 import type { MembershipRuleInput } from "@/lib/api/connect-room-service";
+import { If2Toast, type ToastState, type ToastPosition } from "@/components/accounts/if2-toast";
+import { BaseModal } from "../modals/base-modal";
+
+export function dedupeMessages(messages: RoomMessage[]): RoomMessage[] {
+  const seenIds = new Set<string>();
+  const result: RoomMessage[] = [];
+
+  for (const msg of messages) {
+    const id = msg.id;
+    if (!id) {
+      result.push(msg);
+      continue;
+    }
+    if (seenIds.has(id)) {
+      continue;
+    }
+    seenIds.add(id);
+    result.push(msg);
+  }
+
+  return result;
+}
 
 export interface RoomDetailProps {
   room: ChatRoom;
@@ -38,6 +60,12 @@ export interface RoomDetailProps {
   waitingCount?: number;
   onResolveHeldRemovals?: (decision: "remove" | "keep") => void | Promise<void>;
   initialSubTab?: RoomSubTab;
+  senderDisplayName?: string;
+  toast?: ToastState | null;
+  onDismissToast?: () => void;
+  toastPosition?: ToastPosition;
+  isAdmin?: boolean;
+  isProjectAdmin?: boolean;
 }
 
 export function RoomDetail({
@@ -61,13 +89,37 @@ export function RoomDetail({
   waitingCount = 0,
   onResolveHeldRemovals,
   initialSubTab = "messages",
+  senderDisplayName = "Program Team",
+  toast: externalToast,
+  onDismissToast,
+  toastPosition = "center",
+  isAdmin: propIsAdmin,
+  isProjectAdmin: propIsProjectAdmin,
 }: RoomDetailProps) {
+  const isAdmin = propIsAdmin ?? propIsProjectAdmin ?? true;
   const [roomSubTab, setRoomSubTab] = useState<RoomSubTab>(initialSubTab);
   const [inputMessage, setInputMessage] = useState("");
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
   const [memberToExit, setMemberToExit] = useState<RoomMember | null>(null);
+  const [internalToast, setInternalToast] = useState<ToastState | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+
+  const activeToast = externalToast || internalToast;
+  const handleDismissToast = () => {
+    setInternalToast(null);
+    onDismissToast?.();
+  };
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setInternalToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (!isAdmin && roomSubTab === "room-settings") {
+      setRoomSubTab("messages");
+    }
+  }, [isAdmin, roomSubTab]);
 
   useEffect(() => {
     if (roomSubTab === "messages" && messagesScrollRef.current) {
@@ -151,9 +203,14 @@ export function RoomDetail({
             type="button"
             role="tab"
             aria-selected={roomSubTab === "room-settings"}
-            onClick={() => setRoomSubTab("room-settings")}
-            className={`connect-subtab-item ${roomSubTab === "room-settings" ? "connect-subtab-item--active" : ""
-              }`}
+            disabled={!isAdmin}
+            title={!isAdmin ? "Only project admins can access room settings" : undefined}
+            onClick={() => {
+              if (isAdmin) setRoomSubTab("room-settings");
+            }}
+            className={`connect-subtab-item ${
+              roomSubTab === "room-settings" ? "connect-subtab-item--active" : ""
+            } ${!isAdmin ? "opacity-40 cursor-not-allowed hover:text-slate-400 hover:border-transparent" : ""}`}
           >
             Room settings
           </button>
@@ -164,48 +221,51 @@ export function RoomDetail({
       {roomSubTab === "messages" && (
         <div className="flex h-[480px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
           <div ref={messagesScrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            {messages.map((msg) => msg.isSystem ? (
-              <div key={msg.id} className="flex justify-center py-0.5">
-                <span className="max-w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-center text-[11px] text-slate-500">
-                  {msg.content} · {msg.timestamp}
-                </span>
-              </div>
-            ) : (
-              <div key={msg.id} className="group flex items-start justify-between gap-3 rounded-lg px-1 py-1 hover:bg-slate-50/60">
-                <div className="flex min-w-0 items-start gap-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white">
-                    {msg.initials}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-x-1.5">
-                      <span className="text-xs font-bold text-slate-900">{msg.senderName}</span>
-                      <span className="text-[11px] text-slate-500">{msg.timestamp}</span>
-                    </div>
-                    <p className={`mt-0.5 break-words text-[13px] ${msg.content === "Removed by admin" ? "italic text-slate-400" : "text-slate-700"}`}>
-                      {msg.content}
-                    </p>
-                  </div>
+            {dedupeMessages(messages).map((msg, index) => {
+              const msgKey = msg.id || `msg-${index}`;
+              return msg.isSystem ? (
+                <div key={msgKey} className="flex justify-center py-0.5">
+                  <span className="max-w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-center text-[11px] text-slate-500">
+                    {msg.content} · {msg.timestamp}
+                  </span>
                 </div>
-                {msg.content !== "Removed by admin" && (
-                  <button
-                    type="button"
-                    onClick={() => onDeleteMessage(msg.id)}
-                    className="shrink-0 p-1 text-slate-500 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
-                    title="Delete message for everyone"
-                    aria-label="Delete message for everyone"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
+              ) : (
+                <div key={msgKey} className="group flex items-start justify-between gap-3 rounded-lg px-1 py-1 hover:bg-slate-50/60">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white">
+                      {msg.initials}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-baseline gap-x-1.5">
+                        <span className="text-xs font-bold text-slate-900">{msg.senderName}</span>
+                        <span className="text-[11px] text-slate-500">{msg.timestamp}</span>
+                      </div>
+                      <p className={`mt-0.5 break-words text-[13px] ${msg.content === "Removed by admin" ? "italic text-slate-400" : "text-slate-700"}`}>
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                  {isAdmin && msg.content !== "Removed by admin" && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteMessage(msg.id)}
+                      className="shrink-0 p-1 text-slate-500 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                      title="Delete message for everyone"
+                      aria-label="Delete message for everyone"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <form onSubmit={handleSend} className="flex items-center gap-2 border-t border-slate-200 bg-slate-50/70 px-3 py-2.5">
             <input
               type="text"
               maxLength={2000}
-              placeholder={`Message ${room.name} as Program Team`}
+              placeholder={`Message ${room.name} as ${senderDisplayName}`}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               className="h-10 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs transition-colors placeholder:text-slate-500 focus:border-blue-600 focus:outline-none"
@@ -232,10 +292,14 @@ export function RoomDetail({
                 <button
                   type="button"
                   onClick={onEditRule}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer bg-white border border-slate-200 hover:border-slate-300 ${
-                    room.membershipType === "rule"
-                      ? "text-slate-700 hover:text-slate-900 hover:bg-slate-50"
-                      : "text-blue-700 hover:text-blue-800 hover:bg-blue-50/50"
+                  disabled={!isAdmin}
+                  title={!isAdmin ? "Only project admins can configure membership rules" : undefined}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    !isAdmin
+                      ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60"
+                      : room.membershipType === "rule"
+                      ? "bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 cursor-pointer"
+                      : "bg-white border border-slate-200 text-blue-700 hover:text-blue-800 hover:bg-blue-50/50 cursor-pointer"
                   }`}
                 >
                   {room.membershipType === "rule" ? (
@@ -254,7 +318,9 @@ export function RoomDetail({
               <button
                 type="button"
                 onClick={onAddMember}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                disabled={!isAdmin}
+                title={!isAdmin ? "Only project admins can add members" : undefined}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{room.membershipType === "rule" ? "Add by hand" : "Add members"}</span>
@@ -319,14 +385,18 @@ export function RoomDetail({
                     <button
                       type="button"
                       onClick={() => onResolveHeldRemovals?.("remove")}
-                      className="rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700 transition-colors cursor-pointer"
+                      disabled={!isAdmin}
+                      title={!isAdmin ? "Only project admins can resolve held removals" : undefined}
+                      className="rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Remove them
                     </button>
                     <button
                       type="button"
                       onClick={() => onResolveHeldRemovals?.("keep")}
-                      className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                      disabled={!isAdmin}
+                      title={!isAdmin ? "Only project admins can resolve held removals" : undefined}
+                      className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Keep them
                     </button>
@@ -362,7 +432,7 @@ export function RoomDetail({
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${member.membershipSource === "rule" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{member.membershipSource === "rule" ? "By rule" : "Added by hand"}</span>
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      {member.role} · {member.location}
+                      {member.role}{member.location ? ` · ${member.location}` : ""}
                     </div>
                   </div>
                 </div>
@@ -370,8 +440,21 @@ export function RoomDetail({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => runMemberAction(member.id, () => onRemoveMember(member.id))}
-                    disabled={busyMemberId !== null || room.memberCount <= 2}
+                    onClick={async () => {
+                      if (!isAdmin) return;
+                      const success = await runMemberAction(member.id, () => onRemoveMember(member.id));
+                      if (success) {
+                        showToast(`${member.name} removed from ${room.name}`, "success");
+                      }
+                    }}
+                    disabled={!isAdmin || busyMemberId !== null || room.memberCount <= 2}
+                    title={
+                      !isAdmin
+                        ? "Only project admins can remove members"
+                        : room.memberCount <= 2
+                        ? "Rooms must have at least 2 members"
+                        : undefined
+                    }
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {busyMemberId === member.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -381,12 +464,17 @@ export function RoomDetail({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!isAdmin) return;
                       setMemberActionError(null);
                       setMemberToExit(member);
                     }}
-                    disabled={busyMemberId !== null}
+                    disabled={!isAdmin || busyMemberId !== null}
+                    title={
+                      !isAdmin
+                        ? "Only project admins can simulate user exit"
+                        : "Simulates deactivation in the Users master"
+                    }
                     className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50/40 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Simulates deactivation in the Users master"
                   >
                     <UserMinus className="w-3.5 h-3.5" />
                     <span>Simulate exit</span>
@@ -422,9 +510,16 @@ export function RoomDetail({
                       </div>
                       <button
                         type="button"
-                        onClick={() => runMemberAction(person.userId, () => onAllowBack?.(person.userId))}
-                        disabled={busyMemberId !== null}
-                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        onClick={async () => {
+                          if (!isAdmin) return;
+                          const success = await runMemberAction(person.userId, () => onAllowBack?.(person.userId));
+                          if (success) {
+                            showToast(`${person.name} allowed back · rule rooms updated: ${room.name} (+1)`, "success");
+                          }
+                        }}
+                        disabled={!isAdmin || busyMemberId !== null}
+                        title={!isAdmin ? "Only project admins can allow members back" : undefined}
+                        className="shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {busyMemberId === person.userId && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}
                         Allow back
@@ -439,17 +534,15 @@ export function RoomDetail({
       )}
 
       {memberToExit && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="simulate-exit-title"
-          className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
-          onClick={(event) => {
-            if (busyMemberId === null && event.target === event.currentTarget) setMemberToExit(null);
-          }}
-        >
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="px-6 pt-5 pb-4 flex items-start justify-between">
+        <BaseModal
+          isOpen={Boolean(memberToExit)}
+          onClose={() => setMemberToExit(null)}
+          maxWidth="xl"
+          zIndex="z-[60]"
+          ariaLabelledBy="simulate-exit-title"
+          isSubmitting={busyMemberId !== null}
+          header={
+            <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between shrink-0">
               <h3 id="simulate-exit-title" className="text-base font-bold text-slate-900">
                 Deactivate {memberToExit.name}?
               </h3>
@@ -458,23 +551,20 @@ export function RoomDetail({
                 onClick={() => setMemberToExit(null)}
                 disabled={busyMemberId !== null}
                 aria-label="Close deactivation dialog"
-                className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer transition-colors disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="px-6 pb-5 text-sm leading-5 text-slate-600">
-              This simulates an exit in the Users master. {memberToExit.name} loses app access and is removed from their active rooms; past messages show as &quot;Former member&quot;.
-            </p>
-            {memberActionError && (
-              <p role="alert" className="px-6 pb-4 text-xs font-medium text-red-600">{memberActionError}</p>
-            )}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+          }
+          bodyClassName="px-6 py-4 space-y-3"
+          footer={
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setMemberToExit(null)}
                 disabled={busyMemberId !== null}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -488,24 +578,35 @@ export function RoomDetail({
                   );
                   if (didExit) setMemberToExit(null);
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 cursor-pointer"
               >
                 {busyMemberId === memberToExit.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Deactivate user
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p className="text-sm leading-5 text-slate-600">
+            This simulates an exit in the Users master. {memberToExit.name} loses app access and is removed from their active rooms; past messages show as &quot;Former member&quot;.
+          </p>
+          {memberActionError && (
+            <p role="alert" className="text-xs font-medium text-red-600">{memberActionError}</p>
+          )}
+        </BaseModal>
       )}
 
       {/* Sub-tab 3: Room Settings */}
-      {roomSubTab === "room-settings" && (
+      {roomSubTab === "room-settings" && isAdmin && (
         <RoomSettingsTab
           room={room}
           onRenameRoom={onRenameRoom}
           onDeleteRoom={onDeleteRoom}
+          isAdmin={isAdmin}
         />
       )}
+
+      {/* Toast notification for room member actions */}
+      <If2Toast toast={activeToast} onDismiss={handleDismissToast} position={toastPosition} className="bg-black! text-white!" />
     </div>
   );
 }

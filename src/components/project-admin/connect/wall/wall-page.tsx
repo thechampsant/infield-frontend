@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useProjectContext } from "@/lib/project-admin/project-context";
-import { useAuth } from "@/lib/auth/auth-context";
+import { useConnectPermission } from "@/hooks/use-connect-permission";
 import { useConnectSettings } from "@/hooks/use-connect-settings";
 import { connectWallService } from "@/lib/api/connect-wall-service";
 import type { ProjectUser } from "@/types/project-admin";
@@ -10,23 +10,67 @@ import type { WallImageMetadata, WallPost, WallVideoMetadata } from "../types";
 import { WallTab } from "./wall-tab";
 import { ConnectStatusBanner } from "../connect-status-banner";
 import { projectAdminBase } from "@/lib/nav/nav";
-import type { UnseenUserRow } from "../utils";
+import { exportUnseenUsersToCsv, type UnseenUserRow } from "../utils";
 import { WallPostFormValues } from "./wall-schema";
+import { storeService, type StoreRecord } from "@/lib/api/store-service";
+
+export function resolveProjectUserEmployeeCode(projectUser: ProjectUser): string {
+  const udfs = projectUser.udfs;
+  const udfCode =
+    (typeof udfs?.["employee-code"] === "string" ? udfs["employee-code"].trim() : "") ||
+    (typeof udfs?.employeeCode === "string" ? udfs.employeeCode.trim() : "") ||
+    (typeof udfs?.employeeId === "string" ? udfs.employeeId.trim() : "");
+
+  return udfCode
+}
+
+export function mapWallPostsWithFallbackTotal(posts: WallPost[], fallbackUserCount: number): WallPost[] {
+  return posts.map((post) => ({
+    ...post,
+    totalUsers: post.totalUsers > 0 ? post.totalUsers : fallbackUserCount,
+  }));
+}
 
 export function ConnectWallPage() {
   const { projectName, projectId, accountCode, projectCode } = useProjectContext();
-  const { user } = useAuth();
-  const currentUserName = user
-    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Project Admin"
-    : "Project Admin";
+  const { isAdmin, currentUserName } = useConnectPermission();
   const projectTitle = projectName || "Sample Retail Program";
   const settingsHref = `${projectAdminBase(accountCode, projectCode)}/connect/setting`;
   const { settings } = useConnectSettings(projectId, currentUserName);
 
-  const [userCount, setUserCount] = useState(() => projectId ? 0 : 36);
+  const [userCount, setUserCount] = useState(0);
   const [projectUsers, setProjectUsers] = useState<ProjectUser[]>([]);
+  const [stores, setStores] = useState<StoreRecord[]>([]);
   const [posts, setPosts] = useState<WallPost[]>([]);
   const [isLoading, setIsLoading] = useState(Boolean(projectId));
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    storeService.listAllByProject(projectId).then((data) => {
+      if (!cancelled) setStores(data || []);
+    }).catch(() => {
+      if (!cancelled) setStores([]);
+    });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const storeMap = useMemo(
+    () => new Map(stores.map((s) => [s.backendId, s.storeName || s.storeCode])),
+    [stores],
+  );
+
+  const managerByReporteeId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of projectUsers) {
+      if (Array.isArray(u.reporteeIds)) {
+        for (const reporteeId of u.reporteeIds) {
+          map.set(String(reporteeId), u.name);
+        }
+      }
+    }
+    return map;
+  }, [projectUsers]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -37,7 +81,10 @@ export function ConnectWallPage() {
       setProjectUsers(result.data);
     }).catch((error) => {
       console.warn("Could not fetch project users for the Wall", error);
-      if (!cancelled) setUserCount(36);
+      if (!cancelled) {
+        setUserCount(0);
+        setProjectUsers([]);
+      }
     });
     return () => { cancelled = true; };
   }, [projectId]);
@@ -60,25 +107,44 @@ export function ConnectWallPage() {
     return () => { cancelled = true; };
   }, [projectId]);
 
-  const effectiveUserCount = userCount > 0 ? userCount : 36;
-  const displayedPosts = useMemo(() => posts.map((post) => ({
-    ...post,
-    totalUsers: post.totalUsers > 0 ? post.totalUsers : effectiveUserCount,
-  })), [posts, effectiveUserCount]);
+  const displayedPosts = useMemo(
+    () => mapWallPostsWithFallbackTotal(posts, userCount),
+    [posts, userCount],
+  );
 
-  const unseenUsers: UnseenUserRow[] = useMemo(() => projectUsers.map((projectUser) => ({
-    id: projectUser.id,
-    name: projectUser.name || "User",
-    desig: projectUser.designation || projectUser.role || "Promoter",
-    role: projectUser.role || projectUser.designation || "Promoter",
-    store: typeof projectUser.udfs?.store === "string" ? projectUser.udfs.store : "Default Store",
-    location: typeof projectUser.udfs?.location === "string" ? projectUser.udfs.location : "",
-    email: projectUser.email,
-    phone: projectUser.mobile,
-    hasDemoPhone: false,
-  })), [projectUsers]);
+  const unseenUsers: UnseenUserRow[] = useMemo(() => projectUsers.map((projectUser) => {
+    const rawStoreIds = Array.isArray(projectUser.udfs?.storeIds)
+      ? (projectUser.udfs.storeIds as string[])
+      : [];
+    const resolvedStore = rawStoreIds.map((id) => storeMap.get(id)).filter(Boolean).join(", ")
+      || (typeof projectUser.udfs?.storeName === "string" ? projectUser.udfs.storeName : "")
+      || (typeof projectUser.udfs?.store === "string" && projectUser.udfs.store !== "Default Store" ? projectUser.udfs.store : "");
+
+    const resolvedManager = managerByReporteeId.get(projectUser.backendId)
+      || managerByReporteeId.get(projectUser.id)
+      || (typeof projectUser.udfs?.reportingManager === "string" ? projectUser.udfs.reportingManager : "")
+      || (typeof projectUser.udfs?.manager === "string" ? projectUser.udfs.manager : "");
+
+    const employeeCode = resolveProjectUserEmployeeCode(projectUser);
+
+    return {
+      id: projectUser.id,
+      backendId: projectUser.backendId,
+      ...(employeeCode ? { employeeCode } : {}),
+      name: projectUser.name || "User",
+      desig: projectUser.designation || projectUser.role || "Promoter",
+      role: projectUser.role || projectUser.designation || "Promoter",
+      store: resolvedStore,
+      reportingManager: resolvedManager,
+      location: typeof projectUser.udfs?.location === "string" ? projectUser.udfs.location : resolvedStore,
+      email: projectUser.email,
+      phone: projectUser.mobile,
+      hasDemoPhone: false,
+    };
+  }), [projectUsers, storeMap, managerByReporteeId]);
 
   async function handleDeletePost(postId: string) {
+    if (!isAdmin) return;
     try {
       await connectWallService.deletePost(postId, projectId);
     } catch (error) {
@@ -89,6 +155,7 @@ export function ConnectWallPage() {
   }
 
   async function handleCreatePost(payload: string | WallPostFormValues) {
+    if (!isAdmin) return;
     let text = "";
     let mediaType: "NONE" | "IMAGES" | "VIDEO" = "NONE";
     let images: WallImageMetadata[] | undefined;
@@ -141,19 +208,60 @@ export function ConnectWallPage() {
         authorDisplayName: "Program Team",
         projectId,
       });
-      setPosts((current) => [{ ...created, totalUsers: effectiveUserCount }, ...current]);
+      setPosts((current) => [
+        { ...created, totalUsers: created.totalUsers > 0 ? created.totalUsers : userCount },
+        ...current,
+      ]);
     } catch (error) {
       console.warn("Backend Wall post creation failed", error);
       throw error;
     }
   }
 
+  async function handleViewUnseen(post: WallPost) {
+    if (!isAdmin || !post.id) return;
+    try {
+      const reach = await connectWallService.getReach(post.id, projectId);
+      if (reach) {
+        setPosts((current) =>
+          current.map((p) =>
+            p.id === post.id
+              ? {
+                ...p,
+                seenCount: reach.seenCount,
+                totalUsers: reach.totalEligibleUsers > 0
+                  ? reach.totalEligibleUsers
+                  : (p.totalUsers > 0 ? p.totalUsers : userCount),
+                likes: reach.reactions?.like ?? p.likes,
+                claps: reach.reactions?.clap ?? p.claps,
+                celebrates: reach.reactions?.celebrate ?? p.celebrates,
+                usefuls: reach.reactions?.useful ?? p.usefuls,
+              }
+              : p,
+          ),
+        );
+      }
+    } catch (err) {
+      console.warn("Could not fetch fresh post reach", err);
+    }
+  }
+
+  async function handleDownloadUnseen(post: WallPost, users: UnseenUserRow[]) {
+    if (!isAdmin) return;
+    try {
+      await connectWallService.downloadUnseenXlsx(post.id, projectId);
+    } catch (err) {
+      console.warn("Failed to download unseen xlsx from server, falling back to CSV export", err);
+      exportUnseenUsersToCsv(post, users);
+    }
+  }
+
   return (
     <div className="w-full pb-12 font-sans text-slate-800">
-      <ConnectStatusBanner surface="wall" settings={settings} settingsHref={settingsHref} />
+      {isAdmin && <ConnectStatusBanner surface="wall" settings={settings} settingsHref={settingsHref} />}
       <WallTab
         posts={displayedPosts}
-        userCount={effectiveUserCount}
+        userCount={userCount}
         wallEnabled={settings.wall}
         projectName={projectTitle}
         isLoading={isLoading}
@@ -161,6 +269,9 @@ export function ConnectWallPage() {
         unseenUsers={unseenUsers}
         onCreatePost={handleCreatePost}
         onDeletePost={handleDeletePost}
+        onViewUnseen={handleViewUnseen}
+        onDownloadUnseen={handleDownloadUnseen}
+        isAdmin={isAdmin}
       />
     </div>
   );

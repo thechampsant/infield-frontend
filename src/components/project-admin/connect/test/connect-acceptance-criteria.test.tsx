@@ -1,8 +1,9 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { SettingsTab } from "./settings/settings-tab";
+import { SettingsTab } from "../settings/settings-tab";
 import { connectConfigService } from "@/lib/api/connect-config-service";
+import { featureConfigService } from "@/lib/api/feature-config-service";
 import { PROJECT_MODULE_CATALOG } from "@/lib/project-admin/module-catalog";
 
 describe("Connect Acceptance Criteria Suite", () => {
@@ -240,5 +241,58 @@ describe("Connect Acceptance Criteria Suite", () => {
 
     const alphaAudit = connectConfigService.getAuditHistory("project-alpha");
     expect(alphaAudit.length).toBe(2);
+  });
+
+  it("shows API error message in a toast when settingsError is present", () => {
+    const htmlWithError = renderToStaticMarkup(
+      <SettingsTab
+        projectName="Demo Program"
+        connectEnabled={true}
+        wallEnabled={true}
+        chatRoomsEnabled={true}
+        onToggleConnect={vi.fn()}
+        onToggleWall={vi.fn()}
+        onToggleChatRooms={vi.fn()}
+        settingsError="Failed to update switch: 500 Internal Server Error"
+      />,
+    );
+
+    expect(htmlWithError).toContain("if2-toast error");
+    expect(htmlWithError).toContain("Failed to update switch: 500 Internal Server Error");
+
+    const htmlWithoutError = renderToStaticMarkup(
+      <SettingsTab
+        projectName="Demo Program"
+        connectEnabled={true}
+        wallEnabled={true}
+        chatRoomsEnabled={true}
+        onToggleConnect={vi.fn()}
+        onToggleWall={vi.fn()}
+        onToggleChatRooms={vi.fn()}
+        settingsError={null}
+      />,
+    );
+
+    expect(htmlWithoutError).not.toContain("if2-toast error");
+  });
+
+  it("throws error and preserves original settings when backend feature-config update fails", async () => {
+    const originalWindow = global.window;
+    (global as unknown as { window: unknown }).window = {};
+
+    vi.spyOn(featureConfigService, "updateModuleStatus").mockRejectedValueOnce(
+      new Error("Request failed with status 500: Internal Server Error"),
+    );
+
+    await expect(
+      connectConfigService.updateSetting("project-alpha", "wall", false, "Test Admin"),
+    ).rejects.toThrow("Request failed with status 500: Internal Server Error");
+
+    // Settings must not have changed to false
+    const settings = await connectConfigService.getSettings("project-alpha");
+    expect(settings.wall).toBe(true);
+
+    global.window = originalWindow;
+    vi.restoreAllMocks();
   });
 });

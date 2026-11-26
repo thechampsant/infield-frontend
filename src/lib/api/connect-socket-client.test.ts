@@ -134,7 +134,7 @@ describe("Connect Socket Client Suite", () => {
       );
       expect(onCall).toBeDefined();
 
-      const internalHandler = onCall[1];
+      const internalHandler = onCall![1];
       const payload = {
         messageId: "m1",
         roomId: "r1",
@@ -145,6 +145,43 @@ describe("Connect Socket Client Suite", () => {
       expect(listener).toHaveBeenCalledWith(payload);
 
       unsub();
+    });
+
+    it("dispatches real-time badge events for connect, wall, and room", () => {
+      const connectListener = vi.fn();
+      const wallListener = vi.fn();
+      const roomListener = vi.fn();
+
+      const unsubConnect = connectSocketClient.on(CONNECT_SOCKET_EVENTS.CONNECT_BADGE_UPDATE, connectListener);
+      const unsubWall = connectSocketClient.on(CONNECT_SOCKET_EVENTS.WALL_BADGE_UPDATE, wallListener);
+      const unsubRoom = connectSocketClient.on(CONNECT_SOCKET_EVENTS.ROOM_BADGE_UPDATE, roomListener);
+
+      const connectCall = mockSocket.on.mock.calls.find(
+        (call) => call[0] === CONNECT_SOCKET_EVENTS.CONNECT_BADGE_UPDATE,
+      );
+      const wallCall = mockSocket.on.mock.calls.find(
+        (call) => call[0] === CONNECT_SOCKET_EVENTS.WALL_BADGE_UPDATE,
+      );
+      const roomCall = mockSocket.on.mock.calls.find(
+        (call) => call[0] === CONNECT_SOCKET_EVENTS.ROOM_BADGE_UPDATE,
+      );
+
+      expect(connectCall).toBeDefined();
+      expect(wallCall).toBeDefined();
+      expect(roomCall).toBeDefined();
+
+      connectCall![1]({ connectCount: 5, wallUnseenCount: 2, roomUnreadCount: 3 });
+      expect(connectListener).toHaveBeenCalledWith({ connectCount: 5, wallUnseenCount: 2, roomUnreadCount: 3 });
+
+      wallCall![1]({ wallUnseenCount: 2, hasUnseenWallPosts: true });
+      expect(wallListener).toHaveBeenCalledWith({ wallUnseenCount: 2, hasUnseenWallPosts: true });
+
+      roomCall![1]({ roomUnreadCount: 3 });
+      expect(roomListener).toHaveBeenCalledWith({ roomUnreadCount: 3 });
+
+      unsubConnect();
+      unsubWall();
+      unsubRoom();
     });
   });
 });

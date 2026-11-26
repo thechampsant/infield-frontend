@@ -65,6 +65,7 @@ export function useRoomMembership({
       projectId,
       accountId,
     );
+    connectRoomService.clearCache(projectId);
     await refreshRoom();
   }, [roomId, projectId, accountId, refreshRoom]);
 
@@ -76,6 +77,7 @@ export function useRoomMembership({
       projectId,
       accountId,
     );
+    connectRoomService.clearCache(projectId);
     await refreshRoom();
   }, [roomId, projectId, accountId, refreshRoom]);
 
