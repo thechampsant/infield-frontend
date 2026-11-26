@@ -23,7 +23,7 @@ const inputClass = "mt-2 h-11 w-full rounded-lg border border-white/20 bg-white/
 
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState<Step>({ name: "request" });
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -36,19 +36,19 @@ export default function ForgotPasswordPage() {
     try {
       switch (step.name) {
         case "request": {
-          const value = identifier.trim();
+          const value = email.trim();
           if (!value) {
-            setError("Enter your registered email or phone number.");
+            setError("Enter your registered email address.");
             return;
           }
           await authService.requestPasswordReset(value);
-          setIdentifier(value);
+          setEmail(value);
           setStep({ name: "verify" });
           break;
         }
         case "verify": {
           const otp = String(fields.get("otp"));
-          const { resetToken } = await authService.verifyPasswordReset(identifier, otp);
+          const { resetToken } = await authService.verifyPasswordReset(email, otp);
           if (!resetToken) throw new Error("Verification failed. Request a new code.");
           setStep({ name: "complete", resetToken });
           break;
@@ -87,14 +87,14 @@ export default function ForgotPasswordPage() {
             <fieldset disabled={busy} className="space-y-5 text-sm">
               {step.name === "request" && (
                 <label className="block">
-                  Registered email or phone number
-                  <input className={inputClass} autoComplete="username" required
-                    value={identifier} onChange={(event) => setIdentifier(event.target.value)} />
+                  Registered email address
+                  <input className={inputClass} type="email" autoComplete="email" required
+                    value={email} onChange={(event) => setEmail(event.target.value)} />
                 </label>
               )}
               {step.name === "verify" && (
                 <>
-                  <p>If {identifier} matches an eligible account, check its registered email address for your code.</p>
+                  <p>If {email} is registered to an eligible account, we’ll send a verification code to that address.</p>
                   <label className="block">
                     Six-digit code
                     <input className={inputClass} name="otp" inputMode="numeric" pattern="[0-9]{6}"
@@ -123,7 +123,7 @@ export default function ForgotPasswordPage() {
                   setError("");
                   setStep({ name: "request" });
                 }}>
-                  Change contact or request another code
+                  Change email address or request another code
                 </button>
               )}
             </fieldset>
