@@ -102,17 +102,27 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
   ];
 }
 
+export type ProjectAdminDrawerIcon =
+  | "users"
+  | "settings"
+  | "fileText"
+  | "pieChart"
+  | "refreshCw"
+  | "layoutDashboard"
+  | "star"
+  | "plus";
+
 export type ProjectAdminDrawerSubItem = {
-  key: "all-reports" | "favorites" | "new-report";
+  key: string;
   label: string;
   href: string;
-  icon: "fileText" | "star" | "plus";
+  icon?: ProjectAdminDrawerIcon;
 };
 
 export type ProjectAdminDrawerItem = {
   label: string;
   href: string;
-  icon: "users" | "settings" | "fileText" | "pieChart" | "refreshCw" | "layoutDashboard";
+  icon: ProjectAdminDrawerIcon;
   children?: ProjectAdminDrawerSubItem[];
 };
 
