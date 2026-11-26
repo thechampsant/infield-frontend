@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { BRAND_ASSETS } from "@/lib/brand/assets";
@@ -153,6 +154,9 @@ export default function PasswordLoginPage() {
                     )}
                   </button>
                 </div>
+                <Link href="/login/forgot-password" className="block text-right text-sm text-blue-300 hover:underline">
+                  Forgot password?
+                </Link>
               </div>
 
               <button
@@ -173,10 +177,10 @@ export default function PasswordLoginPage() {
 
             <button
               type="button"
-              onClick={() => router.push("/login")}
+              onClick={() => router.push("/login/passwordless")}
               className="mt-6 w-full text-center text-xs text-slate-400 transition-colors hover:text-slate-200"
             >
-              Back to passwordless sign-in
+              Use passwordless sign-in
             </button>
           </div>
 

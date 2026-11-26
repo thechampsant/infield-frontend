@@ -14,7 +14,10 @@ if (staging) {
 }
 
 const nextConfig: NextConfig = {
-  ...(staging ? { output: "standalone" as const, typescript: { tsconfigPath: "tsconfig.staging.json" } } : {}),
+  ...(staging ? { output: "standalone" as const } : {}),
+  typescript: {
+    tsconfigPath: staging || process.env.NODE_ENV === "production" ? "tsconfig.build.json" : "tsconfig.json",
+  },
   turbopack: {
     root: __dirname,
   },
@@ -22,6 +25,9 @@ const nextConfig: NextConfig = {
     proxyClientMaxBodySize: "100mb",
     // Default dev proxy timeout is 30s — bulk Excel uploads (product/store master) need longer.
     proxyTimeout: 300_000, // 5 minutes
+  },
+  async redirects() {
+    return [{ source: "/login", destination: "/login/password", permanent: false }];
   },
   async rewrites() {
     return [
