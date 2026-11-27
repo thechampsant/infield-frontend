@@ -102,10 +102,28 @@ export function projectAdminNav(accountCode: string, projectCode: string): NavSe
   ];
 }
 
+export type ProjectAdminDrawerIcon =
+  | "users"
+  | "settings"
+  | "fileText"
+  | "pieChart"
+  | "refreshCw"
+  | "layoutDashboard"
+  | "star"
+  | "plus";
+
+export type ProjectAdminDrawerSubItem = {
+  key: string;
+  label: string;
+  href: string;
+  icon?: ProjectAdminDrawerIcon;
+};
+
 export type ProjectAdminDrawerItem = {
   label: string;
   href: string;
-  icon: "users" | "settings" | "fileText" | "pieChart" | "refreshCw" | "layoutDashboard";
+  icon: ProjectAdminDrawerIcon;
+  children?: ProjectAdminDrawerSubItem[];
 };
 
 export function projectAdminBase(accountCode: string, projectCode: string): string {
@@ -154,7 +172,31 @@ export function projectAdminDrawerNav(
     });
   }
   if (has("reports")) {
-    items.push({ label: "Reports", href: `${base}/reports`, icon: "pieChart" });
+    items.push({
+      label: "Reports",
+      href: `${base}/reports`,
+      icon: "pieChart",
+      children: [
+        {
+          key: "all-reports",
+          label: "All Reports",
+          href: `${base}/reports`,
+          icon: "fileText",
+        },
+        {
+          key: "favorites",
+          label: "Favorites",
+          href: `${base}/reports?tab=favorites`,
+          icon: "star",
+        },
+        {
+          key: "new-report",
+          label: "New Report",
+          href: `${base}/reports/new`,
+          icon: "plus",
+        },
+      ],
+    });
   }
   if (has("dashboards")) {
     items.push({

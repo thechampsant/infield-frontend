@@ -213,6 +213,100 @@
   border-radius: 0 4px 4px 0;
 }
 
+.pa-shell .pa-nav-group-btn {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  justify-content: space-between;
+  font-family: inherit;
+}
+
+.pa-shell .pa-nav-group-btn.is-parent-active {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.pa-shell .pa-nav-chevron {
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+}
+
+.pa-shell .pa-nav-chevron--open {
+  transform: rotate(180deg);
+}
+
+.pa-shell .pa-nav-submenu {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 12px 8px 34px;
+}
+
+.pa-shell .pa-nav-submenu::before {
+  content: "";
+  position: absolute;
+  left: 28px;
+  top: 4px;
+  bottom: 10px;
+  width: 1px;
+  background: var(--border);
+}
+
+.pa-shell .pa-nav-sublink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px 7px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-mid);
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pa-shell .pa-nav-sublink:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.pa-shell .pa-nav-sublink.active {
+  background: var(--blue-pale);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.pa-shell .pa-nav-sublink-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.pa-shell .pa-nav-subcount {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 9999px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-mid);
+  flex-shrink: 0;
+}
+
+.pa-shell .pa-nav-sublink.active .pa-nav-subcount {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+  color: var(--blue);
+}
+
 /* Engagement Navigation (Connect module) */
 .pa-shell .pa-nav-group--engagement {
   margin-top: 14px;
@@ -969,6 +1063,48 @@
 .pa-shell .pa-content-wrap {
   width: 100%;
   max-width: 1200px;
+}
+
+.pa-shell.page-shell:has(.pa-reports-shell),
+.pa-shell.page-shell:has(.pa-report-builder) {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.pa-shell:has(.pa-reports-shell) .pa-main-column,
+.pa-shell:has(.pa-report-builder) .pa-main-column {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pa-shell .pa-stage:has(.pa-reports-shell),
+.pa-shell .pa-stage:has(.pa-report-builder) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.pa-shell .pa-content-wrap:has(.pa-reports-shell),
+.pa-shell .pa-content-wrap:has(.pa-report-builder) {
+  max-width: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.pa-shell .pa-topbar-host .bc-current {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
 }
 
 .pa-shell.page-shell:has(.pa-dashboard-embed) {
