@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/feature-config-service";
 import { connectConfigService } from "@/lib/api/connect-config-service";
 import { leaveConfigService } from "@/lib/api/leave-config-service";
+import { odConfigService } from "@/lib/api/od-config-service";
 import {
   salesConfigModuleKey,
   salesConfigService,
@@ -189,6 +190,8 @@ export function ModulesConfigurationPage() {
         } else {
           await leaveConfigService.deactivate(projectId);
         }
+      } else if (moduleId === "od") {
+        await odConfigService.activate(projectId, enabled);
       } else if (moduleId === "connect") {
         const adminName = user
           ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||

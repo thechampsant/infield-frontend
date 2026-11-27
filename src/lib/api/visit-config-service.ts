@@ -6,6 +6,8 @@ const BASE = "/api/v1/visit-config";
 
 export type VisitType = "direct" | "store";
 export type StoreMappingMode = "direct_store" | "pjp" | null;
+export type VisitStoreSource = "store_master" | "google_places";
+export type VisitDaySummaryMode = "claim" | "od_visit";
 export type VisitConfigStatus = "draft" | "published";
 
 export interface StoreDetail {
@@ -40,7 +42,7 @@ export interface LandingFieldSet {
   udfSchemaKey: string;
 }
 
-export type VisitApprovalApproverType = "direct_manager" | "designation";
+export type VisitApprovalApproverType = "direct_manager" | "designation" | "mapped_od_approver";
 export type ApprovalAutoAction = "None" | "AutoApprove" | "AutoReject";
 
 export interface VisitApprovalLevel {
@@ -75,6 +77,9 @@ export interface VisitConfigDocument {
   mandatoryCheckIn: boolean;
   visitType: VisitType;
   storeMappingMode: StoreMappingMode;
+  storeSource?: VisitStoreSource;
+  daySummaryMode?: VisitDaySummaryMode;
+  checkoutReminder?: { enabled: boolean; intervalMinutes: number };
   allowAllMappedStores: boolean;
   geoFenceConfig: { radius: number };
   reimbursementConfig: {
@@ -90,6 +95,7 @@ export interface VisitConfigDocument {
   daySummaryEnabled: boolean;
   blockVisitAfterAttendanceCheckout: boolean;
   approvalWorkflow: VisitApprovalWorkflowConfig;
+  odApprovalWorkflow?: VisitApprovalWorkflowConfig;
   claimDistanceCapping: VisitClaimDistanceCappingConfig;
   landingPageConfig: {
     udfSchemaKey: string;
@@ -117,6 +123,9 @@ export interface UpsertVisitConfigInput {
   mandatoryCheckIn?: boolean;
   visitType?: VisitType;
   storeMappingMode?: StoreMappingMode;
+  storeSource?: VisitStoreSource;
+  daySummaryMode?: VisitDaySummaryMode;
+  checkoutReminder?: { enabled: boolean; intervalMinutes: number };
   allowAllMappedStores?: boolean;
   geoFenceConfig?: { radius: number };
   reimbursementConfig?: {
@@ -132,6 +141,7 @@ export interface UpsertVisitConfigInput {
   daySummaryEnabled?: boolean;
   blockVisitAfterAttendanceCheckout?: boolean;
   approvalWorkflow?: VisitApprovalWorkflowConfig;
+  odApprovalWorkflow?: VisitApprovalWorkflowConfig;
   claimDistanceCapping?: VisitClaimDistanceCappingConfig;
   landingPageConfig?: {
     udfSchemaKey?: string;
@@ -204,6 +214,33 @@ function normalizeApprovalAutoAction(level: Raw): {
   };
 }
 
+function normalizeApprovalWorkflow(value: unknown, isOd = false): VisitApprovalWorkflowConfig {
+  const approvalWorkflow = record(value);
+  return {
+    maximumResubmissionAttempts: num(approvalWorkflow.maximumResubmissionAttempts, 0),
+    isEnabled: bool(approvalWorkflow.isEnabled),
+    notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
+    rejectionReasons: normalizeRejectionReasonsDto(approvalWorkflow.rejectionReasons),
+    levels: (Array.isArray(approvalWorkflow.levels) ? approvalWorkflow.levels : []).map(
+      (item, index) => {
+        const level = record(item);
+        const approverType = text(level.approverType);
+        const autoAction = normalizeApprovalAutoAction(level);
+        return {
+          level: num(level.level, index + 1),
+          label: text(level.label),
+          approverType:
+            approverType === "designation" || (isOd && approverType === "mapped_od_approver")
+              ? approverType
+              : "direct_manager",
+          approverDesignationId: text(level.approverDesignationId) || undefined,
+          ...autoAction,
+        };
+      },
+    ),
+  };
+}
+
 export function normalizeVisitConfig(
   value: unknown,
   fallback: { projectId: string; designationId: string },
@@ -212,7 +249,6 @@ export function normalizeVisitConfig(
   const geo = record(raw.geoFenceConfig);
   const reimbursement = record(raw.reimbursementConfig);
   const distance = record(raw.distanceConfig);
-  const approvalWorkflow = record(raw.approvalWorkflow);
   const claimDistanceCapping = record(raw.claimDistanceCapping);
   const landing = record(raw.landingPageConfig);
   const toggle = record(landing.storeTypeToggle);
@@ -237,6 +273,12 @@ export function normalizeVisitConfig(
         : text(raw.storeMappingMode) === "direct_store"
           ? "direct_store"
           : null,
+    ...(raw.storeSource === "google_places" || raw.storeSource === "store_master" ? { storeSource: raw.storeSource } : {}),
+    ...(raw.daySummaryMode === "od_visit" || raw.daySummaryMode === "claim" ? { daySummaryMode: raw.daySummaryMode } : {}),
+    ...(raw.checkoutReminder ? { checkoutReminder: {
+      enabled: bool(record(raw.checkoutReminder).enabled),
+      intervalMinutes: num(record(raw.checkoutReminder).intervalMinutes, 15),
+    } } : {}),
     allowAllMappedStores: bool(raw.allowAllMappedStores),
     geoFenceConfig: { radius: num(geo.radius, 200) },
     reimbursementConfig: {
@@ -251,29 +293,8 @@ export function normalizeVisitConfig(
     },
     daySummaryEnabled: bool(raw.daySummaryEnabled),
     blockVisitAfterAttendanceCheckout: bool(raw.blockVisitAfterAttendanceCheckout),
-    approvalWorkflow: {
-      maximumResubmissionAttempts: num(approvalWorkflow.maximumResubmissionAttempts, 0),
-      isEnabled: bool(approvalWorkflow.isEnabled),
-      notifyApproverOnRoute: bool(approvalWorkflow.notifyApproverOnRoute),
-      rejectionReasons: normalizeRejectionReasonsDto(approvalWorkflow.rejectionReasons),
-      levels: (Array.isArray(approvalWorkflow.levels) ? approvalWorkflow.levels : []).map(
-        (item, index) => {
-          const level = record(item);
-          const approverType = text(level.approverType);
-          const autoAction = normalizeApprovalAutoAction(level);
-          return {
-            level: num(level.level, index + 1),
-            label: text(level.label),
-            approverType:
-              approverType === "designation" || approverType === "direct_manager"
-                ? approverType
-                : "direct_manager",
-            approverDesignationId: text(level.approverDesignationId) || undefined,
-            ...autoAction,
-          };
-        },
-      ),
-    },
+    approvalWorkflow: normalizeApprovalWorkflow(raw.approvalWorkflow),
+    ...(raw.odApprovalWorkflow ? { odApprovalWorkflow: normalizeApprovalWorkflow(raw.odApprovalWorkflow, true) } : {}),
     claimDistanceCapping: {
       isEnabled: bool(claimDistanceCapping.isEnabled),
       maxDistanceKm: num(claimDistanceCapping.maxDistanceKm),
@@ -463,6 +484,8 @@ export const visitConfigService = {
     name: string;
     isMandatory?: boolean;
     isGeoFenced?: boolean;
+    isActive?: boolean;
+    isRequiredForAdvancement?: boolean;
   }) {
     return apiClient.post<{ tabId: string; udfSchemaKey: string; order: number }>(
       `${BASE}/tab`,

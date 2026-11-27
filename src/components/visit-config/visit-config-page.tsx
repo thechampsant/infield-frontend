@@ -53,12 +53,23 @@ function patchAutoAction(
   };
 }
 
-interface EditorState {
+interface ApprovalEditor {
+  approvalWorkflowEnabled: boolean;
+  maximumResubmissionAttempts: string;
+  notifyApproverOnRoute: boolean;
+  approvalLevels: VisitApprovalLevel[];
+  rejectionReasons: RejectionReasonsForm;
+}
+
+interface EditorState extends ApprovalEditor {
   designationIds: string[];
   isModuleEnabled: boolean;
   mandatoryCheckIn: boolean;
   visitType: "direct" | "store";
   storeMappingMode: "direct_store" | "pjp" | null;
+  storeSource?: VisitConfigDocument["storeSource"];
+  daySummaryMode?: VisitConfigDocument["daySummaryMode"];
+  checkoutReminder?: VisitConfigDocument["checkoutReminder"];
   allowAllMappedStores: boolean;
   geoFenceRadius: string;
   reimbursementEnabled: boolean;
@@ -69,11 +80,7 @@ interface EditorState {
   calculationMethod: string;
   daySummaryEnabled: boolean;
   blockVisitAfterAttendanceCheckout: boolean;
-  approvalWorkflowEnabled: boolean;
-  maximumResubmissionAttempts: string;
-  notifyApproverOnRoute: boolean;
-  approvalLevels: VisitApprovalLevel[];
-  rejectionReasons: RejectionReasonsForm;
+  odApproval?: ApprovalEditor;
   claimDistanceCappingEnabled: boolean;
   claimMaxDistanceKm: string;
   status: "draft" | "published";
@@ -118,6 +125,36 @@ const EMPTY_EDITOR: EditorState = {
   },
 };
 
+const DEFAULT_OD_APPROVAL: ApprovalEditor = {
+  approvalWorkflowEnabled: true,
+  maximumResubmissionAttempts: "1",
+  notifyApproverOnRoute: true,
+  approvalLevels: [{
+    level: 1,
+    label: "Mapped OD approver",
+    approverType: "mapped_od_approver",
+    autoAction: "AutoReject",
+    autoActionDays: 10,
+  }],
+  rejectionReasons: emptyRejectionReasons(),
+};
+
+function workflowToEditor(workflow: VisitConfigDocument["approvalWorkflow"]): ApprovalEditor {
+  return {
+    approvalWorkflowEnabled: workflow.isEnabled,
+    maximumResubmissionAttempts: String(workflow.maximumResubmissionAttempts ?? 0),
+    notifyApproverOnRoute: Boolean(workflow.notifyApproverOnRoute),
+    approvalLevels: workflow.levels.map((level, index) => ({
+      ...level,
+      level: index + 1,
+      approverType: level.approverType ?? "direct_manager",
+      autoAction: level.autoAction ?? "None",
+      autoActionDays: level.autoAction === "None" ? 0 : level.autoActionDays || 1,
+    })),
+    rejectionReasons: rejectionReasonsToForm(workflow.rejectionReasons),
+  };
+}
+
 function toEditor(config: VisitConfigDocument): EditorState {
   return {
     designationIds: [config.designationId],
@@ -125,6 +162,9 @@ function toEditor(config: VisitConfigDocument): EditorState {
     mandatoryCheckIn: config.mandatoryCheckIn,
     visitType: config.visitType,
     storeMappingMode: config.storeMappingMode,
+    storeSource: config.storeSource,
+    daySummaryMode: config.daySummaryMode,
+    checkoutReminder: config.checkoutReminder,
     allowAllMappedStores: config.allowAllMappedStores,
     geoFenceRadius: String(config.geoFenceConfig.radius),
     reimbursementEnabled: config.reimbursementConfig.isEnabled,
@@ -135,17 +175,8 @@ function toEditor(config: VisitConfigDocument): EditorState {
     calculationMethod: config.distanceConfig.calculationMethod || "google_api_random",
     daySummaryEnabled: config.daySummaryEnabled,
     blockVisitAfterAttendanceCheckout: config.blockVisitAfterAttendanceCheckout,
-    approvalWorkflowEnabled: config.approvalWorkflow.isEnabled,
-    maximumResubmissionAttempts: String(config.approvalWorkflow.maximumResubmissionAttempts ?? 0),
-    notifyApproverOnRoute: Boolean(config.approvalWorkflow.notifyApproverOnRoute),
-    approvalLevels: config.approvalWorkflow.levels.map((level, index) => ({
-      ...level,
-      level: index + 1,
-      approverType: level.approverType ?? "direct_manager",
-      autoAction: level.autoAction ?? "None",
-      autoActionDays: level.autoAction === "None" ? 0 : level.autoActionDays || 1,
-    })),
-    rejectionReasons: rejectionReasonsToForm(config.approvalWorkflow.rejectionReasons),
+    ...workflowToEditor(config.approvalWorkflow),
+    ...(config.odApprovalWorkflow ? { odApproval: workflowToEditor(config.odApprovalWorkflow) } : {}),
     claimDistanceCappingEnabled: config.claimDistanceCapping.isEnabled,
     claimMaxDistanceKm: String(config.claimDistanceCapping.maxDistanceKm),
     status: config.status,
@@ -154,20 +185,24 @@ function toEditor(config: VisitConfigDocument): EditorState {
   };
 }
 
-export function visitApprovalWorkflowForSave(editor: Pick<EditorState,
-  "maximumResubmissionAttempts" | "reimbursementEnabled" | "approvalWorkflowEnabled"
-  | "notifyApproverOnRoute" | "approvalLevels" | "rejectionReasons"
->) {
+export function visitApprovalWorkflowForSave(editor: ApprovalEditor & Pick<EditorState, "reimbursementEnabled">) {
+  return approvalWorkflowForSave({
+    ...editor,
+    approvalWorkflowEnabled: editor.reimbursementEnabled && editor.approvalWorkflowEnabled,
+  });
+}
+
+function approvalWorkflowForSave(editor: ApprovalEditor, saveLevels = editor.approvalWorkflowEnabled) {
   return {
     maximumResubmissionAttempts: parseResubmissionAttempts(editor.maximumResubmissionAttempts),
-    isEnabled: editor.reimbursementEnabled && editor.approvalWorkflowEnabled,
+    isEnabled: editor.approvalWorkflowEnabled,
     notifyApproverOnRoute: editor.notifyApproverOnRoute,
-    levels: editor.reimbursementEnabled && editor.approvalWorkflowEnabled
+    levels: saveLevels
       ? editor.approvalLevels.map((level, index) => ({
           level: index + 1,
           label: level.label?.trim() || undefined,
           approverType: level.approverType ?? "direct_manager",
-          approverDesignationId: level.approverDesignationId || undefined,
+          approverDesignationId: level.approverType === "mapped_od_approver" ? undefined : level.approverDesignationId || undefined,
           autoAction: level.autoAction ?? "None",
           autoActionDays: autoActionDaysForSave(level),
         }))
@@ -183,11 +218,17 @@ function isPendingTab(tab: JourneyTabDocument): boolean {
 
 function validate(editor: EditorState): string[] {
   const errors: string[] = [];
-  const retryError = resubmissionAttemptsError(editor.maximumResubmissionAttempts);
+  const isOd = editor.daySummaryMode === "od_visit";
+  const approval = isOd ? editor.odApproval : editor;
+  const retryError = approval && resubmissionAttemptsError(approval.maximumResubmissionAttempts);
   if (retryError) errors.push(retryError);
   if (editor.designationIds.length === 0) errors.push("Select at least one designation.");
-  if (editor.visitType === "store" && !editor.storeMappingMode) {
+  if (editor.visitType === "store" && editor.storeSource !== "google_places" && !editor.storeMappingMode) {
     errors.push("Select a store mapping method.");
+  }
+  if (editor.checkoutReminder?.enabled && (!Number.isInteger(editor.checkoutReminder.intervalMinutes)
+    || editor.checkoutReminder.intervalMinutes < 1 || editor.checkoutReminder.intervalMinutes > 1440)) {
+    errors.push("Checkout reminder must be between 1 and 1440 minutes.");
   }
   if (editor.journeyTabs.some((tab) => tab.isActive && tab.isGeoFenced)) {
     const radius = Number(editor.geoFenceRadius);
@@ -203,17 +244,17 @@ function validate(editor: EditorState): string[] {
       errors.push("Per-km rate must be positive.");
     }
   }
-  if (editor.reimbursementEnabled && editor.approvalWorkflowEnabled) {
-    if (!editor.daySummaryEnabled) {
+  if ((isOd || editor.reimbursementEnabled) && approval?.approvalWorkflowEnabled) {
+    if (!isOd && !editor.daySummaryEnabled) {
       errors.push("Visit Day Summary should be enabled before enabling Visit day approval.");
     }
-    if (editor.approvalLevels.length === 0) {
+    if (approval.approvalLevels.length === 0) {
       errors.push("Visit approval workflow must include at least one approval level.");
     }
-    if (editor.approvalLevels.length > 10) {
+    if (approval.approvalLevels.length > 10) {
       errors.push("Visit approval workflow supports a maximum of 10 levels.");
     }
-    editor.approvalLevels.forEach((level, index) => {
+    approval.approvalLevels.forEach((level, index) => {
       const levelNumber = index + 1;
       if (levelNumber < 1 || levelNumber > 10) {
         errors.push("Visit approval levels must be between 1 and 10.");
@@ -221,7 +262,7 @@ function validate(editor: EditorState): string[] {
       if ((level.label ?? "").length > 100) {
         errors.push(`Approval level ${levelNumber} label must be 100 characters or fewer.`);
       }
-      if (level.approverType !== "direct_manager" && level.approverType !== "designation") {
+      if (level.approverType !== "direct_manager" && level.approverType !== "designation" && !(isOd && level.approverType === "mapped_od_approver")) {
         errors.push(`Approval level ${levelNumber} must use a valid approver type.`);
       }
       if (level.approverType === "designation" && !level.approverDesignationId) {
@@ -245,7 +286,7 @@ function validate(editor: EditorState): string[] {
         errors.push(`Approval level ${levelNumber} auto action days must be between 1 and 30.`);
       }
     });
-    errors.push(...validateRejectionReasons(editor.rejectionReasons));
+    errors.push(...validateRejectionReasons(approval.rejectionReasons));
   }
   if (editor.reimbursementEnabled && editor.claimDistanceCappingEnabled) {
     if (Number(editor.claimMaxDistanceKm) <= 0) {
@@ -271,6 +312,8 @@ export function VisitConfigPage({
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [configs, setConfigs] = useState<VisitConfigDocument[]>([]);
   const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
+  const isOdDaySummary = editor.daySummaryMode === "od_visit";
+  const approval = isOdDaySummary ? editor.odApproval ?? DEFAULT_OD_APPROVAL : editor;
   const [activeDesignationId, setActiveDesignationId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -446,8 +489,14 @@ export function VisitConfigPage({
     }));
   }
 
+  function updateApproval(update: (current: ApprovalEditor) => ApprovalEditor) {
+    setEditor((current) => current.daySummaryMode === "od_visit"
+      ? { ...current, odApproval: update(current.odApproval ?? DEFAULT_OD_APPROVAL) }
+      : { ...current, ...update(current) });
+  }
+
   function addApprovalLevel() {
-    setEditor((current) => {
+    updateApproval((current) => {
       if (current.approvalLevels.length >= 10) return current;
       return {
         ...current,
@@ -466,15 +515,16 @@ export function VisitConfigPage({
   }
 
   function patchApprovalLevel(index: number, patch: Partial<VisitApprovalLevel>) {
-    setEditor((current) => ({
+    updateApproval((current) => ({
       ...current,
       approvalLevels: current.approvalLevels.map((level, levelIndex) =>
         levelIndex === index
           ? {
               ...level,
               ...patch,
-              approverDesignationId:
-                patch.approverDesignationId ?? level.approverDesignationId,
+              ...(!isOdDaySummary ? {
+                approverDesignationId: patch.approverDesignationId ?? level.approverDesignationId,
+              } : {}),
             }
           : level,
       ),
@@ -482,7 +532,7 @@ export function VisitConfigPage({
   }
 
   function moveApprovalLevel(index: number, direction: -1 | 1) {
-    setEditor((current) => {
+    updateApproval((current) => {
       const next = [...current.approvalLevels];
       const target = index + direction;
       if (target < 0 || target >= next.length) return current;
@@ -495,7 +545,7 @@ export function VisitConfigPage({
   }
 
   function removeApprovalLevel(index: number) {
-    setEditor((current) => ({
+    updateApproval((current) => ({
       ...current,
       approvalLevels: current.approvalLevels
         .filter((_, levelIndex) => levelIndex !== index)
@@ -563,7 +613,10 @@ export function VisitConfigPage({
       isModuleEnabled: editor.isModuleEnabled,
       mandatoryCheckIn: editor.mandatoryCheckIn,
       visitType: editor.visitType,
-      storeMappingMode: editor.visitType === "store" ? editor.storeMappingMode : null,
+      storeMappingMode: editor.visitType === "store" && editor.storeSource !== "google_places" ? editor.storeMappingMode : null,
+      ...(editor.storeSource ? { storeSource: editor.storeSource } : {}),
+      ...(editor.daySummaryMode ? { daySummaryMode: editor.daySummaryMode } : {}),
+      ...(editor.checkoutReminder ? { checkoutReminder: editor.checkoutReminder } : {}),
       allowAllMappedStores:
         editor.storeMappingMode === "pjp" && editor.allowAllMappedStores,
       geoFenceConfig: { radius: Number(editor.geoFenceRadius) || 0 },
@@ -577,9 +630,13 @@ export function VisitConfigPage({
         toLocationType: editor.toLocationType,
         calculationMethod: editor.calculationMethod,
       },
-      daySummaryEnabled: editor.reimbursementEnabled && editor.daySummaryEnabled,
+      ...(!isOdDaySummary ? { daySummaryEnabled: editor.reimbursementEnabled && editor.daySummaryEnabled } : {}),
       blockVisitAfterAttendanceCheckout: editor.blockVisitAfterAttendanceCheckout,
-      approvalWorkflow: visitApprovalWorkflowForSave(editor),
+      ...(!isOdDaySummary
+        ? { approvalWorkflow: visitApprovalWorkflowForSave(editor) }
+        : editor.odApproval
+          ? { odApprovalWorkflow: approvalWorkflowForSave(editor.odApproval, true) }
+          : {}),
       claimDistanceCapping: {
         isEnabled: editor.reimbursementEnabled && editor.claimDistanceCappingEnabled,
         maxDistanceKm: Number(editor.claimMaxDistanceKm) || 0,
@@ -600,7 +657,7 @@ export function VisitConfigPage({
     setSaving(true);
     setErrors([]);
     try {
-      const pendingTabs = editor.journeyTabs.filter(isPendingTab);
+      const pendingTabs = editor.journeyTabs.filter(isPendingTab).sort((a, b) => a.order - b.order);
       const saved = await Promise.all(
         editor.designationIds.map((designationId) =>
           visitConfigService.save(buildPayload(designationId, draft ? "draft" : editor.status), draft),
@@ -608,17 +665,19 @@ export function VisitConfigPage({
       );
       if (pendingTabs.length > 0) {
         await Promise.all(
-          editor.designationIds.flatMap((designationId) =>
-            pendingTabs.map((tab) =>
-              visitConfigService.addTab({
+          editor.designationIds.map(async (designationId) => {
+            for (const tab of pendingTabs) {
+              await visitConfigService.addTab({
                 projectId,
                 designationId,
                 name: tab.name,
                 isMandatory: tab.isMandatory,
                 isGeoFenced: tab.isGeoFenced,
-              }),
-            ),
-          ),
+                isActive: tab.isActive,
+                isRequiredForAdvancement: tab.isRequiredForAdvancement,
+              });
+            }
+          }),
         );
       }
       await load();
@@ -654,13 +713,20 @@ export function VisitConfigPage({
     if (!activeDesignationId) return null;
     const config = await visitConfigService.getConfig(projectId, activeDesignationId);
     if (config) {
-      setEditor(toEditor(config));
+      setSavedJourneyTabs(config);
       setConfigs((current) => [
         ...current.filter((item) => item.designationId !== config.designationId),
         config,
       ]);
     }
     return config;
+  }
+
+  function setSavedJourneyTabs(config: VisitConfigDocument) {
+    setEditor((current) => ({
+      ...current,
+      journeyTabs: [...config.journeyTabs].sort((a, b) => a.order - b.order),
+    }));
   }
 
   async function addTab() {
@@ -719,7 +785,7 @@ export function VisitConfigPage({
         activeDesignationId,
         patch,
       );
-      setEditor(toEditor(config));
+      setSavedJourneyTabs(config);
     } catch (error) {
       setToast({ type: "error", message: formatApiError(error, "Failed to update journey tab") });
     }
@@ -747,7 +813,7 @@ export function VisitConfigPage({
         activeDesignationId,
         ordered,
       );
-      setEditor(toEditor(config));
+      setSavedJourneyTabs(config);
     } catch (error) {
       setToast({ type: "error", message: formatApiError(error, "Failed to reorder journey tabs") });
     }
@@ -854,7 +920,11 @@ export function VisitConfigPage({
       }
       const refreshed = await visitConfigService.getConfig(projectId, designationId);
       if (refreshed) {
-        setEditor(toEditor(refreshed));
+        if (builderTarget.kind === "tab") {
+          setSavedJourneyTabs(refreshed);
+        } else {
+          setEditor(toEditor(refreshed));
+        }
         setConfigs((current) => [
           ...current.filter((item) => item.designationId !== refreshed.designationId),
           refreshed,
@@ -886,7 +956,7 @@ export function VisitConfigPage({
       return;
     }
     const activeTabs = editor.journeyTabs.filter((tab) => tab.isActive);
-    if (activeTabs.length === 0) {
+    if (editor.storeSource !== "google_places" && activeTabs.length === 0) {
       setErrors(["Add at least one active journey tab before publishing."]);
       setView("config");
       return;
@@ -1023,13 +1093,14 @@ export function VisitConfigPage({
                   <span className={`visit-status ${editor.status}`}>{editor.status}</span>
                 </div>
                 <div className="visit-choice-grid">
-                  <button className={editor.visitType === "direct" ? "selected" : ""} onClick={() => setEditor((current) => ({ ...current, visitType: "direct", storeMappingMode: null, allowAllMappedStores: false }))}><strong>Direct visit</strong><small>No store selection or landing page.</small></button>
+                  <button className={editor.visitType === "direct" ? "selected" : ""} onClick={() => setEditor((current) => ({ ...current, visitType: "direct", storeMappingMode: null, allowAllMappedStores: false, storeSource: current.storeSource ? "store_master" : undefined, daySummaryMode: current.daySummaryMode === "od_visit" ? "claim" : current.daySummaryMode }))}><strong>Direct visit</strong><small>No store selection or landing page.</small></button>
                   <button className={editor.visitType === "store" ? "selected" : ""} onClick={() => setEditor((current) => ({ ...current, visitType: "store", storeMappingMode: current.storeMappingMode ?? "direct_store" }))}><strong>Store / location visit</strong><small>Use direct mapping or PJP.</small></button>
                 </div>
                 {editor.visitType === "store" && (
                   <div className="visit-sub-options">
-                    <label><input type="radio" checked={editor.storeMappingMode === "direct_store"} onChange={() => setEditor((current) => ({ ...current, storeMappingMode: "direct_store", allowAllMappedStores: false }))} /> Direct store mapping</label>
-                    <label><input type="radio" checked={editor.storeMappingMode === "pjp"} onChange={() => setEditor((current) => ({ ...current, storeMappingMode: "pjp" }))} /> PJP</label>
+                    <label><input type="radio" checked={editor.storeSource !== "google_places" && editor.storeMappingMode === "direct_store"} onChange={() => setEditor((current) => ({ ...current, storeSource: current.storeSource ? "store_master" : undefined, storeMappingMode: "direct_store", allowAllMappedStores: false }))} /> Direct store mapping</label>
+                    <label><input type="radio" checked={editor.storeSource !== "google_places" && editor.storeMappingMode === "pjp"} onChange={() => setEditor((current) => ({ ...current, storeSource: current.storeSource ? "store_master" : undefined, storeMappingMode: "pjp" }))} /> PJP</label>
+                    <label><input type="radio" checked={editor.storeSource === "google_places"} onChange={() => setEditor((current) => ({ ...current, storeSource: "google_places", storeMappingMode: null, allowAllMappedStores: false }))} /> Google Places with manual entry</label>
                     {editor.storeMappingMode === "pjp" && <label><input type="checkbox" checked={editor.allowAllMappedStores} onChange={(event) => setEditor((current) => ({ ...current, allowAllMappedStores: event.target.checked }))} /> Allow all mapped stores</label>}
                   </div>
                 )}
@@ -1044,6 +1115,15 @@ export function VisitConfigPage({
                   <label>Distance to<select value={editor.toLocationType} onChange={(event) => setEditor((current) => ({ ...current, toLocationType: event.target.value }))}><option value="attendance_mark_out">Attendance mark-out</option><option value="last_visit_store">Last visit store</option><option value="base_location">Base location</option><option value="attendance_mark_out_if_near_base">Attendance mark-out if near base</option></select></label>
                   <label className="visit-check"><input type="checkbox" checked={editor.mandatoryCheckIn} onChange={(event) => setEditor((current) => ({ ...current, mandatoryCheckIn: event.target.checked }))} /> Require attendance check-in</label>
                   <label className="visit-check"><input type="checkbox" checked={editor.blockVisitAfterAttendanceCheckout} onChange={(event) => setEditor((current) => ({ ...current, blockVisitAfterAttendanceCheckout: event.target.checked }))} /> Block visit after attendance checkout</label>
+                  {editor.visitType === "store" && <>
+                    <label className="visit-check"><input type="checkbox" checked={editor.daySummaryMode === "od_visit"}
+                      onChange={(event) => setEditor((current) => ({ ...current, daySummaryMode: event.target.checked ? "od_visit" : "claim" }))} /> OD visit approval without reimbursement</label>
+                    <label className="visit-check"><input type="checkbox" checked={editor.checkoutReminder?.enabled ?? false}
+                      onChange={(event) => setEditor((current) => ({ ...current, checkoutReminder: { enabled: event.target.checked, intervalMinutes: current.checkoutReminder?.intervalMinutes ?? 15 } }))} /> Remind users to check out</label>
+                    {editor.checkoutReminder?.enabled && <label>Reminder interval (minutes)<input type="number" min={1} max={1440}
+                      value={editor.checkoutReminder.intervalMinutes || ""}
+                      onChange={(event) => setEditor((current) => ({ ...current, checkoutReminder: { enabled: true, intervalMinutes: Number(event.target.value) } }))} /></label>}
+                  </>}
                   <label className="visit-check"><input type="checkbox" checked={editor.reimbursementEnabled} onChange={(event) => setEditor((current) => ({ ...current, reimbursementEnabled: event.target.checked }))} /> Enable reimbursement</label>
                   {editor.reimbursementEnabled && <>
                     <label>Multiplication factor<input type="number" value={editor.multiplicationFactor} onChange={(event) => setEditor((current) => ({ ...current, multiplicationFactor: event.target.value }))} /></label>
@@ -1052,9 +1132,19 @@ export function VisitConfigPage({
                 </div>
               </section>
 
-              {editor.reimbursementEnabled && <section className="visit-section-card">
-                <div className="visit-section-title"><span>4</span> Day summary & claims</div>
+              {(editor.reimbursementEnabled || isOdDaySummary) && <section className="visit-section-card">
+                <div className="visit-section-title"><span>4</span> {isOdDaySummary ? "OD Day Summary" : "Day summary & claims"}</div>
                 <div className="visit-config-stack">
+                  {isOdDaySummary ? (
+                    <div className="visit-setting-row">
+                      <div className="visit-switch-row">
+                        <span>
+                          <strong>Visit Day Summary enabled</strong>
+                          <small>Mobile shows the day’s completed stores and travel distance.</small>
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="visit-setting-row">
                     <label className="visit-switch-row">
                       <input
@@ -1074,19 +1164,28 @@ export function VisitConfigPage({
                     </label>
                   </div>
 
-                  <details className="visit-config-details" open={editor.approvalWorkflowEnabled}>
+                  )}
+                  <details className="visit-config-details" open={approval.approvalWorkflowEnabled}>
                     <summary>
                       <span>
                         <strong>Approval Workflow</strong>
-                        <small>Allows mobile users to raise approval for the selected day summary amount and distance.</small>
+                        <small>{isOdDaySummary ? "Review completed OD visits and daily travel distance." : "Allows mobile users to raise approval for the selected day summary amount and distance."}</small>
                       </span>
                     </summary>
+                    {isOdDaySummary && !editor.odApproval ? (
+                      <>
+                        <p className="visit-preview-note">The approver on the linked OD reviews submissions. Pending submissions auto-reject after 10 days, and rejected submissions can be retried.</p>
+                        <div className="visit-add-tab">
+                          <button type="button" onClick={() => updateApproval(() => DEFAULT_OD_APPROVAL)}>Customize approval workflow</button>
+                        </div>
+                      </>
+                    ) : <>
                     <label className="visit-switch-row">
                       <input
                         type="checkbox"
-                        checked={editor.approvalWorkflowEnabled}
+                        checked={approval.approvalWorkflowEnabled}
                         onChange={(event) =>
-                          setEditor((current) => ({
+                          updateApproval((current) => ({
                             ...current,
                             approvalWorkflowEnabled: event.target.checked,
                             approvalLevels:
@@ -1110,24 +1209,24 @@ export function VisitConfigPage({
                       </span>
                     </label>
                     <ResubmissionAttemptsField
-                      value={editor.maximumResubmissionAttempts}
-                      onChange={(value) => setEditor((current) => ({ ...current, maximumResubmissionAttempts: value }))}
+                      value={approval.maximumResubmissionAttempts}
+                      onChange={(value) => updateApproval((current) => ({ ...current, maximumResubmissionAttempts: value }))}
                       disabled={saving}
-                      hint="Visit Day Claims have no resubmission time limit."
+                      hint={isOdDaySummary ? "Applies to each OD date." : "Visit Day Claims have no resubmission time limit."}
                     />
-                    {editor.approvalWorkflowEnabled && !editor.daySummaryEnabled && (
+                    {!isOdDaySummary && approval.approvalWorkflowEnabled && !editor.daySummaryEnabled && (
                       <div className="visit-legacy-note">
                         Visit Day Summary should be enabled before enabling Visit day approval.
                       </div>
                     )}
-                    {editor.approvalWorkflowEnabled && (
+                    {approval.approvalWorkflowEnabled && (
                       <>
                         <label className="visit-switch-row">
                           <input
                             type="checkbox"
-                            checked={editor.notifyApproverOnRoute}
+                            checked={approval.notifyApproverOnRoute}
                             onChange={(event) =>
-                              setEditor((current) => ({
+                              updateApproval((current) => ({
                                 ...current,
                                 notifyApproverOnRoute: event.target.checked,
                               }))
@@ -1139,7 +1238,7 @@ export function VisitConfigPage({
                           </span>
                         </label>
                         <div className="visit-approval-list">
-                          {editor.approvalLevels.map((level, index) => (
+                          {approval.approvalLevels.map((level, index) => (
                             <div className="visit-approval-row" key={index}>
                               <span className="visit-tab-order">{index + 1}</span>
                               <label>
@@ -1163,6 +1262,7 @@ export function VisitConfigPage({
                                     })
                                   }
                                 >
+                                  {isOdDaySummary && <option value="mapped_od_approver">Mapped OD approver</option>}
                                   <option value="direct_manager">Direct Manager</option>
                                   <option value="designation">Designation</option>
                                 </select>
@@ -1170,7 +1270,8 @@ export function VisitConfigPage({
                               <label>
                                 Approver Designation
                                 <select
-                                  value={level.approverDesignationId ?? ""}
+                                  disabled={level.approverType === "mapped_od_approver"}
+                                  value={level.approverType === "mapped_od_approver" ? "" : level.approverDesignationId ?? ""}
                                   onChange={(event) =>
                                     patchApprovalLevel(index, {
                                       approverDesignationId: event.target.value || undefined,
@@ -1240,23 +1341,24 @@ export function VisitConfigPage({
                         </div>
                         <div className="visit-add-tab">
                           <button
-                            disabled={editor.approvalLevels.length >= 10}
+                            disabled={approval.approvalLevels.length >= 10}
                             onClick={addApprovalLevel}
                           >
                             <Plus size={14} /> Add approval level
                           </button>
                         </div>
                         <RejectionReasonsSection
-                          value={editor.rejectionReasons}
-                          onChange={(next) => setEditor((current) => ({ ...current, rejectionReasons: next }))}
-                          error={errors.length ? validateRejectionReasons(editor.rejectionReasons)[0] : undefined}
-                          requestNoun="visit claim"
+                          value={approval.rejectionReasons}
+                          onChange={(next) => updateApproval((current) => ({ ...current, rejectionReasons: next }))}
+                          error={errors.length ? validateRejectionReasons(approval.rejectionReasons)[0] : undefined}
+                          requestNoun={isOdDaySummary ? "OD visit submission" : "visit claim"}
                         />
                       </>
                     )}
+                    </>}
                   </details>
 
-                  <details className="visit-config-details" open={editor.claimDistanceCappingEnabled}>
+                  {!isOdDaySummary && <details className="visit-config-details" open={editor.claimDistanceCappingEnabled}>
                     <summary>
                       <span>
                         <strong>Claim Distance Capping</strong>
@@ -1301,14 +1403,14 @@ export function VisitConfigPage({
                         </div>
                       </>
                     )}
-                  </details>
+                  </details>}
 
                 </div>
               </section>}
 
               {showLandingForms && (
                 <section className="visit-section-card">
-                  <div className="visit-section-title"><span>{editor.reimbursementEnabled ? "5" : "4"}</span> Landing page forms</div>
+                  <div className="visit-section-title"><span>{editor.reimbursementEnabled || isOdDaySummary ? "5" : "4"}</span> Landing page forms</div>
                   <div className="visit-form-links">
                     <button onClick={() => void openLandingBuilder("pjp_only")}><strong>{editor.landingPageConfig.storeTypeToggle.pjpLabel || "PJP Today"}</strong><small>{hasPjpLandingForm ? `${schemaFieldsByKey[pjpSchemaKey]?.length ?? 0} existing fields · Edit or add fields.` : "Create fields shown with today’s planned stores."}</small></button>
                     {(editor.allowAllMappedStores || hasAllStoresLandingForm) && <button onClick={() => void openLandingBuilder("all_mapped")}><strong>{editor.landingPageConfig.storeTypeToggle.allStoresLabel || "All Stores"}</strong><small>{hasAllStoresLandingForm ? `${schemaFieldsByKey[allStoresSchemaKey]?.length ?? 0} existing fields · Edit or add fields.` : "Create separate fields for all mapped stores."}</small></button>}
@@ -1363,7 +1465,7 @@ export function VisitConfigPage({
               )}
 
               <section className="visit-section-card">
-                  <div className="visit-section-title"><span>{showLandingForms ? editor.reimbursementEnabled ? "6" : "5" : editor.reimbursementEnabled ? "5" : "4"}</span> Journey tabs</div>
+                  <div className="visit-section-title"><span>{4 + Number(editor.reimbursementEnabled || isOdDaySummary) + Number(showLandingForms)}</span> Journey tabs</div>
                   {!activeDesignationId && (
                     <div className="visit-legacy-note">
                       Add tabs now. They will be created automatically when you save the configuration.
