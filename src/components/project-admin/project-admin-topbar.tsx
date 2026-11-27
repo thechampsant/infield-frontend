@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,6 +20,12 @@ import {
   X,
 } from "lucide-react";
 import { InfieldBrandLogo } from "@/components/brand/infield-brand-logo";
+import { reportConfigService } from "@/lib/api/report-config-service";
+import {
+  getCachedReportTitle,
+  setCachedReportTitle,
+  subscribeReportTitleChanged,
+} from "@/lib/reports/report-nav-state";
 import { projectAdminBase } from "@/lib/nav/nav";
 import { cn } from "@/lib/utils/cn";
 import { copyTextToClipboard } from "@/lib/utils/copy-to-clipboard";
@@ -56,14 +62,62 @@ function titleCaseSegment(segment: string): string {
     .join(" ");
 }
 
-function projectBreadcrumbs(
+export function projectBreadcrumbs(
   pathname: string,
   projectName: string,
   base: string,
+  reportName?: string,
 ): Array<{ label: string; href?: string }> {
   const tail = pathname.slice(base.length).split("/").filter(Boolean);
   if (tail.length === 0) {
     return [{ label: projectName }];
+  }
+
+  if (tail[0] === "reports") {
+    const reportsHref = `${base}/reports`;
+    if (tail.length === 1) {
+      return [
+        { label: "Workspace", href: base },
+        { label: "Reports" },
+      ];
+    }
+
+    if (tail[1] === "new") {
+      return [
+        { label: "Workspace", href: base },
+        { label: "Reports", href: reportsHref },
+        { label: "New Report" },
+      ];
+    }
+
+    const reportId = tail[1];
+    const resolvedReportLabel = reportName?.trim() || "Report";
+    const reportHref = `${reportsHref}/${reportId}`;
+
+    if (tail.length === 2) {
+      return [
+        { label: "Workspace", href: base },
+        { label: "Reports", href: reportsHref },
+        { label: resolvedReportLabel },
+      ];
+    }
+
+    const crumbs: Array<{ label: string; href?: string }> = [
+      { label: "Workspace", href: base },
+      { label: "Reports", href: reportsHref },
+      { label: resolvedReportLabel, href: reportHref },
+    ];
+
+    let href = reportHref;
+    tail.slice(2).forEach((segment, index, rest) => {
+      href += `/${segment}`;
+      const label = titleCaseSegment(segment);
+      crumbs.push(
+        index === rest.length - 1 ? { label } : { label, href },
+      );
+    });
+
+    return crumbs;
   }
 
   const crumbs: Array<{ label: string; href?: string }> = [
@@ -146,25 +200,69 @@ export function ProjectAdminTopbar({
 }) {
   const pathname = usePathname() ?? "/";
   const [profileOpen, setProfileOpen] = useState(false);
-  const [portalReady, setPortalReady] = useState(false);
+  const portalReady = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const base = projectAdminBase(accountCode, projectCode);
   const notificationsHref = `${base}/notifications`;
   const notifActive =
     pathname === notificationsHref ||
     pathname.startsWith(`${notificationsHref}/`);
+
+  const reportTail = pathname.startsWith(`${base}/reports/`)
+    ? pathname.slice(`${base}/reports/`.length).split("/").filter(Boolean)
+    : [];
+  const activeReportId =
+    reportTail[0] && reportTail[0] !== "new" ? reportTail[0] : null;
+  const [resolvedReport, setResolvedReport] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!activeReportId) return;
+    let cancelled = false;
+    reportConfigService
+      .getConfig(activeReportId)
+      .then((cfg) => {
+        if (cancelled || !cfg?.reportName) return;
+        setCachedReportTitle(activeReportId, cfg.reportName);
+        setResolvedReport({ id: activeReportId, title: cfg.reportName });
+      })
+      .catch(() => {
+        // Keep fallback "Report" label if fetch fails
+      });
+
+    const unsubscribe = subscribeReportTitleChanged((id, title) => {
+      if (id === activeReportId && !cancelled) {
+        setResolvedReport({ id, title });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [activeReportId]);
+
+  const activeReportName =
+    activeReportId && resolvedReport?.id === activeReportId
+      ? resolvedReport.title
+      : activeReportId
+        ? getCachedReportTitle(activeReportId)
+        : undefined;
+
   const breadcrumbs = useMemo(
-    () => projectBreadcrumbs(pathname, projectName, base),
-    [pathname, projectName, base],
+    () => projectBreadcrumbs(pathname, projectName, base, activeReportName),
+    [pathname, projectName, base, activeReportName],
   );
 
   const profileName = profile.name;
   const profileRole =
     profile.designation || profile.role || `${projectName} · Admin`;
   const initials = initialsFromName(profileName);
-
-  useEffect(() => {
-    setPortalReady(true);
-  }, []);
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -205,7 +303,11 @@ export function ProjectAdminTopbar({
                         {crumb.label}
                       </Link>
                     ) : (
-                      <span className={isLast ? "bc-current" : "bc-link"}>
+                      <span
+                        className={isLast ? "bc-current" : "bc-link"}
+                        style={isLast ? { maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" } : undefined}
+                        title={crumb.label}
+                      >
                         {crumb.label}
                       </span>
                     )}

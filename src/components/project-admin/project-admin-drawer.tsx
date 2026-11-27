@@ -1,26 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Users,
   Settings,
   FileText,
   PieChart,
   LogOut,
+  ChevronDown,
   ChevronLeft,
   LayoutGrid,
   LayoutDashboard,
   RefreshCw,
   MessagesSquare,
+  Star,
+  Plus,
 } from "lucide-react";
 import { projectAdminBase, projectAdminDrawerNav } from "@/lib/nav/nav";
 import {
   dynamicMenuService,
   type DynamicMenuConfig,
 } from "@/lib/api/dynamic-menu-service";
-import { useConnectModuleEnabled } from "@/hooks/use-connect-module-enabled";
+import { reportConfigService } from "@/lib/api/report-config-service";
+import {
+  isReportFavoriteForUser,
+  subscribeReportsChanged,
+} from "@/lib/reports/report-nav-state";
 import { useConnectBadge } from "@/hooks/use-connect-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import {
@@ -39,7 +46,24 @@ const ICONS = {
   refreshCw: RefreshCw,
   layoutDashboard: LayoutDashboard,
   messagesSquare: MessagesSquare,
+  star: Star,
+  plus: Plus,
 } as const;
+
+function ReportsTabObserver({
+  onTabChange,
+}: {
+  onTabChange: (tab: "all" | "favorites") => void;
+}) {
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") === "favorites" ? "favorites" : "all";
+
+  useEffect(() => {
+    onTabChange(tab);
+  }, [tab, onTabChange]);
+
+  return null;
+}
 
 export type PaProfile = {
   name: string;
@@ -73,13 +97,44 @@ export function ProjectAdminDrawer({
   const { user } = useAuth();
   const showBackToProjects = canNavigateBackToProjects(user);
   const { connectCount } = useConnectBadge(projectId);
-  const baseNavItems = [...(canAccessOverview(user) && user?.projectId === projectId ? [{ label: "Overview", href: `${projectAdminBase(accountCode, projectCode)}/overview`, icon: "layoutDashboard" as const }] : []), ...projectAdminDrawerNav(accountCode, projectCode, {
+  const base = projectAdminBase(accountCode, projectCode);
+  const baseNavItems = [
+    ...(canAccessOverview(user) && user?.projectId === projectId
+      ? [
+          {
+            label: "Overview",
+            href: `${base}/overview`,
+            icon: "layoutDashboard" as const,
+          },
+        ]
+      : []),
+    ...projectAdminDrawerNav(accountCode, projectCode, {
     adminAccess: resolvedAdminAccess(user),
-  })];
+    }),
+  ];
 
   const [dynamicItems, setDynamicItems] = useState<DynamicMenuConfig[]>([]);
   const [hasSyncJobs, setHasSyncJobs] = useState(false);
-  const hasConnect = useConnectModuleEnabled(projectId);
+  const reportsHref = `${base}/reports`;
+  const isReportsRoute =
+    pathname === reportsHref || pathname.startsWith(`${reportsHref}/`);
+  const [reportsCollapsedOnRoute, setReportsCollapsedOnRoute] = useState(false);
+  const [reportsExpandedOffRoute, setReportsExpandedOffRoute] = useState(false);
+  const reportsMenuOpen = isReportsRoute
+    ? !reportsCollapsedOnRoute
+    : reportsExpandedOffRoute;
+  const toggleReportsMenu = useCallback(() => {
+    if (isReportsRoute) {
+      setReportsCollapsedOnRoute((prev) => !prev);
+    } else {
+      setReportsExpandedOffRoute((prev) => !prev);
+    }
+  }, [isReportsRoute]);
+  const [reportsTab, setReportsTab] = useState<"all" | "favorites">("all");
+  const [reportCounts, setReportCounts] = useState<{
+    all: number;
+    favorites: number;
+  } | null>(null);
 
   const navItems = hasSyncJobs
     ? baseNavItems.flatMap((item) =>
@@ -88,13 +143,42 @@ export function ProjectAdminDrawer({
           item,
           {
             label: "Sync Jobs",
-            href: `${projectAdminBase(accountCode, projectCode)}/sync-jobs`,
+                href: `${base}/sync-jobs`,
             icon: "refreshCw" as const,
           },
         ]
         : [item],
     )
     : baseNavItems;
+
+  const hasReportsMenu = navItems.some(
+    (item) => item.label === "Reports" && (item.children?.length ?? 0) > 0,
+  );
+
+  useEffect(() => {
+    if (!projectId || !hasReportsMenu) return;
+    let cancelled = false;
+    const fetchCounts = () => {
+      reportConfigService
+        .listConfigs(projectId)
+        .then((configs) => {
+          if (cancelled) return;
+          const favCount = configs.filter((cfg) =>
+            isReportFavoriteForUser(cfg, user),
+          ).length;
+          setReportCounts({ all: configs.length, favorites: favCount });
+        })
+        .catch(() => {
+          // Keep existing counts on transient failure
+        });
+    };
+    fetchCounts();
+    const unsubscribe = subscribeReportsChanged(fetchCounts);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [projectId, hasReportsMenu, user]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -137,6 +221,10 @@ export function ProjectAdminDrawer({
     <aside
       className={`pa-drawer ${expanded ? "pa-drawer--expanded" : "pa-drawer--collapsed"}`}
     >
+      <Suspense fallback={null}>
+        <ReportsTabObserver onTabChange={setReportsTab} />
+      </Suspense>
+
       <div className="pa-drawer-header">
         <button
           type="button"
@@ -197,6 +285,78 @@ export function ProjectAdminDrawer({
                   ? pathname.includes("/dashboards")
                   : pathname.startsWith(item.href);
           const Icon = ICONS[item.icon];
+
+          if (item.children?.length && expanded) {
+            return (
+              <div key={item.href}>
+                <button
+                  type="button"
+                  onClick={toggleReportsMenu}
+                  aria-expanded={reportsMenuOpen}
+                  className={`pa-nav-link pa-nav-group-btn${
+                    active && !reportsMenuOpen ? " active" : ""
+                  }${active && reportsMenuOpen ? " is-parent-active" : ""}`}
+                  title={item.label}
+                >
+                  <span className="inline-flex items-center gap-3 min-w-0">
+                    <span style={{ flexShrink: 0 }}>
+                      <Icon size={18} />
+                    </span>
+                    <span>{item.label}</span>
+                  </span>
+                  <span
+                    className={`pa-nav-chevron${reportsMenuOpen ? " pa-nav-chevron--open" : ""}`}
+                    aria-hidden="true"
+                  >
+                    <ChevronDown size={15} />
+                  </span>
+                </button>
+
+                {reportsMenuOpen && (
+                  <div className="pa-nav-submenu" role="group" aria-label="Reports navigation">
+                    {item.children.map((sub) => {
+                      const SubIcon = (sub.icon && ICONS[sub.icon]) || FileText;
+                      const isNewRoute =
+                        pathname === `${reportsHref}/new` ||
+                        pathname.startsWith(`${reportsHref}/new/`);
+                      const isListingRoute = pathname === reportsHref;
+
+                      const subActive =
+                        sub.key === "new-report"
+                          ? isNewRoute
+                          : sub.key === "favorites"
+                            ? isListingRoute && reportsTab === "favorites"
+                            : isListingRoute && reportsTab !== "favorites";
+
+                      const count =
+                        sub.key === "all-reports"
+                          ? reportCounts?.all
+                          : sub.key === "favorites"
+                            ? reportCounts?.favorites
+                            : undefined;
+
+                      return (
+                        <Link
+                          key={sub.key}
+                          href={sub.href}
+                          className={`pa-nav-sublink${subActive ? " active" : ""}`}
+                        >
+                          <span className="pa-nav-sublink-label">
+                            <SubIcon size={13} style={{ flexShrink: 0 }} />
+                            <span>{sub.label}</span>
+                          </span>
+                          {count !== undefined && (
+                            <span className="pa-nav-subcount">{count}</span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.href}
@@ -223,7 +383,6 @@ export function ProjectAdminDrawer({
               aria-hidden
             />
             {dynamicItems.map((item) => {
-              const base = projectAdminBase(accountCode, projectCode);
               const isInbox = item.menuKey === "inbox";
               const label = isInbox ? "Inbox" : item.label;
               const resolvedHref = isInbox
@@ -249,11 +408,10 @@ export function ProjectAdminDrawer({
           </>
         )}
 
-        {(
           <div className="pa-nav-group pa-nav-group--engagement">
             {expanded && <div className="pa-nav-section">Engagement</div>}
             <Link
-              href={`${projectAdminBase(accountCode, projectCode)}/connect/wall`}
+            href={`${base}/connect/wall`}
               className={`pa-nav-link pa-nav-link--engagement${pathname.includes("/connect") ? " active" : ""}`}
               title={connectCount > 0 ? `Connect (${connectCount} unseen)` : "Connect"}
             >
@@ -276,16 +434,13 @@ export function ProjectAdminDrawer({
               {expanded && (
                 <span className="pa-nav-link-content">
                   <span>Connect</span>
-                  {connectCount > 0 ? (
+                  {connectCount > 0 && (
                     <span className="pa-nav-badge-count">{connectCount > 99 ? "99+" : connectCount}</span>
-                  ) : (
-                    <span className="pa-nav-badge-new">NEW</span>
                   )}
                 </span>
               )}
             </Link>
           </div>
-        )}
       </nav>
 
       <div className="pa-drawer-footer">
