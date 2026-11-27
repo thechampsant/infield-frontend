@@ -27,6 +27,7 @@ const ICONS: Record<string, LucideIcon> = {
   attendance: Clock,
   "mood-checker": Smile,
   leave: CalendarDays,
+  od: CalendarDays,
   claims: Wallet,
   visits: MapPin,
   resources: FolderOpen,

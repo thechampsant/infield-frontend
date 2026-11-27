@@ -51,6 +51,15 @@ export const PROJECT_MODULE_CATALOG: ProjectModuleDefinition[] = [
     configPath: "modules/leave",
   },
   {
+    id: "od",
+    name: "OD",
+    description: "Assign OD templates, configure field visit rules, and route approvals.",
+    accent: "teal",
+    defaultEnabled: false,
+    comingSoon: false,
+    configPath: "modules/od",
+  },
+  {
     id: "claims",
     name: "Claims",
     description: "Manage expense claims and approval workflows.",
